@@ -2,7 +2,7 @@ import { Home, UserPlus, Users, LogOut } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
-import arkaLogo from '@/assets/arka-logo.jpeg';
+import wesLogo from '@/assets/wes-logo.jpg';
 
 const navItems = [
   { title: 'Dashboard', url: '/dashboard', icon: Home },
@@ -24,12 +24,12 @@ export function AppSidebar() {
       <div className="p-6 border-b border-border">
         <div className="flex items-center gap-3">
           <img 
-            src={arkaLogo} 
-            alt="ARKA Logo" 
-            className="h-10 w-10 rounded-full object-cover"
+            src={wesLogo} 
+            alt="WES Foundation Logo" 
+            className="h-12 w-12 object-contain"
           />
           <div>
-            <h1 className="font-bold text-foreground text-lg">ARKA</h1>
+            <h1 className="font-bold text-foreground text-lg">WES Foundation</h1>
             <p className="text-xs text-muted-foreground">Volunteer Management</p>
           </div>
         </div>

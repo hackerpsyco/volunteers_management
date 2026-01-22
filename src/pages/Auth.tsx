@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import arkaLogo from '@/assets/arka-logo.jpeg';
+import wesLogo from '@/assets/wes-logo.jpg';
 
 const authSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -79,9 +79,9 @@ export default function Auth() {
         <CardHeader className="text-center space-y-4">
           <div className="flex justify-center">
             <img 
-              src={arkaLogo} 
-              alt="ARKA Logo" 
-              className="h-20 w-20 rounded-full object-cover shadow-md"
+              src={wesLogo} 
+              alt="WES Foundation Logo" 
+              className="h-24 w-24 object-contain"
             />
           </div>
           <div>
