@@ -60,27 +60,36 @@ export type Database = {
       }
       volunteers: {
         Row: {
+          city: string | null
+          company: string | null
           created_at: string
           email: string
           id: string
-          mobile: string
+          linkedin_profile: string | null
           name: string
+          phone_number: string
           updated_at: string
         }
         Insert: {
+          city?: string | null
+          company?: string | null
           created_at?: string
           email: string
           id?: string
-          mobile: string
+          linkedin_profile?: string | null
           name: string
+          phone_number: string
           updated_at?: string
         }
         Update: {
+          city?: string | null
+          company?: string | null
           created_at?: string
           email?: string
           id?: string
-          mobile?: string
+          linkedin_profile?: string | null
           name?: string
+          phone_number?: string
           updated_at?: string
         }
         Relationships: []

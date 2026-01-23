@@ -11,15 +11,21 @@ import { z } from 'zod';
 import { ArrowLeft } from 'lucide-react';
 
 const volunteerSchema = z.object({
+  company: z.string().trim().max(100, 'Company name must be less than 100 characters').optional(),
   name: z.string().trim().min(1, 'Name is required').max(100, 'Name must be less than 100 characters'),
   email: z.string().trim().email('Please enter a valid email').max(255, 'Email must be less than 255 characters'),
-  mobile: z.string().trim().min(10, 'Mobile number must be at least 10 digits').max(15, 'Mobile number is too long'),
+  city: z.string().trim().max(100, 'City must be less than 100 characters').optional(),
+  phone_number: z.string().trim().min(10, 'Phone number must be at least 10 digits').max(15, 'Phone number is too long'),
+  linkedin_profile: z.string().trim().url('Please enter a valid LinkedIn URL').max(255, 'LinkedIn URL is too long').optional().or(z.literal('')),
 });
 
 export default function AddVolunteer() {
+  const [company, setCompany] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [mobile, setMobile] = useState('');
+  const [city, setCity] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [linkedinProfile, setLinkedinProfile] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -28,7 +34,14 @@ export default function AddVolunteer() {
     setIsLoading(true);
 
     // Validate input
-    const validation = volunteerSchema.safeParse({ name, email, mobile });
+    const validation = volunteerSchema.safeParse({ 
+      company, 
+      name, 
+      email, 
+      city, 
+      phone_number: phoneNumber,
+      linkedin_profile: linkedinProfile || undefined
+    });
     if (!validation.success) {
       toast.error(validation.error.errors[0].message);
       setIsLoading(false);
@@ -37,9 +50,12 @@ export default function AddVolunteer() {
 
     try {
       const { error } = await supabase.from('volunteers').insert({
+        company: validation.data.company || null,
         name: validation.data.name,
         email: validation.data.email,
-        mobile: validation.data.mobile,
+        city: validation.data.city || null,
+        phone_number: validation.data.phone_number,
+        linkedin_profile: validation.data.linkedin_profile || null,
       });
 
       if (error) {
@@ -91,7 +107,17 @@ export default function AddVolunteer() {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
+                <Label htmlFor="company">Company</Label>
+                <Input
+                  id="company"
+                  type="text"
+                  placeholder="Enter company name"
+                  value={company}
+                  onChange={(e) => setCompany(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="name">Full Name *</Label>
                 <Input
                   id="name"
                   type="text"
@@ -102,25 +128,45 @@ export default function AddVolunteer() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="email">Email Address</Label>
+                <Label htmlFor="email">Work Email *</Label>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="Enter email address"
+                  placeholder="Enter work email address"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="mobile">Mobile Number</Label>
+                <Label htmlFor="city">City Based</Label>
                 <Input
-                  id="mobile"
+                  id="city"
+                  type="text"
+                  placeholder="Enter city"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="phoneNumber">Phone Number *</Label>
+                <Input
+                  id="phoneNumber"
                   type="tel"
-                  placeholder="Enter mobile number"
-                  value={mobile}
-                  onChange={(e) => setMobile(e.target.value)}
+                  placeholder="Enter phone number"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
                   required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="linkedinProfile">LinkedIn Profile</Label>
+                <Input
+                  id="linkedinProfile"
+                  type="url"
+                  placeholder="https://linkedin.com/in/username"
+                  value={linkedinProfile}
+                  onChange={(e) => setLinkedinProfile(e.target.value)}
                 />
               </div>
               <div className="flex gap-3 pt-4">
