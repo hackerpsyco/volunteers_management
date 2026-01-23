@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
+import Calendar from "./pages/Calendar";
 import AddVolunteer from "./pages/AddVolunteer";
 import VolunteerList from "./pages/VolunteerList";
 import NotFound from "./pages/NotFound";
@@ -23,6 +24,7 @@ const App = () => (
             <Route path="/" element={<Navigate to="/auth" replace />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/calendar" element={<Calendar />} />
             <Route path="/volunteers" element={<VolunteerList />} />
             <Route path="/volunteers/add" element={<AddVolunteer />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

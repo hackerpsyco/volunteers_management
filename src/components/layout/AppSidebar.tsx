@@ -1,4 +1,4 @@
-import { Home, UserPlus, Users, LogOut } from 'lucide-react';
+import { Home, UserPlus, Users, LogOut, CalendarDays } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -6,6 +6,7 @@ import wesLogo from '@/assets/wes-logo.jpg';
 
 const navItems = [
   { title: 'Dashboard', url: '/dashboard', icon: Home },
+  { title: 'Calendar', url: '/calendar', icon: CalendarDays },
   { title: 'Add Volunteer', url: '/volunteers/add', icon: UserPlus },
   { title: 'Volunteer List', url: '/volunteers', icon: Users },
 ];
