@@ -28,9 +28,12 @@ import {
 
 interface Volunteer {
   id: string;
+  company: string | null;
   name: string;
   email: string;
-  mobile: string;
+  city: string | null;
+  phone_number: string;
+  linkedin_profile: string | null;
   created_at: string;
 }
 
@@ -117,22 +120,40 @@ export default function VolunteerList() {
                 </Button>
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Mobile</TableHead>
-                    <TableHead className="w-[100px]">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {volunteers.map((volunteer) => (
-                    <TableRow key={volunteer.id}>
-                      <TableCell className="font-medium">{volunteer.name}</TableCell>
-                      <TableCell>{volunteer.email}</TableCell>
-                      <TableCell>{volunteer.mobile}</TableCell>
-                      <TableCell>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Company</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>City</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>LinkedIn</TableHead>
+                      <TableHead className="w-[100px]">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {volunteers.map((volunteer) => (
+                      <TableRow key={volunteer.id}>
+                        <TableCell>{volunteer.company || '-'}</TableCell>
+                        <TableCell className="font-medium">{volunteer.name}</TableCell>
+                        <TableCell>{volunteer.email}</TableCell>
+                        <TableCell>{volunteer.city || '-'}</TableCell>
+                        <TableCell>{volunteer.phone_number}</TableCell>
+                        <TableCell>
+                          {volunteer.linkedin_profile ? (
+                            <a 
+                              href={volunteer.linkedin_profile} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-primary hover:underline"
+                            >
+                              View
+                            </a>
+                          ) : '-'}
+                        </TableCell>
+                        <TableCell>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
@@ -157,11 +178,12 @@ export default function VolunteerList() {
                             </AlertDialogFooter>
                           </AlertDialogContent>
                         </AlertDialog>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>
