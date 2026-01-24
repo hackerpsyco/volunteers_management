@@ -11,9 +11,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import { Plus, Trash2, Users } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,23 +27,32 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { Plus, Users, MoreVertical, Pencil, Calendar, Trash2, UserCheck, UserX } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 interface Volunteer {
   id: string;
-  company: string | null;
+  organization_type: string;
+  organization_name: string | null;
   name: string;
-  email: string;
+  personal_email: string | null;
+  work_email: string | null;
+  country: string | null;
   city: string | null;
   phone_number: string;
   linkedin_profile: string | null;
+  is_active: boolean;
   created_at: string;
 }
 
 export default function VolunteerList() {
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [selectedVolunteer, setSelectedVolunteer] = useState<Volunteer | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -72,7 +85,51 @@ export default function VolunteerList() {
     } catch (error) {
       console.error('Error deleting volunteer:', error);
       toast.error('Failed to delete volunteer');
+    } finally {
+      setDeleteDialogOpen(false);
+      setSelectedVolunteer(null);
     }
+  }
+
+  async function toggleVolunteerStatus(volunteer: Volunteer) {
+    try {
+      const newStatus = !volunteer.is_active;
+      const { error } = await supabase
+        .from('volunteers')
+        .update({ is_active: newStatus })
+        .eq('id', volunteer.id);
+      
+      if (error) throw error;
+      
+      toast.success(`Volunteer ${newStatus ? 'activated' : 'deactivated'} successfully`);
+      setVolunteers(volunteers.map((v) => 
+        v.id === volunteer.id ? { ...v, is_active: newStatus } : v
+      ));
+    } catch (error) {
+      console.error('Error updating volunteer status:', error);
+      toast.error('Failed to update volunteer status');
+    }
+  }
+
+  function getOrganizationDisplay(volunteer: Volunteer) {
+    if (volunteer.organization_type === 'individual') {
+      return 'Self';
+    }
+    return volunteer.organization_name || '-';
+  }
+
+  function getEmailDisplay(volunteer: Volunteer) {
+    const emails = [];
+    if (volunteer.work_email) emails.push(volunteer.work_email);
+    if (volunteer.personal_email) emails.push(volunteer.personal_email);
+    return emails.length > 0 ? emails.join(', ') : '-';
+  }
+
+  function getLocationDisplay(volunteer: Volunteer) {
+    const parts = [];
+    if (volunteer.city) parts.push(volunteer.city);
+    if (volunteer.country) parts.push(volunteer.country);
+    return parts.length > 0 ? parts.join(', ') : '-';
   }
 
   return (
@@ -124,22 +181,31 @@ export default function VolunteerList() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Company</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Organization</TableHead>
                       <TableHead>Name</TableHead>
                       <TableHead>Email</TableHead>
-                      <TableHead>City</TableHead>
+                      <TableHead>Location</TableHead>
                       <TableHead>Phone</TableHead>
                       <TableHead>LinkedIn</TableHead>
-                      <TableHead className="w-[100px]">Actions</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="w-[60px]">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {volunteers.map((volunteer) => (
                       <TableRow key={volunteer.id}>
-                        <TableCell>{volunteer.company || '-'}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="capitalize">
+                            {volunteer.organization_type}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{getOrganizationDisplay(volunteer)}</TableCell>
                         <TableCell className="font-medium">{volunteer.name}</TableCell>
-                        <TableCell>{volunteer.email}</TableCell>
-                        <TableCell>{volunteer.city || '-'}</TableCell>
+                        <TableCell className="max-w-[200px] truncate">
+                          {getEmailDisplay(volunteer)}
+                        </TableCell>
+                        <TableCell>{getLocationDisplay(volunteer)}</TableCell>
                         <TableCell>{volunteer.phone_number}</TableCell>
                         <TableCell>
                           {volunteer.linkedin_profile ? (
@@ -154,30 +220,58 @@ export default function VolunteerList() {
                           ) : '-'}
                         </TableCell>
                         <TableCell>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Delete Volunteer</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Are you sure you want to delete {volunteer.name}? This action cannot be undone.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => deleteVolunteer(volunteer.id)}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          <Badge variant={volunteer.is_active ? 'default' : 'secondary'}>
+                            {volunteer.is_active ? 'Active' : 'Inactive'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="bg-popover">
+                              <DropdownMenuItem 
+                                onClick={() => navigate(`/volunteers/edit/${volunteer.id}`)}
                               >
+                                <Pencil className="h-4 w-4 mr-2" />
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={() => navigate(`/calendar?assign=${volunteer.id}`)}
+                              >
+                                <Calendar className="h-4 w-4 mr-2" />
+                                Assign Session
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem 
+                                onClick={() => toggleVolunteerStatus(volunteer)}
+                              >
+                                {volunteer.is_active ? (
+                                  <>
+                                    <UserX className="h-4 w-4 mr-2" />
+                                    Deactivate
+                                  </>
+                                ) : (
+                                  <>
+                                    <UserCheck className="h-4 w-4 mr-2" />
+                                    Activate
+                                  </>
+                                )}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={() => {
+                                  setSelectedVolunteer(volunteer);
+                                  setDeleteDialogOpen(true);
+                                }}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
                                 Delete
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -188,6 +282,27 @@ export default function VolunteerList() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Volunteer</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {selectedVolunteer?.name}? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => selectedVolunteer && deleteVolunteer(selectedVolunteer.id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }
