@@ -5,24 +5,40 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { ArrowLeft } from 'lucide-react';
 
 const volunteerSchema = z.object({
-  company: z.string().trim().max(100, 'Company name must be less than 100 characters').optional(),
+  organization_type: z.enum(['company', 'individual', 'institute']),
+  organization_name: z.string().trim().max(100, 'Organization name must be less than 100 characters').optional(),
   name: z.string().trim().min(1, 'Name is required').max(100, 'Name must be less than 100 characters'),
-  email: z.string().trim().email('Please enter a valid email').max(255, 'Email must be less than 255 characters'),
+  personal_email: z.string().trim().email('Please enter a valid personal email').max(255, 'Email must be less than 255 characters').optional().or(z.literal('')),
+  work_email: z.string().trim().email('Please enter a valid work email').max(255, 'Email must be less than 255 characters').optional().or(z.literal('')),
+  country: z.string().trim().max(100, 'Country must be less than 100 characters').optional(),
   city: z.string().trim().max(100, 'City must be less than 100 characters').optional(),
   phone_number: z.string().trim().min(10, 'Phone number must be at least 10 digits').max(15, 'Phone number is too long'),
   linkedin_profile: z.string().trim().url('Please enter a valid LinkedIn URL').max(255, 'LinkedIn URL is too long').optional().or(z.literal('')),
+}).refine((data) => data.personal_email || data.work_email, {
+  message: 'At least one email (personal or work) is required',
+  path: ['work_email'],
 });
 
 export default function AddVolunteer() {
-  const [company, setCompany] = useState('');
+  const [organizationType, setOrganizationType] = useState<'company' | 'individual' | 'institute'>('company');
+  const [organizationName, setOrganizationName] = useState('');
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const [personalEmail, setPersonalEmail] = useState('');
+  const [workEmail, setWorkEmail] = useState('');
+  const [country, setCountry] = useState('');
   const [city, setCity] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [linkedinProfile, setLinkedinProfile] = useState('');
@@ -35,13 +51,17 @@ export default function AddVolunteer() {
 
     // Validate input
     const validation = volunteerSchema.safeParse({ 
-      company, 
+      organization_type: organizationType,
+      organization_name: organizationType === 'individual' ? 'Self' : organizationName || undefined,
       name, 
-      email, 
-      city, 
+      personal_email: personalEmail || undefined,
+      work_email: workEmail || undefined,
+      country: country || undefined,
+      city: city || undefined, 
       phone_number: phoneNumber,
       linkedin_profile: linkedinProfile || undefined
     });
+    
     if (!validation.success) {
       toast.error(validation.error.errors[0].message);
       setIsLoading(false);
@@ -50,12 +70,16 @@ export default function AddVolunteer() {
 
     try {
       const { error } = await supabase.from('volunteers').insert({
-        company: validation.data.company || null,
+        organization_type: validation.data.organization_type,
+        organization_name: validation.data.organization_type === 'individual' ? 'Self' : validation.data.organization_name || null,
         name: validation.data.name,
-        email: validation.data.email,
+        personal_email: validation.data.personal_email || null,
+        work_email: validation.data.work_email || null,
+        country: validation.data.country || null,
         city: validation.data.city || null,
         phone_number: validation.data.phone_number,
         linkedin_profile: validation.data.linkedin_profile || null,
+        is_active: true,
       });
 
       if (error) {
@@ -106,16 +130,58 @@ export default function AddVolunteer() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Organization Type */}
               <div className="space-y-2">
-                <Label htmlFor="company">Company</Label>
-                <Input
-                  id="company"
-                  type="text"
-                  placeholder="Enter company name"
-                  value={company}
-                  onChange={(e) => setCompany(e.target.value)}
-                />
+                <Label htmlFor="organizationType">Organization Type *</Label>
+                <Select
+                  value={organizationType}
+                  onValueChange={(value: 'company' | 'individual' | 'institute') => {
+                    setOrganizationType(value);
+                    if (value === 'individual') {
+                      setOrganizationName('Self');
+                    } else {
+                      setOrganizationName('');
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select organization type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="company">Company</SelectItem>
+                    <SelectItem value="individual">Individual</SelectItem>
+                    <SelectItem value="institute">Institute</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
+
+              {/* Organization Name - shown for company and institute */}
+              {organizationType !== 'individual' && (
+                <div className="space-y-2">
+                  <Label htmlFor="organizationName">
+                    {organizationType === 'company' ? 'Company Name' : 'Institute Name'} *
+                  </Label>
+                  <Input
+                    id="organizationName"
+                    type="text"
+                    placeholder={`Enter ${organizationType === 'company' ? 'company' : 'institute'} name`}
+                    value={organizationName}
+                    onChange={(e) => setOrganizationName(e.target.value)}
+                    required
+                  />
+                </div>
+              )}
+
+              {/* Individual - show Self label */}
+              {organizationType === 'individual' && (
+                <div className="space-y-2">
+                  <Label>Organization</Label>
+                  <div className="px-3 py-2 bg-muted rounded-md text-muted-foreground">
+                    Self
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label htmlFor="name">Full Name *</Label>
                 <Input
@@ -127,19 +193,45 @@ export default function AddVolunteer() {
                   required
                 />
               </div>
+
               <div className="space-y-2">
-                <Label htmlFor="email">Work Email *</Label>
+                <Label htmlFor="personalEmail">Personal Email</Label>
                 <Input
-                  id="email"
+                  id="personalEmail"
                   type="email"
-                  placeholder="Enter work email address"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
+                  placeholder="Enter personal email address"
+                  value={personalEmail}
+                  onChange={(e) => setPersonalEmail(e.target.value)}
                 />
               </div>
+
               <div className="space-y-2">
-                <Label htmlFor="city">City Based</Label>
+                <Label htmlFor="workEmail">Work Email</Label>
+                <Input
+                  id="workEmail"
+                  type="email"
+                  placeholder="Enter work email address"
+                  value={workEmail}
+                  onChange={(e) => setWorkEmail(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  At least one email (personal or work) is required
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="country">Country</Label>
+                <Input
+                  id="country"
+                  type="text"
+                  placeholder="Enter country"
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="city">City</Label>
                 <Input
                   id="city"
                   type="text"
@@ -148,6 +240,7 @@ export default function AddVolunteer() {
                   onChange={(e) => setCity(e.target.value)}
                 />
               </div>
+
               <div className="space-y-2">
                 <Label htmlFor="phoneNumber">Phone Number *</Label>
                 <Input
@@ -159,6 +252,7 @@ export default function AddVolunteer() {
                   required
                 />
               </div>
+
               <div className="space-y-2">
                 <Label htmlFor="linkedinProfile">LinkedIn Profile</Label>
                 <Input
@@ -169,6 +263,7 @@ export default function AddVolunteer() {
                   onChange={(e) => setLinkedinProfile(e.target.value)}
                 />
               </div>
+
               <div className="flex gap-3 pt-4">
                 <Button
                   type="button"

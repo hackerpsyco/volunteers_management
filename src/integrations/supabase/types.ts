@@ -61,36 +61,48 @@ export type Database = {
       volunteers: {
         Row: {
           city: string | null
-          company: string | null
+          country: string | null
           created_at: string
-          email: string
           id: string
+          is_active: boolean
           linkedin_profile: string | null
           name: string
+          organization_name: string | null
+          organization_type: string
+          personal_email: string | null
           phone_number: string
           updated_at: string
+          work_email: string
         }
         Insert: {
           city?: string | null
-          company?: string | null
+          country?: string | null
           created_at?: string
-          email: string
           id?: string
+          is_active?: boolean
           linkedin_profile?: string | null
           name: string
+          organization_name?: string | null
+          organization_type?: string
+          personal_email?: string | null
           phone_number: string
           updated_at?: string
+          work_email: string
         }
         Update: {
           city?: string | null
-          company?: string | null
+          country?: string | null
           created_at?: string
-          email?: string
           id?: string
+          is_active?: boolean
           linkedin_profile?: string | null
           name?: string
+          organization_name?: string | null
+          organization_type?: string
+          personal_email?: string | null
           phone_number?: string
           updated_at?: string
+          work_email?: string
         }
         Relationships: []
       }
