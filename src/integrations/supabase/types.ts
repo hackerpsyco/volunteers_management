@@ -16,36 +16,60 @@ export type Database = {
     Tables: {
       sessions: {
         Row: {
+          content_category: string | null
           created_at: string
+          final_content_ppt: string | null
           id: string
+          modules: string | null
+          quiz_content_ppt: string | null
+          s_no: number | null
           session_date: string
+          session_status: string | null
           session_time: string
           session_type: string
           status: string
           title: string
+          topics_covered: string | null
           updated_at: string
+          videos: string | null
           volunteer_id: string | null
         }
         Insert: {
+          content_category?: string | null
           created_at?: string
+          final_content_ppt?: string | null
           id?: string
+          modules?: string | null
+          quiz_content_ppt?: string | null
+          s_no?: number | null
           session_date: string
+          session_status?: string | null
           session_time: string
           session_type?: string
           status?: string
           title: string
+          topics_covered?: string | null
           updated_at?: string
+          videos?: string | null
           volunteer_id?: string | null
         }
         Update: {
+          content_category?: string | null
           created_at?: string
+          final_content_ppt?: string | null
           id?: string
+          modules?: string | null
+          quiz_content_ppt?: string | null
+          s_no?: number | null
           session_date?: string
+          session_status?: string | null
           session_time?: string
           session_type?: string
           status?: string
           title?: string
+          topics_covered?: string | null
           updated_at?: string
+          videos?: string | null
           volunteer_id?: string | null
         }
         Relationships: [
