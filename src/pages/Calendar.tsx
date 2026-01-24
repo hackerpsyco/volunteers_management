@@ -1,16 +1,13 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek } from 'date-fns';
-import { ChevronLeft, ChevronRight, Plus, Clock, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { AddSessionDialog } from '@/components/sessions/AddSessionDialog';
 
 interface Session {
   id: string;
@@ -23,18 +20,21 @@ interface Session {
 }
 
 export default function Calendar() {
+  const [searchParams] = useSearchParams();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [formData, setFormData] = useState({
-    title: '',
-    session_time: '09:00',
-    session_type: 'regular',
-  });
   const { user } = useAuth();
-  const { toast } = useToast();
+
+  // Check if we should open add dialog from sidebar
+  useEffect(() => {
+    if (searchParams.get('add') === 'true') {
+      setSelectedDate(new Date());
+      setIsDialogOpen(true);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     fetchSessions();
@@ -65,37 +65,6 @@ export default function Calendar() {
     setIsDialogOpen(true);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedDate || !user) return;
-
-    const sessionData = {
-      title: formData.title,
-      session_date: format(selectedDate, 'yyyy-MM-dd'),
-      session_time: formData.session_time,
-      session_type: formData.session_type,
-      status: 'scheduled',
-    };
-
-    const { error } = await supabase.from('sessions').insert([sessionData]);
-
-    if (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to create session. Please try again.',
-        variant: 'destructive',
-      });
-    } else {
-      toast({
-        title: 'Session Created',
-        description: `Session "${formData.title}" has been scheduled for ${format(selectedDate, 'MMMM d, yyyy')}`,
-      });
-      setIsDialogOpen(false);
-      setFormData({ title: '', session_time: '09:00', session_type: 'regular' });
-      fetchSessions();
-    }
-  };
-
   const getSessionsForDay = (day: Date) => {
     return sessions.filter((session) => isSameDay(new Date(session.session_date), day));
   };
@@ -113,7 +82,10 @@ export default function Calendar() {
       case 'special_virtual':
         return 'bg-purple-500';
       case 'gts_english':
+      case 'guest_teacher':
         return 'bg-green-500';
+      case 'guest_speaker':
+        return 'bg-amber-500';
       default:
         return 'bg-primary';
     }
@@ -231,7 +203,7 @@ export default function Calendar() {
         </div>
 
         {/* Legend */}
-        <div className="flex items-center gap-6 text-sm">
+        <div className="flex items-center gap-6 text-sm flex-wrap">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded bg-primary"></div>
             <span className="text-muted-foreground">Regular Session</span>
@@ -242,75 +214,22 @@ export default function Calendar() {
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded bg-green-500"></div>
-            <span className="text-muted-foreground">GTS English Teacher</span>
+            <span className="text-muted-foreground">Guest Teacher</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded bg-amber-500"></div>
+            <span className="text-muted-foreground">Guest Speaker</span>
           </div>
         </div>
       </div>
 
       {/* Add Session Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-primary" />
-              Add Session - {selectedDate && format(selectedDate, 'MMMM d, yyyy')}
-            </DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="title">Session Title</Label>
-              <Input
-                id="title"
-                placeholder="Enter session title"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="time">Time</Label>
-              <Input
-                id="time"
-                type="time"
-                value={formData.session_time}
-                onChange={(e) => setFormData({ ...formData, session_time: e.target.value })}
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="type">Session Type</Label>
-              <Select
-                value={formData.session_type}
-                onValueChange={(value) => setFormData({ ...formData, session_type: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select session type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="regular">Regular Session</SelectItem>
-                  <SelectItem value="special_virtual">Special Virtual Class</SelectItem>
-                  <SelectItem value="gts_english">GTS English Teacher Session</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="bg-muted/50 rounded-lg p-3 text-sm text-muted-foreground">
-              <p>Session will be linked to: <span className="font-medium text-foreground">{user?.email}</span></p>
-            </div>
-
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit">
-                Create Session
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <AddSessionDialog
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        selectedDate={selectedDate}
+        onSuccess={fetchSessions}
+      />
     </DashboardLayout>
   );
 }

@@ -30,8 +30,9 @@ import {
 } from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Plus, Users, MoreVertical, Pencil, Calendar, Trash2, UserCheck, UserX } from 'lucide-react';
+import { Plus, Users, MoreVertical, Pencil, Calendar, Trash2, UserCheck, UserX, Upload } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { BulkUploadDialog } from '@/components/volunteers/BulkUploadDialog';
 
 interface Volunteer {
   id: string;
@@ -52,6 +53,7 @@ export default function VolunteerList() {
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
   const [selectedVolunteer, setSelectedVolunteer] = useState<Volunteer | null>(null);
   const navigate = useNavigate();
 
@@ -143,10 +145,16 @@ export default function VolunteerList() {
               Manage your volunteers
             </p>
           </div>
-          <Button onClick={() => navigate('/volunteers/add')}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Volunteer
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setBulkUploadOpen(true)}>
+              <Upload className="h-4 w-4 mr-2" />
+              Bulk Upload
+            </Button>
+            <Button onClick={() => navigate('/volunteers/add')}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Volunteer
+            </Button>
+          </div>
         </div>
 
         {/* Volunteers Table */}
@@ -303,6 +311,12 @@ export default function VolunteerList() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {/* Bulk Upload Dialog */}
+      <BulkUploadDialog
+        open={bulkUploadOpen}
+        onOpenChange={setBulkUploadOpen}
+        onSuccess={fetchVolunteers}
+      />
     </DashboardLayout>
   );
 }
