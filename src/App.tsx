@@ -7,6 +7,9 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Calendar from "./pages/Calendar";
+import Sessions from "./pages/Sessions";
+import Facilitators from "./pages/Facilitators";
+import Centres from "./pages/Centres";
 import AddVolunteer from "./pages/AddVolunteer";
 import VolunteerList from "./pages/VolunteerList";
 import NotFound from "./pages/NotFound";
@@ -25,6 +28,9 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/calendar" element={<Calendar />} />
+            <Route path="/sessions" element={<Sessions />} />
+            <Route path="/facilitators" element={<Facilitators />} />
+            <Route path="/centres" element={<Centres />} />
             <Route path="/volunteers" element={<VolunteerList />} />
             <Route path="/volunteers/add" element={<AddVolunteer />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

@@ -62,8 +62,10 @@ export default function Auth() {
             toast.error(error.message);
           }
         } else {
-          toast.success('Account created successfully!');
-          navigate('/dashboard');
+          toast.success('Account created! Please check your email to confirm your account.');
+          setEmail('');
+          setPassword('');
+          setIsLogin(true);
         }
       }
     } catch (error) {
