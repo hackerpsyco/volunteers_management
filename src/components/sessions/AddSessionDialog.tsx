@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { Clock, GraduationCap, Mic } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -24,6 +24,18 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
+interface SessionTemplate {
+  id: string;
+  content_category: string;
+  s_no: number;
+  modules: string;
+  topics_covered: string;
+  videos: string;
+  quiz_content_ppt: string;
+  final_content_ppt: string;
+  session_status: string;
+}
+
 interface AddSessionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -40,11 +52,12 @@ export function AddSessionDialog({
   onSuccess 
 }: AddSessionDialogProps) {
   const [sessionCategory, setSessionCategory] = useState<SessionCategory>(null);
+  const [sessionTemplates, setSessionTemplates] = useState<SessionTemplate[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<SessionTemplate | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     session_time: '09:00',
     session_type: 'regular',
-    // Teacher session fields
     content_category: '',
     s_no: '',
     modules: '',
@@ -56,6 +69,52 @@ export function AddSessionDialog({
   });
   const { user } = useAuth();
   const { toast } = useToast();
+
+  // Load session templates from database
+  useEffect(() => {
+    if (open && sessionCategory === 'guest_teacher') {
+      fetchSessionTemplates();
+    }
+  }, [open, sessionCategory]);
+
+  const fetchSessionTemplates = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('sessions')
+        .select('id, content_category, s_no, modules, topics_covered, videos, quiz_content_ppt, final_content_ppt, session_status')
+        .eq('session_type', 'guest_teacher')
+        .not('content_category', 'is', null);
+
+      if (error) throw error;
+      
+      // Remove duplicates by content_category
+      const uniqueTemplates = Array.from(
+        new Map(data?.map(item => [item.content_category, item]) || []).values()
+      );
+      
+      setSessionTemplates(uniqueTemplates);
+    } catch (error) {
+      console.error('Error fetching templates:', error);
+    }
+  };
+
+  const handleTemplateSelect = (templateId: string) => {
+    const template = sessionTemplates.find(t => t.id === templateId);
+    if (template) {
+      setSelectedTemplate(template);
+      setFormData(prev => ({
+        ...prev,
+        content_category: template.content_category,
+        s_no: template.s_no?.toString() || '',
+        modules: template.modules || '',
+        topics_covered: template.topics_covered || '',
+        videos: template.videos || '',
+        quiz_content_ppt: template.quiz_content_ppt || '',
+        final_content_ppt: template.final_content_ppt || '',
+        session_status: template.session_status || 'pending',
+      }));
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -226,7 +285,7 @@ export function AddSessionDialog({
     );
   }
 
-  // Guest Teacher Form with Content Fields
+  // Guest Teacher Form with Template Selection
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
@@ -259,6 +318,30 @@ export function AddSessionDialog({
                 required
               />
             </div>
+          </div>
+
+          <div className="border-t border-border pt-4">
+            <h4 className="font-medium text-sm text-foreground mb-3">Load from Template</h4>
+            
+            {sessionTemplates.length > 0 ? (
+              <div className="space-y-2 mb-4">
+                <Label htmlFor="template">Select Content Category Template</Label>
+                <Select value={selectedTemplate?.id || ''} onValueChange={handleTemplateSelect}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a template to auto-fill fields" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sessionTemplates.map((template) => (
+                      <SelectItem key={template.id} value={template.id}>
+                        {template.content_category}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground mb-4">No templates available. Fill in the fields manually.</p>
+            )}
           </div>
 
           <div className="border-t border-border pt-4">
@@ -342,10 +425,7 @@ export function AddSessionDialog({
 
             <div className="space-y-2 mt-4">
               <Label htmlFor="session_status">Session Status</Label>
-              <Select
-                value={formData.session_status}
-                onValueChange={(value) => setFormData({ ...formData, session_status: value })}
-              >
+              <Select value={formData.session_status} onValueChange={(value) => setFormData({ ...formData, session_status: value })}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>

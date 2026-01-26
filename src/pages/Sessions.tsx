@@ -1,35 +1,50 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Edit2 } from 'lucide-react';
+import { Plus, Trash2, Upload, BookOpen } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { AddSessionDialog } from '@/components/sessions/AddSessionDialog';
+import { ImportSessionsDialog } from '@/components/sessions/ImportSessionsDialog';
+import { CurriculumImportDialog } from '@/components/sessions/CurriculumImportDialog';
 
 interface Session {
-  id: string;
-  title: string;
+  session_id: string;
+  category_id: string;
+  content_category: string;
+  module_id: string;
+  module_code: string;
+  module_title: string;
+  topic_id: string;
+  topic_code: string;
+  topic_title: string;
+  duration_min: number;
+  duration_max: number;
+  status: string;
+  mentor_name: string;
+  mentor_email: string;
   session_date: string;
   session_time: string;
-  session_type: string;
-  status: string;
-  guest_speaker?: string;
-  teacher?: string;
-  content_category?: string;
-  s_no?: number;
-  modules?: string;
-  topics_covered?: string;
-  videos?: string;
-  quiz_content_ppt?: string;
-  final_content_ppt?: string;
-  session_status?: string;
+  videos_english: string;
+  videos_hindi: string;
+  worksheets: string;
+  practical_activity: string;
+  quiz_content_ppt: string;
+  final_content_ppt: string;
+  revision_status: string;
+  revision_mentor_name: string;
+  revision_mentor_email: string;
+  revision_date: string;
   created_at: string;
+  updated_at: string;
 }
 
 export default function Sessions() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isCurriculumImportOpen, setIsCurriculumImportOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   useEffect(() => {
@@ -39,13 +54,16 @@ export default function Sessions() {
   const fetchSessions = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('sessions')
+      const { data, error } = await (supabase
+        .from('curriculum_by_status' as any)
         .select('*')
-        .order('session_date', { ascending: true });
+        .order('content_category', { ascending: true })
+        .order('module_code', { ascending: true })
+        .order('topic_code', { ascending: true })
+        .order('status', { ascending: true }) as any);
 
       if (error) throw error;
-      setSessions(data || []);
+      setSessions((data || []) as Session[]);
     } catch (error) {
       console.error('Error fetching sessions:', error);
       toast.error('Failed to load sessions');
@@ -58,10 +76,10 @@ export default function Sessions() {
     if (!confirm('Are you sure you want to delete this session?')) return;
 
     try {
-      const { error } = await supabase
-        .from('sessions')
+      const { error } = await (supabase
+        .from('session_meta' as any)
         .delete()
-        .eq('id', id);
+        .eq('id', id) as any);
 
       if (error) throw error;
       toast.success('Session deleted successfully');
@@ -88,14 +106,31 @@ export default function Sessions() {
               Manage volunteer sessions and events
             </p>
           </div>
-          <Button
-            onClick={handleAddSession}
-            className="gap-2 w-full sm:w-auto"
-          >
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">New Session</span>
-            <span className="sm:hidden">Add</span>
-          </Button>
+          <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+            <Button
+              onClick={handleAddSession}
+              className="gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              New Session
+            </Button>
+            <Button
+              onClick={() => setIsImportOpen(true)}
+              variant="outline"
+              className="gap-2"
+            >
+              <Upload className="h-4 w-4" />
+              Import Sessions
+            </Button>
+            <Button
+              onClick={() => setIsCurriculumImportOpen(true)}
+              variant="outline"
+              className="gap-2"
+            >
+              <BookOpen className="h-4 w-4" />
+              Import Curriculum
+            </Button>
+          </div>
         </div>
 
         {/* Sessions List */}
@@ -110,89 +145,109 @@ export default function Sessions() {
             </div>
           ) : (
             sessions.map((session) => (
-              <div key={session.id} className="bg-card border border-border rounded-lg p-4 md:p-6 hover:shadow-md transition-shadow">
+              <div key={session.session_id} className="bg-card border border-border rounded-lg p-4 md:p-6 hover:shadow-md transition-shadow">
                 <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-base md:text-lg font-semibold text-foreground break-words">{session.title}</h3>
+                    <div className="flex flex-col gap-2">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Category</p>
+                        <h3 className="text-sm font-semibold text-foreground">{session.content_category}</h3>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Module {session.module_code}</p>
+                        <h4 className="text-base font-semibold text-foreground break-words">{session.module_title}</h4>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Topic {session.topic_code}</p>
+                        <h4 className="text-base font-semibold text-foreground break-words">{session.topic_title}</h4>
+                      </div>
+                    </div>
                     
-                    {/* Basic Info */}
+                    {/* Status Badge */}
+                    <div className="mt-3 flex items-center gap-2">
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold capitalize ${
+                        session.status === 'completed' ? 'bg-green-100 text-green-800' :
+                        session.status === 'available' ? 'bg-blue-100 text-blue-800' :
+                        session.status === 'committed' ? 'bg-purple-100 text-purple-800' :
+                        'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {session.status}
+                      </span>
+                    </div>
+
+                    {/* Session Info */}
                     <div className="flex flex-wrap gap-2 md:gap-4 mt-3 text-xs md:text-sm text-muted-foreground">
-                      <span className="whitespace-nowrap">📅 {new Date(session.session_date).toLocaleDateString()}</span>
-                      <span className="whitespace-nowrap">🕐 {session.session_time}</span>
-                      <span className="capitalize whitespace-nowrap">📌 {session.session_type.replace('_', ' ')}</span>
+                      {session.session_date && <span className="whitespace-nowrap">📅 {new Date(session.session_date).toLocaleDateString()}</span>}
+                      {session.session_time && <span className="whitespace-nowrap">🕐 {session.session_time}</span>}
                       {session.status && <span className="capitalize whitespace-nowrap">✓ {session.status}</span>}
                     </div>
 
-                    {/* Guest Speaker / Teacher */}
-                    {(session.guest_speaker || session.teacher) && (
-                      <div className="flex flex-wrap gap-2 mt-3 text-xs md:text-sm">
-                        {session.guest_speaker && (
-                          <span className="bg-purple-100 text-purple-800 px-2 md:px-3 py-1 rounded-full whitespace-nowrap">
-                            🎤 Guest: {session.guest_speaker}
-                          </span>
-                        )}
-                        {session.teacher && (
-                          <span className="bg-green-100 text-green-800 px-2 md:px-3 py-1 rounded-full whitespace-nowrap">
-                            👨‍🏫 Teacher: {session.teacher}
-                          </span>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Content Details */}
-                    {session.content_category && (
-                      <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2 md:gap-4 text-xs md:text-sm">
-                        <div className="min-w-0">
-                          <span className="text-muted-foreground">Category: </span>
-                          <span className="font-medium break-words">{session.content_category}</span>
-                        </div>
-                        {session.s_no && (
-                          <div>
-                            <span className="text-muted-foreground">S.No: </span>
-                            <span className="font-medium">{session.s_no}</span>
-                          </div>
-                        )}
-                        {session.modules && (
-                          <div className="min-w-0">
-                            <span className="text-muted-foreground">Modules: </span>
-                            <span className="font-medium break-words">{session.modules}</span>
-                          </div>
-                        )}
-                        {session.session_status && (
-                          <div>
-                            <span className="text-muted-foreground">Session Status: </span>
-                            <span className="font-medium capitalize">{session.session_status}</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Topics */}
-                    {session.topics_covered && (
+                    {/* Mentor Info */}
+                    {session.mentor_name && (
                       <div className="mt-3 text-xs md:text-sm">
-                        <span className="text-muted-foreground">Topics: </span>
-                        <span className="font-medium break-words">{session.topics_covered}</span>
+                        <span className="text-muted-foreground">👤 Mentor: </span>
+                        <span className="font-medium">{session.mentor_name}</span>
+                        {session.mentor_email && <span className="text-muted-foreground"> ({session.mentor_email})</span>}
                       </div>
                     )}
 
-                    {/* Media Links */}
+                    {/* Resources */}
                     <div className="mt-4 space-y-2 text-xs md:text-sm">
-                      {session.videos && (
+                      {session.videos_english && (
                         <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-2">
-                          <span className="text-muted-foreground flex-shrink-0">🎥 Videos:</span>
+                          <span className="text-muted-foreground flex-shrink-0">🎥 Video (EN):</span>
                           <a 
-                            href={session.videos} 
+                            href={session.videos_english} 
                             target="_blank" 
                             rel="noopener noreferrer"
                             className="text-primary hover:underline break-all"
                           >
-                            {session.videos.length > 50 ? session.videos.substring(0, 50) + '...' : session.videos}
+                            {session.videos_english.length > 50 ? session.videos_english.substring(0, 50) + '...' : session.videos_english}
+                          </a>
+                        </div>
+                      )}
+                      {session.videos_hindi && (
+                        <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-2">
+                          <span className="text-muted-foreground flex-shrink-0">🎥 Video (HI):</span>
+                          <a 
+                            href={session.videos_hindi} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline break-all"
+                          >
+                            {session.videos_hindi.length > 50 ? session.videos_hindi.substring(0, 50) + '...' : session.videos_hindi}
+                          </a>
+                        </div>
+                      )}
+                      {session.worksheets && (
+                        <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-2">
+                          <span className="text-muted-foreground flex-shrink-0">📄 Worksheets:</span>
+                          <a 
+                            href={session.worksheets} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline break-all"
+                          >
+                            {session.worksheets.length > 50 ? session.worksheets.substring(0, 50) + '...' : session.worksheets}
+                          </a>
+                        </div>
+                      )}
+                      {session.practical_activity && (
+                        <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-2">
+                          <span className="text-muted-foreground flex-shrink-0">🛠️ Practical:</span>
+                          <a 
+                            href={session.practical_activity} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline break-all"
+                          >
+                            {session.practical_activity.length > 50 ? session.practical_activity.substring(0, 50) + '...' : session.practical_activity}
                           </a>
                         </div>
                       )}
                       {session.quiz_content_ppt && (
                         <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-2">
-                          <span className="text-muted-foreground flex-shrink-0">📊 Quiz/Content PPT:</span>
+                          <span className="text-muted-foreground flex-shrink-0">📊 Quiz/Content:</span>
                           <a 
                             href={session.quiz_content_ppt} 
                             target="_blank" 
@@ -205,7 +260,7 @@ export default function Sessions() {
                       )}
                       {session.final_content_ppt && (
                         <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-2">
-                          <span className="text-muted-foreground flex-shrink-0">📄 Final Content PPT:</span>
+                          <span className="text-muted-foreground flex-shrink-0">📄 Final Content:</span>
                           <a 
                             href={session.final_content_ppt} 
                             target="_blank" 
@@ -217,12 +272,24 @@ export default function Sessions() {
                         </div>
                       )}
                     </div>
+
+                    {/* Revision Info */}
+                    {session.revision_status && (
+                      <div className="mt-4 pt-4 border-t border-border">
+                        <p className="text-xs font-semibold text-muted-foreground mb-2">Revision</p>
+                        <div className="space-y-1 text-xs">
+                          <div><span className="text-muted-foreground">Status: </span><span className="font-medium">{session.revision_status}</span></div>
+                          {session.revision_mentor_name && <div><span className="text-muted-foreground">Mentor: </span><span className="font-medium">{session.revision_mentor_name}</span></div>}
+                          {session.revision_date && <div><span className="text-muted-foreground">Date: </span><span className="font-medium">{new Date(session.revision_date).toLocaleDateString()}</span></div>}
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div className="flex gap-2 w-full md:w-auto md:flex-col">
                     <Button
                       size="sm"
                       variant="destructive"
-                      onClick={() => handleDelete(session.id)}
+                      onClick={() => handleDelete(session.session_id)}
                       className="gap-1 flex-1 md:flex-none"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -241,6 +308,20 @@ export default function Sessions() {
         open={isDialogOpen}
         onOpenChange={setIsDialogOpen}
         selectedDate={selectedDate}
+        onSuccess={fetchSessions}
+      />
+
+      {/* Import Sessions Dialog */}
+      <ImportSessionsDialog
+        open={isImportOpen}
+        onOpenChange={setIsImportOpen}
+        onSuccess={fetchSessions}
+      />
+
+      {/* Import Curriculum Dialog */}
+      <CurriculumImportDialog
+        open={isCurriculumImportOpen}
+        onOpenChange={setIsCurriculumImportOpen}
         onSuccess={fetchSessions}
       />
     </DashboardLayout>
