@@ -136,7 +136,7 @@ export default function Auth() {
               className="text-sm text-primary hover:underline"
             >
               {isLogin 
-                ? "Don't have an account? Sign up" 
+                ? "" 
                 : 'Already have an account? Sign in'}
             </button>
           </div>
