@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Trash2, Upload } from 'lucide-react';
+import { Trash2, Upload, Edit2, X, Check } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
@@ -36,6 +36,8 @@ export default function Curriculum() {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [filterCategory, setFilterCategory] = useState<string>('');
   const [categories, setCategories] = useState<string[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editData, setEditData] = useState<Partial<CurriculumItem>>({});
 
   useEffect(() => {
     fetchCurriculum();
@@ -95,6 +97,43 @@ export default function Curriculum() {
     } catch (error) {
       console.error('Error deleting curriculum:', error);
       toast.error('Failed to delete curriculum item');
+    }
+  };
+
+  const handleEdit = (item: CurriculumItem) => {
+    setEditingId(item.id);
+    setEditData({ ...item });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditData({});
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingId) return;
+
+    try {
+      const { error } = await supabase
+        .from('curriculum')
+        .update({
+          content_category: editData.content_category,
+          module_no: editData.module_code ? parseInt(editData.module_code) : null,
+          module_name: editData.module_title,
+          topics_covered: editData.topic_title,
+          videos: editData.videos,
+          quiz_content_ppt: editData.quiz_content_ppt,
+        })
+        .eq('id', editingId);
+
+      if (error) throw error;
+      toast.success('Curriculum item updated successfully');
+      setEditingId(null);
+      setEditData({});
+      fetchCurriculum();
+    } catch (error) {
+      console.error('Error updating curriculum:', error);
+      toast.error('Failed to update curriculum item');
     }
   };
 
@@ -169,12 +208,63 @@ export default function Curriculum() {
                 <tbody>
                   {filteredCurriculum.map((item, index) => (
                     <tr key={item.id} className={index % 2 === 0 ? 'bg-background' : 'bg-muted/30'}>
-                      <td className="px-4 py-3 text-sm">{item.content_category}</td>
-                      <td className="px-4 py-3 text-sm font-medium">{item.module_code}</td>
-                      <td className="px-4 py-3 text-sm">{item.module_title}</td>
-                      <td className="px-4 py-3 text-sm">{item.topic_title}</td>
                       <td className="px-4 py-3 text-sm">
-                        {item.videos ? (
+                        {editingId === item.id ? (
+                          <input
+                            type="text"
+                            value={editData.content_category || ''}
+                            onChange={(e) => setEditData({ ...editData, content_category: e.target.value })}
+                            className="w-full px-2 py-1 border border-input rounded"
+                          />
+                        ) : (
+                          item.content_category
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-sm font-medium">
+                        {editingId === item.id ? (
+                          <input
+                            type="number"
+                            value={editData.module_code || ''}
+                            onChange={(e) => setEditData({ ...editData, module_code: e.target.value })}
+                            className="w-full px-2 py-1 border border-input rounded"
+                          />
+                        ) : (
+                          item.module_code
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        {editingId === item.id ? (
+                          <input
+                            type="text"
+                            value={editData.module_title || ''}
+                            onChange={(e) => setEditData({ ...editData, module_title: e.target.value })}
+                            className="w-full px-2 py-1 border border-input rounded"
+                          />
+                        ) : (
+                          item.module_title
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        {editingId === item.id ? (
+                          <input
+                            type="text"
+                            value={editData.topic_title || ''}
+                            onChange={(e) => setEditData({ ...editData, topic_title: e.target.value })}
+                            className="w-full px-2 py-1 border border-input rounded"
+                          />
+                        ) : (
+                          item.topic_title
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        {editingId === item.id ? (
+                          <input
+                            type="text"
+                            value={editData.videos || ''}
+                            onChange={(e) => setEditData({ ...editData, videos: e.target.value })}
+                            className="w-full px-2 py-1 border border-input rounded"
+                          />
+                        ) : item.videos ? (
                           <a
                             href={item.videos}
                             target="_blank"
@@ -189,7 +279,14 @@ export default function Curriculum() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-sm">
-                        {item.quiz_content_ppt ? (
+                        {editingId === item.id ? (
+                          <input
+                            type="text"
+                            value={editData.quiz_content_ppt || ''}
+                            onChange={(e) => setEditData({ ...editData, quiz_content_ppt: e.target.value })}
+                            className="w-full px-2 py-1 border border-input rounded"
+                          />
+                        ) : item.quiz_content_ppt ? (
                           <a
                             href={item.quiz_content_ppt}
                             target="_blank"
@@ -204,14 +301,45 @@ export default function Curriculum() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => handleDelete(item.id)}
-                          className="gap-1"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        {editingId === item.id ? (
+                          <div className="flex gap-1 justify-center">
+                            <Button
+                              size="sm"
+                              variant="default"
+                              onClick={handleSaveEdit}
+                              className="gap-1"
+                            >
+                              <Check className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={handleCancelEdit}
+                              className="gap-1"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex gap-1 justify-center">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleEdit(item)}
+                              className="gap-1"
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => handleDelete(item.id)}
+                              className="gap-1"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}
