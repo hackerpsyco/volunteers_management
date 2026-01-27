@@ -1,25 +1,22 @@
 import { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-interface Topic {
-  id: string;
-  topic_code: string;
-  title: string;
-  module_title: string;
-  content_category: string;
-}
-
 interface Session {
   id: string;
   topic_id: string;
+  topic_code?: string;
+  topic_title?: string;
+  module_title?: string;
+  content_category?: string;
   status: string;
   session_date: string;
   session_time: string;
-  mentor_name: string;
+  mentor_name?: string;
+  mentor_email?: string;
   video_english?: string;
   video_hindi?: string;
   worksheet_english?: string;
@@ -28,6 +25,10 @@ interface Session {
   practical_activity_hindi?: string;
   quiz_content_ppt?: string;
   final_content_ppt?: string;
+  revision_status?: string;
+  revision_mentor_name?: string;
+  revision_mentor_email?: string;
+  revision_date?: string;
 }
 
 interface CalendarDay {
@@ -38,18 +39,12 @@ interface CalendarDay {
 
 export default function Calendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [topics, setTopics] = useState<Topic[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [selectedTopic, setSelectedTopic] = useState<string>('');
-  const [selectedStatus, setSelectedStatus] = useState<string>('pending');
-  const [selectedDate, setSelectedDate] = useState<string>('');
-  const [selectedTime, setSelectedTime] = useState<string>('09:00');
   const [loading, setLoading] = useState(true);
   const [calendarDays, setCalendarDays] = useState<CalendarDay[]>([]);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
 
   useEffect(() => {
-    fetchTopics();
     fetchSessions();
   }, []);
 
@@ -57,54 +52,22 @@ export default function Calendar() {
     generateCalendar();
   }, [currentDate, sessions]);
 
-  const fetchTopics = async () => {
-    try {
-      // Fetch topics with their module and category info
-      const { data: topicsData, error: topicsError } = await (supabase
-        .from('topics' as any)
-        .select(`
-          id,
-          topic_code,
-          title,
-          module_id,
-          modules(
-            module_code,
-            title,
-            category_id,
-            content_categories(name)
-          )
-        `)
-        .order('topic_code') as any);
-
-      if (topicsError) throw topicsError;
-
-      // Transform the data
-      const transformedTopics = (topicsData || []).map((t: any) => ({
-        id: t.id,
-        topic_code: t.topic_code,
-        title: t.title,
-        module_title: t.modules?.title || '',
-        content_category: t.modules?.content_categories?.name || '',
-      }));
-
-      setTopics(transformedTopics);
-    } catch (error) {
-      console.error('Error fetching topics:', error);
-      toast.error('Failed to load topics');
-    }
-  };
-
   const fetchSessions = async () => {
     try {
       const { data, error } = await (supabase
-        .from('topic_sessions' as any)
+        .from('curriculum_by_status' as any)
         .select(`
-          id,
+          session_id,
           topic_id,
+          topic_code,
+          topic_title,
+          module_title,
+          content_category,
           status,
           session_date,
           session_time,
           mentor_name,
+          mentor_email,
           video_english,
           video_hindi,
           worksheet_english,
@@ -112,12 +75,44 @@ export default function Calendar() {
           practical_activity_english,
           practical_activity_hindi,
           quiz_content_ppt,
-          final_content_ppt
+          final_content_ppt,
+          revision_status,
+          revision_mentor_name,
+          revision_mentor_email,
+          revision_date
         `)
         .order('session_date', { ascending: true }) as any);
 
       if (error) throw error;
-      setSessions(data || []);
+      
+      // Transform data to match Session interface
+      const transformedSessions = (data || []).map((s: any) => ({
+        id: s.session_id,
+        topic_id: s.topic_id,
+        topic_code: s.topic_code,
+        topic_title: s.topic_title,
+        module_title: s.module_title,
+        content_category: s.content_category,
+        status: s.status,
+        session_date: s.session_date,
+        session_time: s.session_time,
+        mentor_name: s.mentor_name,
+        mentor_email: s.mentor_email,
+        video_english: s.video_english,
+        video_hindi: s.video_hindi,
+        worksheet_english: s.worksheet_english,
+        worksheet_hindi: s.worksheet_hindi,
+        practical_activity_english: s.practical_activity_english,
+        practical_activity_hindi: s.practical_activity_hindi,
+        quiz_content_ppt: s.quiz_content_ppt,
+        final_content_ppt: s.final_content_ppt,
+        revision_status: s.revision_status,
+        revision_mentor_name: s.revision_mentor_name,
+        revision_mentor_email: s.revision_mentor_email,
+        revision_date: s.revision_date,
+      }));
+      
+      setSessions(transformedSessions);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching sessions:', error);
@@ -175,36 +170,6 @@ export default function Calendar() {
     setCalendarDays(days);
   };
 
-  const handleAddSession = async () => {
-    if (!selectedTopic || !selectedDate) {
-      toast.error('Please select topic and date');
-      return;
-    }
-
-    try {
-      const { error } = await (supabase
-        .from('topic_sessions' as any)
-        .insert({
-          topic_id: selectedTopic,
-          status: selectedStatus,
-          session_date: selectedDate,
-          session_time: selectedTime,
-        }) as any);
-
-      if (error) throw error;
-      
-      toast.success('Session added successfully');
-      setSelectedTopic('');
-      setSelectedDate('');
-      setSelectedStatus('pending');
-      setSelectedTime('09:00');
-      fetchSessions();
-    } catch (error) {
-      console.error('Error adding session:', error);
-      toast.error('Failed to add session');
-    }
-  };
-
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'completed':
@@ -247,9 +212,9 @@ export default function Calendar() {
           <p className="text-muted-foreground mt-1">Plan and track session progress</p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 gap-6">
           {/* Calendar */}
-          <div className="lg:col-span-3 bg-card border border-border rounded-lg p-6">
+          <div className="bg-card border border-border rounded-lg p-6">
             {/* Month Navigation */}
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-semibold">{monthName}</h2>
@@ -311,101 +276,85 @@ export default function Calendar() {
 
           {/* Add Session Panel */}
           <div className="bg-card border border-border rounded-lg p-6 h-fit">
-            <h3 className="text-lg font-semibold mb-4">Add Session</h3>
+            <h3 className="text-lg font-semibold mb-4">Session Time</h3>
             
             <div className="space-y-4">
-              {/* Topic Selection */}
-              <div>
-                <label className="text-sm font-medium text-foreground block mb-2">
-                  Select Topic
-                </label>
-                <select
-                  value={selectedTopic}
-                  onChange={(e) => setSelectedTopic(e.target.value)}
-                  className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground text-sm"
-                >
-                  <option value="">Choose topic...</option>
-                  {topics.map(topic => (
-                    <option key={topic.id} value={topic.id}>
-                      {topic.topic_code} - {topic.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {selectedSession ? (
+                <>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <p className="text-sm text-blue-900">
+                      <strong>Selected:</strong> {selectedSession.topic_title}
+                    </p>
+                  </div>
 
-              {/* Status Selection */}
-              <div>
-                <label className="text-sm font-medium text-foreground block mb-2">
-                  Status
-                </label>
-                <select
-                  value={selectedStatus}
-                  onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground text-sm"
-                >
-                  <option value="pending">Pending</option>
-                  <option value="available">Available</option>
-                  <option value="completed">Completed</option>
-                  <option value="committed">Committed</option>
-                </select>
-              </div>
+                  {/* Time Selection */}
+                  <div>
+                    <label className="text-sm font-medium text-foreground block mb-2">
+                      Session Time
+                    </label>
+                    <input
+                      type="time"
+                      value={selectedSession.session_time || '09:00'}
+                      onChange={(e) => {
+                        if (selectedSession) {
+                          setSelectedSession({
+                            ...selectedSession,
+                            session_time: e.target.value,
+                          });
+                        }
+                      }}
+                      className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground text-sm"
+                    />
+                  </div>
 
-              {/* Date Selection */}
-              <div>
-                <label className="text-sm font-medium text-foreground block mb-2">
-                  Date
-                </label>
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground text-sm"
-                />
-              </div>
+                  {/* Update Button */}
+                  <Button
+                    onClick={async () => {
+                      if (selectedSession) {
+                        try {
+                          const { error } = await (supabase
+                            .from('topic_sessions' as any)
+                            .update({
+                              session_time: selectedSession.session_time,
+                            })
+                            .eq('id', selectedSession.id) as any);
 
-              {/* Time Selection */}
-              <div>
-                <label className="text-sm font-medium text-foreground block mb-2">
-                  Time
-                </label>
-                <input
-                  type="time"
-                  value={selectedTime}
-                  onChange={(e) => setSelectedTime(e.target.value)}
-                  className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground text-sm"
-                />
-              </div>
+                          if (error) throw error;
+                          toast.success('Session time updated');
+                          fetchSessions();
+                        } catch (error) {
+                          console.error('Error updating session:', error);
+                          toast.error('Failed to update session time');
+                        }
+                      }
+                    }}
+                    className="w-full gap-2"
+                  >
+                    Update Time
+                  </Button>
 
-              {/* Add Button */}
-              <Button
-                onClick={handleAddSession}
-                className="w-full gap-2"
-              >
-                <Plus className="h-4 w-4" />
-                Add Session
-              </Button>
+                  <Button
+                    onClick={() => setSelectedSession(null)}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    Clear Selection
+                  </Button>
+                </>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p className="text-sm">Click on a session in the calendar to edit its time</p>
+                </div>
+              )}
             </div>
 
-            {/* Status Legend */}
+            {/* Info */}
             <div className="mt-6 pt-6 border-t border-border">
-              <p className="text-sm font-medium text-foreground mb-3">Status Legend</p>
-              <div className="space-y-2 text-xs">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded bg-yellow-100"></div>
-                  <span>Pending</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded bg-blue-100"></div>
-                  <span>Available</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded bg-green-100"></div>
-                  <span>Completed</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded bg-purple-100"></div>
-                  <span>Committed</span>
-                </div>
+              <p className="text-sm font-medium text-foreground mb-3">How to Use</p>
+              <div className="space-y-2 text-xs text-muted-foreground">
+                <p>1. Click on a session in the calendar</p>
+                <p>2. Set the session time</p>
+                <p>3. Click "Update Time" to save</p>
               </div>
             </div>
           </div>
@@ -425,8 +374,26 @@ export default function Calendar() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Basic Info */}
+              {/* Topic & Basic Info */}
               <div className="space-y-3">
+                {selectedSession.content_category && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">Category</p>
+                    <p className="font-medium">{selectedSession.content_category}</p>
+                  </div>
+                )}
+                {selectedSession.module_title && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">Module</p>
+                    <p className="font-medium">{selectedSession.module_title}</p>
+                  </div>
+                )}
+                {selectedSession.topic_title && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">Topic</p>
+                    <p className="font-medium">{selectedSession.topic_title}</p>
+                  </div>
+                )}
                 <div>
                   <p className="text-xs text-muted-foreground">Date</p>
                   <p className="font-medium">{new Date(selectedSession.session_date).toLocaleDateString()}</p>
@@ -450,6 +417,7 @@ export default function Calendar() {
                   <div>
                     <p className="text-xs text-muted-foreground">Mentor</p>
                     <p className="font-medium">{selectedSession.mentor_name}</p>
+                    {selectedSession.mentor_email && <p className="text-xs text-muted-foreground">{selectedSession.mentor_email}</p>}
                   </div>
                 )}
               </div>
@@ -458,7 +426,7 @@ export default function Calendar() {
               <div className="space-y-3">
                 <h4 className="font-semibold text-sm">Resources</h4>
                 
-                {selectedSession.video_english && (
+                {selectedSession.video_english ? (
                   <div>
                     <p className="text-xs text-muted-foreground">🎥 Video (English)</p>
                     <a
@@ -470,9 +438,11 @@ export default function Calendar() {
                       {selectedSession.video_english.substring(0, 50)}...
                     </a>
                   </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground">🎥 Video (English) - Not available</div>
                 )}
 
-                {selectedSession.video_hindi && (
+                {selectedSession.video_hindi ? (
                   <div>
                     <p className="text-xs text-muted-foreground">🎥 Video (Hindi)</p>
                     <a
@@ -484,9 +454,11 @@ export default function Calendar() {
                       {selectedSession.video_hindi.substring(0, 50)}...
                     </a>
                   </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground">🎥 Video (Hindi) - Not available</div>
                 )}
 
-                {selectedSession.worksheet_english && (
+                {selectedSession.worksheet_english ? (
                   <div>
                     <p className="text-xs text-muted-foreground">📄 Worksheet (English)</p>
                     <a
@@ -498,9 +470,11 @@ export default function Calendar() {
                       {selectedSession.worksheet_english.substring(0, 50)}...
                     </a>
                   </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground">📄 Worksheet (English) - Not available</div>
                 )}
 
-                {selectedSession.worksheet_hindi && (
+                {selectedSession.worksheet_hindi ? (
                   <div>
                     <p className="text-xs text-muted-foreground">📄 Worksheet (Hindi)</p>
                     <a
@@ -512,9 +486,11 @@ export default function Calendar() {
                       {selectedSession.worksheet_hindi.substring(0, 50)}...
                     </a>
                   </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground">📄 Worksheet (Hindi) - Not available</div>
                 )}
 
-                {selectedSession.practical_activity_english && (
+                {selectedSession.practical_activity_english ? (
                   <div>
                     <p className="text-xs text-muted-foreground">🛠️ Practical Activity (English)</p>
                     <a
@@ -526,9 +502,11 @@ export default function Calendar() {
                       {selectedSession.practical_activity_english.substring(0, 50)}...
                     </a>
                   </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground">🛠️ Practical Activity (English) - Not available</div>
                 )}
 
-                {selectedSession.practical_activity_hindi && (
+                {selectedSession.practical_activity_hindi ? (
                   <div>
                     <p className="text-xs text-muted-foreground">🛠️ Practical Activity (Hindi)</p>
                     <a
@@ -540,9 +518,11 @@ export default function Calendar() {
                       {selectedSession.practical_activity_hindi.substring(0, 50)}...
                     </a>
                   </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground">🛠️ Practical Activity (Hindi) - Not available</div>
                 )}
 
-                {selectedSession.quiz_content_ppt && (
+                {selectedSession.quiz_content_ppt ? (
                   <div>
                     <p className="text-xs text-muted-foreground">📊 Quiz/Content PPT</p>
                     <a
@@ -554,9 +534,11 @@ export default function Calendar() {
                       {selectedSession.quiz_content_ppt.substring(0, 50)}...
                     </a>
                   </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground">📊 Quiz/Content PPT - Not available</div>
                 )}
 
-                {selectedSession.final_content_ppt && (
+                {selectedSession.final_content_ppt ? (
                   <div>
                     <p className="text-xs text-muted-foreground">📄 Final Content PPT</p>
                     <a
@@ -568,6 +550,8 @@ export default function Calendar() {
                       {selectedSession.final_content_ppt.substring(0, 50)}...
                     </a>
                   </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground">📄 Final Content PPT - Not available</div>
                 )}
               </div>
             </div>

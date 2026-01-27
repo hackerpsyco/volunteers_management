@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Upload, BookOpen } from 'lucide-react';
+import { Plus, Trash2, Upload } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { AddSessionDialog } from '@/components/sessions/AddSessionDialog';
-import { ImportSessionsDialog } from '@/components/sessions/ImportSessionsDialog';
-import { CurriculumImportDialog } from '@/components/sessions/CurriculumImportDialog';
+import { UnifiedImportDialog } from '@/components/sessions/UnifiedImportDialog';
 
 interface Session {
   session_id: string;
@@ -25,10 +24,12 @@ interface Session {
   mentor_email: string;
   session_date: string;
   session_time: string;
-  videos_english: string;
-  videos_hindi: string;
-  worksheets: string;
-  practical_activity: string;
+  video_english: string;
+  video_hindi: string;
+  worksheet_english: string;
+  worksheet_hindi: string;
+  practical_activity_english: string;
+  practical_activity_hindi: string;
   quiz_content_ppt: string;
   final_content_ppt: string;
   revision_status: string;
@@ -44,7 +45,6 @@ export default function Sessions() {
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
-  const [isCurriculumImportOpen, setIsCurriculumImportOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   useEffect(() => {
@@ -120,15 +120,7 @@ export default function Sessions() {
               className="gap-2"
             >
               <Upload className="h-4 w-4" />
-              Import Sessions
-            </Button>
-            <Button
-              onClick={() => setIsCurriculumImportOpen(true)}
-              variant="outline"
-              className="gap-2"
-            >
-              <BookOpen className="h-4 w-4" />
-              Import Curriculum
+              Import Data
             </Button>
           </div>
         </div>
@@ -193,55 +185,81 @@ export default function Sessions() {
 
                     {/* Resources */}
                     <div className="mt-4 space-y-2 text-xs md:text-sm">
-                      {session.videos_english && (
-                        <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-2">
-                          <span className="text-muted-foreground flex-shrink-0">🎥 Video (EN):</span>
+                      {session.video_english && (
+                        <div className="flex flex-col gap-1">
+                          <span className="text-muted-foreground">🎥 Video (EN):</span>
                           <a 
-                            href={session.videos_english} 
+                            href={session.video_english} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="text-primary hover:underline break-all"
+                            className="text-primary hover:underline break-all pl-4"
                           >
-                            {session.videos_english.length > 50 ? session.videos_english.substring(0, 50) + '...' : session.videos_english}
+                            {session.video_english.length > 60 ? session.video_english.substring(0, 60) + '...' : session.video_english}
                           </a>
                         </div>
                       )}
-                      {session.videos_hindi && (
-                        <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-2">
-                          <span className="text-muted-foreground flex-shrink-0">🎥 Video (HI):</span>
+                      {session.video_hindi && (
+                        <div className="flex flex-col gap-1">
+                          <span className="text-muted-foreground">🎥 Video (HI):</span>
                           <a 
-                            href={session.videos_hindi} 
+                            href={session.video_hindi} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="text-primary hover:underline break-all"
+                            className="text-primary hover:underline break-all pl-4"
                           >
-                            {session.videos_hindi.length > 50 ? session.videos_hindi.substring(0, 50) + '...' : session.videos_hindi}
+                            {session.video_hindi.length > 60 ? session.video_hindi.substring(0, 60) + '...' : session.video_hindi}
                           </a>
                         </div>
                       )}
-                      {session.worksheets && (
-                        <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-2">
-                          <span className="text-muted-foreground flex-shrink-0">📄 Worksheets:</span>
+                      {session.worksheet_english && (
+                        <div className="flex flex-col gap-1">
+                          <span className="text-muted-foreground">📄 Worksheets (EN):</span>
                           <a 
-                            href={session.worksheets} 
+                            href={session.worksheet_english} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="text-primary hover:underline break-all"
+                            className="text-primary hover:underline break-all pl-4"
                           >
-                            {session.worksheets.length > 50 ? session.worksheets.substring(0, 50) + '...' : session.worksheets}
+                            {session.worksheet_english.length > 60 ? session.worksheet_english.substring(0, 60) + '...' : session.worksheet_english}
                           </a>
                         </div>
                       )}
-                      {session.practical_activity && (
-                        <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-2">
-                          <span className="text-muted-foreground flex-shrink-0">🛠️ Practical:</span>
+                      {session.worksheet_hindi && (
+                        <div className="flex flex-col gap-1">
+                          <span className="text-muted-foreground">📄 Worksheets (HI):</span>
                           <a 
-                            href={session.practical_activity} 
+                            href={session.worksheet_hindi} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="text-primary hover:underline break-all"
+                            className="text-primary hover:underline break-all pl-4"
                           >
-                            {session.practical_activity.length > 50 ? session.practical_activity.substring(0, 50) + '...' : session.practical_activity}
+                            {session.worksheet_hindi.length > 60 ? session.worksheet_hindi.substring(0, 60) + '...' : session.worksheet_hindi}
+                          </a>
+                        </div>
+                      )}
+                      {session.practical_activity_english && (
+                        <div className="flex flex-col gap-1">
+                          <span className="text-muted-foreground">🛠️ Practical (EN):</span>
+                          <a 
+                            href={session.practical_activity_english} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline break-all pl-4"
+                          >
+                            {session.practical_activity_english.length > 60 ? session.practical_activity_english.substring(0, 60) + '...' : session.practical_activity_english}
+                          </a>
+                        </div>
+                      )}
+                      {session.practical_activity_hindi && (
+                        <div className="flex flex-col gap-1">
+                          <span className="text-muted-foreground">🛠️ Practical (HI):</span>
+                          <a 
+                            href={session.practical_activity_hindi} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline break-all pl-4"
+                          >
+                            {session.practical_activity_hindi.length > 60 ? session.practical_activity_hindi.substring(0, 60) + '...' : session.practical_activity_hindi}
                           </a>
                         </div>
                       )}
@@ -311,17 +329,10 @@ export default function Sessions() {
         onSuccess={fetchSessions}
       />
 
-      {/* Import Sessions Dialog */}
-      <ImportSessionsDialog
+      {/* Unified Import Dialog */}
+      <UnifiedImportDialog
         open={isImportOpen}
         onOpenChange={setIsImportOpen}
-        onSuccess={fetchSessions}
-      />
-
-      {/* Import Curriculum Dialog */}
-      <CurriculumImportDialog
-        open={isCurriculumImportOpen}
-        onOpenChange={setIsCurriculumImportOpen}
         onSuccess={fetchSessions}
       />
     </DashboardLayout>

@@ -8,10 +8,11 @@ import { useState } from 'react';
 const navItems = [
   { title: 'Dashboard', url: '/dashboard', icon: Home },
   { title: 'Calendar', url: '/calendar', icon: CalendarDays },
-  { title: 'Sessions', url: '/sessions', icon: BookOpen },
-  { title: 'Facilitators', url: '/facilitators', icon: Users2 },
-  { title: 'Centres', url: '/centres', icon: MapPin },
-  { title: 'Volunteer List', url: '/volunteers', icon: Users },
+  { title: 'Session', url: '/sessions', icon: BookOpen },
+  { title: 'Curriculum', url: '/curriculum', icon: BookOpen },
+  { title: 'Facilitator', url: '/facilitators', icon: Users2 },
+  { title: 'Centres & Slots', url: '/centres', icon: MapPin },
+  { title: 'Volunteer', url: '/volunteers', icon: Users },
 ];
 
 export function AppSidebar() {

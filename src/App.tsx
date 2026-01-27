@@ -8,6 +8,7 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Calendar from "./pages/Calendar";
 import Sessions from "./pages/Sessions";
+import Curriculum from "./pages/Curriculum";
 import Facilitators from "./pages/Facilitators";
 import Centres from "./pages/Centres";
 import AddVolunteer from "./pages/AddVolunteer";
@@ -29,6 +30,7 @@ const App = () => (
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/calendar" element={<Calendar />} />
             <Route path="/sessions" element={<Sessions />} />
+            <Route path="/curriculum" element={<Curriculum />} />
             <Route path="/facilitators" element={<Facilitators />} />
             <Route path="/centres" element={<Centres />} />
             <Route path="/volunteers" element={<VolunteerList />} />

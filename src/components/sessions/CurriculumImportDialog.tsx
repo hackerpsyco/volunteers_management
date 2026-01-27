@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { importCurriculumFromCSV } from '@/utils/csvImporter';
+import { importCurriculum } from '@/utils/universalImporter';
 
 interface CurriculumImportDialogProps {
   open: boolean;
@@ -49,7 +49,8 @@ export function CurriculumImportDialog({
 
     try {
       const text = await file.text();
-      const importResult = await importCurriculumFromCSV(text);
+      const importResult = await importCurriculum(text);
+
       setResult(importResult);
 
       if (importResult.errors.length > 0) {
@@ -91,7 +92,7 @@ export function CurriculumImportDialog({
               <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
                 <input
                   type="file"
-                  accept=".csv,.xlsx,.xls"
+                  accept=".csv,.xlsx,.xls,.html"
                   onChange={handleFileSelect}
                   className="hidden"
                   id="curriculum-file-input"
@@ -101,7 +102,7 @@ export function CurriculumImportDialog({
                   <div className="space-y-2">
                     <Upload className="h-8 w-8 mx-auto text-muted-foreground" />
                     <p className="text-sm font-medium">Click to upload or drag and drop</p>
-                    <p className="text-xs text-muted-foreground">CSV or Excel files</p>
+                    <p className="text-xs text-muted-foreground">CSV, Excel, or HTML files</p>
                   </div>
                 </label>
               </div>
