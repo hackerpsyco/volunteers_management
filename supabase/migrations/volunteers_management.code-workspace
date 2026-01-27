@@ -1,0 +1,11 @@
+{
+	"folders": [
+		{
+			"name": "volunteers_management",
+			"path": "../.."
+		}
+	],
+	"settings": {
+		"typescript.autoClosingTags": false
+	}
+}
