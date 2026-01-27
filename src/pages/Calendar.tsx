@@ -7,28 +7,18 @@ import { toast } from 'sonner';
 
 interface Session {
   id: string;
-  topic_id: string;
-  topic_code?: string;
-  topic_title?: string;
-  module_title?: string;
+  title: string;
   content_category?: string;
+  module_name?: string;
+  topics_covered?: string;
   status: string;
   session_date: string;
   session_time: string;
-  mentor_name?: string;
+  guest_teacher?: string;
   mentor_email?: string;
-  video_english?: string;
-  video_hindi?: string;
-  worksheet_english?: string;
-  worksheet_hindi?: string;
-  practical_activity_english?: string;
-  practical_activity_hindi?: string;
+  videos?: string;
   quiz_content_ppt?: string;
   final_content_ppt?: string;
-  revision_status?: string;
-  revision_mentor_name?: string;
-  revision_mentor_email?: string;
-  revision_date?: string;
 }
 
 interface CalendarDay {
@@ -54,65 +44,14 @@ export default function Calendar() {
 
   const fetchSessions = async () => {
     try {
-      const { data, error } = await (supabase
-        .from('curriculum_by_status' as any)
-        .select(`
-          session_id,
-          topic_id,
-          topic_code,
-          topic_title,
-          module_title,
-          content_category,
-          status,
-          session_date,
-          session_time,
-          mentor_name,
-          mentor_email,
-          video_english,
-          video_hindi,
-          worksheet_english,
-          worksheet_hindi,
-          practical_activity_english,
-          practical_activity_hindi,
-          quiz_content_ppt,
-          final_content_ppt,
-          revision_status,
-          revision_mentor_name,
-          revision_mentor_email,
-          revision_date
-        `)
-        .order('session_date', { ascending: true }) as any);
+      const { data, error } = await supabase
+        .from('sessions')
+        .select('*')
+        .order('session_date', { ascending: true });
 
       if (error) throw error;
       
-      // Transform data to match Session interface
-      const transformedSessions = (data || []).map((s: any) => ({
-        id: s.session_id,
-        topic_id: s.topic_id,
-        topic_code: s.topic_code,
-        topic_title: s.topic_title,
-        module_title: s.module_title,
-        content_category: s.content_category,
-        status: s.status,
-        session_date: s.session_date,
-        session_time: s.session_time,
-        mentor_name: s.mentor_name,
-        mentor_email: s.mentor_email,
-        video_english: s.video_english,
-        video_hindi: s.video_hindi,
-        worksheet_english: s.worksheet_english,
-        worksheet_hindi: s.worksheet_hindi,
-        practical_activity_english: s.practical_activity_english,
-        practical_activity_hindi: s.practical_activity_hindi,
-        quiz_content_ppt: s.quiz_content_ppt,
-        final_content_ppt: s.final_content_ppt,
-        revision_status: s.revision_status,
-        revision_mentor_name: s.revision_mentor_name,
-        revision_mentor_email: s.revision_mentor_email,
-        revision_date: s.revision_date,
-      }));
-      
-      setSessions(transformedSessions);
+      setSessions(data || []);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching sessions:', error);
@@ -259,8 +198,9 @@ export default function Calendar() {
                         key={i}
                         onClick={() => setSelectedSession(session)}
                         className={`text-xs px-2 py-1 rounded truncate w-full text-left hover:opacity-80 ${getStatusColor(session.status)}`}
+                        title={session.title}
                       >
-                        {session.session_time}
+                        {session.session_time} - {session.title}
                       </button>
                     ))}
                     {day.sessions.length > 2 && (
@@ -382,18 +322,22 @@ export default function Calendar() {
                     <p className="font-medium">{selectedSession.content_category}</p>
                   </div>
                 )}
-                {selectedSession.module_title && (
+                {selectedSession.module_name && (
                   <div>
                     <p className="text-xs text-muted-foreground">Module</p>
-                    <p className="font-medium">{selectedSession.module_title}</p>
+                    <p className="font-medium">{selectedSession.module_name}</p>
                   </div>
                 )}
-                {selectedSession.topic_title && (
+                {selectedSession.topics_covered && (
                   <div>
                     <p className="text-xs text-muted-foreground">Topic</p>
-                    <p className="font-medium">{selectedSession.topic_title}</p>
+                    <p className="font-medium">{selectedSession.topics_covered}</p>
                   </div>
                 )}
+                <div>
+                  <p className="text-xs text-muted-foreground">Title</p>
+                  <p className="font-medium">{selectedSession.title}</p>
+                </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Date</p>
                   <p className="font-medium">{new Date(selectedSession.session_date).toLocaleDateString()}</p>
@@ -413,10 +357,10 @@ export default function Calendar() {
                     {selectedSession.status}
                   </span>
                 </div>
-                {selectedSession.mentor_name && (
+                {selectedSession.guest_teacher && (
                   <div>
-                    <p className="text-xs text-muted-foreground">Mentor</p>
-                    <p className="font-medium">{selectedSession.mentor_name}</p>
+                    <p className="text-xs text-muted-foreground">Volunteer</p>
+                    <p className="font-medium">{selectedSession.guest_teacher}</p>
                     {selectedSession.mentor_email && <p className="text-xs text-muted-foreground">{selectedSession.mentor_email}</p>}
                   </div>
                 )}
@@ -426,100 +370,20 @@ export default function Calendar() {
               <div className="space-y-3">
                 <h4 className="font-semibold text-sm">Resources</h4>
                 
-                {selectedSession.video_english ? (
+                {selectedSession.videos ? (
                   <div>
-                    <p className="text-xs text-muted-foreground">🎥 Video (English)</p>
+                    <p className="text-xs text-muted-foreground">🎥 Videos</p>
                     <a
-                      href={selectedSession.video_english}
+                      href={selectedSession.videos}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-primary hover:underline text-sm break-all"
                     >
-                      {selectedSession.video_english.substring(0, 50)}...
+                      {selectedSession.videos.substring(0, 50)}...
                     </a>
                   </div>
                 ) : (
-                  <div className="text-xs text-muted-foreground">🎥 Video (English) - Not available</div>
-                )}
-
-                {selectedSession.video_hindi ? (
-                  <div>
-                    <p className="text-xs text-muted-foreground">🎥 Video (Hindi)</p>
-                    <a
-                      href={selectedSession.video_hindi}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline text-sm break-all"
-                    >
-                      {selectedSession.video_hindi.substring(0, 50)}...
-                    </a>
-                  </div>
-                ) : (
-                  <div className="text-xs text-muted-foreground">🎥 Video (Hindi) - Not available</div>
-                )}
-
-                {selectedSession.worksheet_english ? (
-                  <div>
-                    <p className="text-xs text-muted-foreground">📄 Worksheet (English)</p>
-                    <a
-                      href={selectedSession.worksheet_english}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline text-sm break-all"
-                    >
-                      {selectedSession.worksheet_english.substring(0, 50)}...
-                    </a>
-                  </div>
-                ) : (
-                  <div className="text-xs text-muted-foreground">📄 Worksheet (English) - Not available</div>
-                )}
-
-                {selectedSession.worksheet_hindi ? (
-                  <div>
-                    <p className="text-xs text-muted-foreground">📄 Worksheet (Hindi)</p>
-                    <a
-                      href={selectedSession.worksheet_hindi}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline text-sm break-all"
-                    >
-                      {selectedSession.worksheet_hindi.substring(0, 50)}...
-                    </a>
-                  </div>
-                ) : (
-                  <div className="text-xs text-muted-foreground">📄 Worksheet (Hindi) - Not available</div>
-                )}
-
-                {selectedSession.practical_activity_english ? (
-                  <div>
-                    <p className="text-xs text-muted-foreground">🛠️ Practical Activity (English)</p>
-                    <a
-                      href={selectedSession.practical_activity_english}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline text-sm break-all"
-                    >
-                      {selectedSession.practical_activity_english.substring(0, 50)}...
-                    </a>
-                  </div>
-                ) : (
-                  <div className="text-xs text-muted-foreground">🛠️ Practical Activity (English) - Not available</div>
-                )}
-
-                {selectedSession.practical_activity_hindi ? (
-                  <div>
-                    <p className="text-xs text-muted-foreground">🛠️ Practical Activity (Hindi)</p>
-                    <a
-                      href={selectedSession.practical_activity_hindi}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline text-sm break-all"
-                    >
-                      {selectedSession.practical_activity_hindi.substring(0, 50)}...
-                    </a>
-                  </div>
-                ) : (
-                  <div className="text-xs text-muted-foreground">🛠️ Practical Activity (Hindi) - Not available</div>
+                  <div className="text-xs text-muted-foreground">🎥 Videos - Not available</div>
                 )}
 
                 {selectedSession.quiz_content_ppt ? (

@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      curriculum: {
+        Row: {
+          id: string
+          content_category: string
+          module_no: number | null
+          module_name: string | null
+          topics_covered: string
+          videos: string | null
+          quiz_content_ppt: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          content_category: string
+          module_no?: number | null
+          module_name?: string | null
+          topics_covered: string
+          videos?: string | null
+          quiz_content_ppt?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          content_category?: string
+          module_no?: number | null
+          module_name?: string | null
+          topics_covered?: string
+          videos?: string | null
+          quiz_content_ppt?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       sessions: {
         Row: {
           content_category: string | null
