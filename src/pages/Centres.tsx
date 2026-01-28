@@ -454,6 +454,7 @@ export default function Centres() {
                         <TableHead>Name</TableHead>
                         <TableHead>Location</TableHead>
                         <TableHead>Address</TableHead>
+                        <TableHead>Time Slots</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="w-[60px]">Actions</TableHead>
                       </TableRow>
@@ -464,6 +465,24 @@ export default function Centres() {
                           <TableCell className="font-medium">{centre.name}</TableCell>
                           <TableCell>{centre.location}</TableCell>
                           <TableCell className="max-w-[200px] truncate">{centre.address || '-'}</TableCell>
+                          <TableCell className="text-sm">
+                            {centreSlots[centre.id] && centreSlots[centre.id].length > 0 ? (
+                              <div className="space-y-1">
+                                {centreSlots[centre.id].slice(0, 2).map((slot, idx) => (
+                                  <div key={idx} className="text-xs">
+                                    {slot.day}: {slot.start_time} - {slot.end_time}
+                                  </div>
+                                ))}
+                                {centreSlots[centre.id].length > 2 && (
+                                  <div className="text-xs text-muted-foreground">
+                                    +{centreSlots[centre.id].length - 2} more
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
                           <TableCell>
                             <Badge variant={centre.status === 'active' ? 'default' : 'secondary'}>
                               {centre.status}

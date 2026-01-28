@@ -402,6 +402,8 @@ export function AddSessionDialog({
       coordinator_id: selectedCoordinator,
       volunteer_name: formData.volunteer_name,
       meeting_link: formData.meeting_link,
+      centre_id: selectedCentre,
+      centre_time_slot_id: selectedSlot,
     };
 
     const { data: insertedSession, error } = await supabase

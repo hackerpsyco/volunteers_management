@@ -50,6 +50,13 @@ interface Session {
   volunteer_name: string | null;
   coordinator_name: string | null;
   meeting_link: string | null;
+  centre_id: string | null;
+  centre_time_slot_id: string | null;
+  centre_name?: string | null;
+  centre_location?: string | null;
+  slot_day?: string | null;
+  slot_start_time?: string | null;
+  slot_end_time?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -76,16 +83,23 @@ export default function Sessions() {
         .from('sessions')
         .select(`
           *,
-          coordinators:coordinator_id(name)
+          coordinators:coordinator_id(name),
+          centres:centre_id(name, location),
+          centre_time_slots:centre_time_slot_id(day, start_time, end_time)
         `)
         .order('session_date', { ascending: false });
 
       if (error) throw error;
       
-      // Transform data to flatten coordinator name
+      // Transform data to flatten relationships
       const transformedData = (data || []).map((session: any) => ({
         ...session,
         coordinator_name: session.coordinators?.name || null,
+        centre_name: session.centres?.name || null,
+        centre_location: session.centres?.location || null,
+        slot_day: session.centre_time_slots?.day || null,
+        slot_start_time: session.centre_time_slots?.start_time || null,
+        slot_end_time: session.centre_time_slots?.end_time || null,
       }));
       
       setSessions(transformedData as Session[]);
@@ -199,8 +213,9 @@ export default function Sessions() {
                         <TableHead>Facilitator</TableHead>
                         <TableHead>Volunteer</TableHead>
                         <TableHead>Coordinator</TableHead>
+                        <TableHead>Centre</TableHead>
+                        <TableHead>Time Slot</TableHead>
                         <TableHead>Date</TableHead>
-                        <TableHead>Time</TableHead>
                         <TableHead>Type</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Meeting Link</TableHead>
@@ -216,8 +231,13 @@ export default function Sessions() {
                           <TableCell>{session.facilitator_name || '-'}</TableCell>
                           <TableCell>{session.volunteer_name || '-'}</TableCell>
                           <TableCell>{session.coordinator_name || '-'}</TableCell>
+                          <TableCell>{session.centre_name || '-'}</TableCell>
+                          <TableCell className="text-sm">
+                            {session.slot_start_time && session.slot_end_time 
+                              ? `${session.slot_start_time} - ${session.slot_end_time}` 
+                              : '-'}
+                          </TableCell>
                           <TableCell>{new Date(session.session_date).toLocaleDateString()}</TableCell>
-                          <TableCell>{session.session_time}</TableCell>
                           <TableCell>
                             <Badge variant="outline" className="capitalize">
                               {session.session_type === 'guest_teacher' ? 'Guest Teacher' : 'Guest Speaker'}
@@ -321,6 +341,22 @@ export default function Sessions() {
                       <div className="text-xs">
                         <span className="text-muted-foreground block">Coordinator</span>
                         <span className="font-medium text-sm">{session.coordinator_name || '-'}</span>
+                      </div>
+
+                      {/* Centre and Time Slot */}
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <span className="text-muted-foreground block">Centre</span>
+                          <span className="font-medium text-sm">{session.centre_name || '-'}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground block">Time Slot</span>
+                          <span className="font-medium text-sm">
+                            {session.slot_start_time && session.slot_end_time 
+                              ? `${session.slot_start_time} - ${session.slot_end_time}` 
+                              : '-'}
+                          </span>
+                        </div>
                       </div>
 
                       {/* Meeting Link */}

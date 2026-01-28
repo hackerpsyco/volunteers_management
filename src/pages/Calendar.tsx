@@ -41,6 +41,12 @@ interface Session {
   final_content_ppt?: string;
   meeting_link?: string;
   centre_id?: string;
+  centre_time_slot_id?: string;
+  centre_name?: string;
+  centre_location?: string;
+  slot_day?: string;
+  slot_start_time?: string;
+  slot_end_time?: string;
 }
 
 interface CalendarDay {
@@ -89,16 +95,23 @@ export default function Calendar() {
         .from('sessions')
         .select(`
           *,
-          coordinators:coordinator_id(name)
+          coordinators:coordinator_id(name),
+          centres:centre_id(name, location),
+          centre_time_slots:centre_time_slot_id(day, start_time, end_time)
         `)
         .order('session_date', { ascending: true });
 
       if (error) throw error;
       
-      // Transform data to flatten coordinator name
+      // Transform data to flatten relationships
       const transformedData = (data || []).map((session: any) => ({
         ...session,
         coordinator_name: session.coordinators?.name || null,
+        centre_name: session.centres?.name || null,
+        centre_location: session.centres?.location || null,
+        slot_day: session.centre_time_slots?.day || null,
+        slot_start_time: session.centre_time_slots?.start_time || null,
+        slot_end_time: session.centre_time_slots?.end_time || null,
       }));
       
       setSessions(transformedData || []);
@@ -329,10 +342,6 @@ export default function Calendar() {
                     <p className="font-medium">{new Date(selectedSession.session_date).toLocaleDateString()}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">Time</p>
-                    <p className="font-medium">{selectedSession.session_time}</p>
-                  </div>
-                  <div>
                     <p className="text-xs text-muted-foreground">Status</p>
                     <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold capitalize ${
                       selectedSession.status === 'completed' ? 'bg-green-100 text-green-800' :
@@ -359,6 +368,18 @@ export default function Calendar() {
                     <div>
                       <p className="text-xs text-muted-foreground">Coordinator</p>
                       <p className="font-medium">{selectedSession.coordinator_name}</p>
+                    </div>
+                  )}
+                  {selectedSession.centre_name && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Centre</p>
+                      <p className="font-medium">{selectedSession.centre_name}</p>
+                    </div>
+                  )}
+                  {selectedSession.slot_start_time && selectedSession.slot_end_time && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Time Slot</p>
+                      <p className="font-medium">{selectedSession.slot_start_time} - {selectedSession.slot_end_time}</p>
                     </div>
                   )}
                 </div>
