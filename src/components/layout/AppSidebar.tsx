@@ -11,6 +11,7 @@ const navItems = [
   { title: 'Session', url: '/sessions', icon: BookOpen },
   { title: 'Curriculum', url: '/curriculum', icon: BookOpen },
   { title: 'Facilitator', url: '/facilitators', icon: Users2 },
+  { title: 'Coordinators', url: '/coordinators', icon: Users2 },
   { title: 'Centres & Slots', url: '/centres', icon: MapPin },
   { title: 'Volunteer', url: '/volunteers', icon: Users },
 ];

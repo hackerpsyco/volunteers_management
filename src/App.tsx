@@ -10,6 +10,7 @@ import Calendar from "./pages/Calendar";
 import Sessions from "./pages/Sessions";
 import Curriculum from "./pages/Curriculum";
 import Facilitators from "./pages/Facilitators";
+import { Coordinators } from "./pages/Coordinators";
 import Centres from "./pages/Centres";
 import AddVolunteer from "./pages/AddVolunteer";
 import VolunteerList from "./pages/VolunteerList";
@@ -32,6 +33,7 @@ const App = () => (
             <Route path="/sessions" element={<Sessions />} />
             <Route path="/curriculum" element={<Curriculum />} />
             <Route path="/facilitators" element={<Facilitators />} />
+            <Route path="/coordinators" element={<Coordinators />} />
             <Route path="/centres" element={<Centres />} />
             <Route path="/volunteers" element={<VolunteerList />} />
             <Route path="/volunteers/add" element={<AddVolunteer />} />

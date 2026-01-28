@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.91.0";
-import { JWT } from "https://esm.sh/google-auth-library@9";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,31 +20,142 @@ interface CalendarSyncRequest {
   facilitatorName: string;
 }
 
+// Convert PEM private key to DER format
+function pemToDer(pem: string): ArrayBuffer {
+  const lines = pem
+    .replace("-----BEGIN PRIVATE KEY-----", "")
+    .replace("-----END PRIVATE KEY-----", "")
+    .replace(/\n/g, "");
+  const binaryString = atob(lines);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
+// Simple JWT creation for Service Account
+async function createServiceAccountJWT(
+  serviceAccountEmail: string,
+  privateKey: string,
+  userEmail: string
+): Promise<string> {
+  const header = { alg: "RS256", typ: "JWT" };
+  const now = Math.floor(Date.now() / 1000);
+  const payload = {
+    iss: serviceAccountEmail,
+    scope: "https://www.googleapis.com/auth/calendar",
+    aud: "https://oauth2.googleapis.com/token",
+    exp: now + 3600,
+    iat: now,
+    sub: userEmail,
+  };
+
+  const headerEncoded = btoa(JSON.stringify(header))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=/g, "");
+  const payloadEncoded = btoa(JSON.stringify(payload))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=/g, "");
+
+  const signatureInput = `${headerEncoded}.${payloadEncoded}`;
+
+  // Convert PEM to DER
+  const derKey = pemToDer(privateKey);
+
+  // Import crypto for signing
+  const key = await crypto.subtle.importKey(
+    "pkcs8",
+    derKey,
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+
+  const signature = await crypto.subtle.sign(
+    "RSASSA-PKCS1-v1_5",
+    key,
+    new TextEncoder().encode(signatureInput)
+  );
+
+  const signatureEncoded = btoa(String.fromCharCode(...new Uint8Array(signature)))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=/g, "");
+
+  return `${signatureInput}.${signatureEncoded}`;
+}
+
+async function getAccessToken(
+  serviceAccountEmail: string,
+  privateKey: string,
+  userEmail: string
+): Promise<string> {
+  const jwt = await createServiceAccountJWT(
+    serviceAccountEmail,
+    privateKey,
+    userEmail
+  );
+
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion: jwt,
+    }).toString(),
+  });
+
+  const data = await response.json();
+  
+  if (!data.access_token) {
+    console.error("Token exchange failed:", data);
+    throw new Error(`Failed to get access token: ${JSON.stringify(data)}`);
+  }
+  
+  return data.access_token;
+}
+
 async function createCalendarEventWithServiceAccount(
   email: string,
   event: any,
   serviceAccountEmail: string,
-  privateKey: string
+  privateKey: string,
+  workspaceDomain: string
 ): Promise<string> {
   try {
-    // Create JWT client for domain-wide delegation
-    const client = new JWT({
-      email: serviceAccountEmail,
-      key: privateKey,
-      scopes: ["https://www.googleapis.com/auth/calendar"],
-      subject: email, // Impersonate the user
-    });
+    // Check if email is from Workspace domain
+    const emailDomain = email.split("@")[1];
+    const isWorkspaceEmail = emailDomain === workspaceDomain;
 
-    // Get access token
-    const { access_token } = await client.authorize();
+    let accessToken: string;
+
+    if (isWorkspaceEmail) {
+      // Use Service Account with domain-wide delegation for Workspace emails
+      accessToken = await getAccessToken(
+        serviceAccountEmail,
+        privateKey,
+        email
+      );
+    } else {
+      // For non-Workspace emails, use the service account's own calendar
+      // and add the external email as an attendee
+      accessToken = await getAccessToken(
+        serviceAccountEmail,
+        privateKey,
+        serviceAccountEmail
+      );
+    }
 
     // Create calendar event
     const response = await fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/primary/events`,
+      `https://www.googleapis.com/calendar/v3/calendars/primary/events?sendNotifications=true`,
       {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${access_token}`,
+          "Authorization": `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(event),
@@ -59,6 +169,7 @@ async function createCalendarEventWithServiceAccount(
     }
 
     const data = await response.json();
+    console.log(`Successfully created event for ${email}:`, data.id);
     return data.id || "";
   } catch (error) {
     console.warn(`Error creating calendar event for ${email}:`, error);
@@ -109,8 +220,9 @@ serve(async (req: Request) => {
 
     const serviceAccountEmail = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_EMAIL");
     const privateKey = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY");
+    const workspaceDomain = Deno.env.get("GOOGLE_WORKSPACE_DOMAIN");
 
-    if (!serviceAccountEmail || !privateKey) {
+    if (!serviceAccountEmail || !privateKey || !workspaceDomain) {
       return new Response(
         JSON.stringify({
           error: "Google Service Account not configured",
@@ -119,6 +231,22 @@ serve(async (req: Request) => {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
+      );
+    }
+
+    // Validate that emails are from Workspace domain
+    const volunteerDomain = syncData.volunteerEmail.split("@")[1];
+    const facilitatorDomain = syncData.facilitatorEmail.split("@")[1];
+
+    if (volunteerDomain !== workspaceDomain) {
+      console.warn(
+        `Volunteer email ${syncData.volunteerEmail} is not from Workspace domain ${workspaceDomain}`
+      );
+    }
+
+    if (facilitatorDomain !== workspaceDomain) {
+      console.warn(
+        `Facilitator email ${syncData.facilitatorEmail} is not from Workspace domain ${workspaceDomain}`
       );
     }
 
@@ -148,14 +276,16 @@ serve(async (req: Request) => {
       syncData.volunteerEmail,
       calendarEvent,
       serviceAccountEmail,
-      privateKey
+      privateKey,
+      workspaceDomain
     );
 
     facilitatorEventId = await createCalendarEventWithServiceAccount(
       syncData.facilitatorEmail,
       calendarEvent,
       serviceAccountEmail,
-      privateKey
+      privateKey,
+      workspaceDomain
     );
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");

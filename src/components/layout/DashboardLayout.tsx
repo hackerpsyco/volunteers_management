@@ -40,7 +40,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   return (
     <div className="min-h-screen bg-muted/30 flex w-full">
       <AppSidebar />
-      <main className="flex-1 p-4 md:p-8 pt-16 md:pt-8">
+      <main className="flex-1 p-4 md:p-8 pt-16 md:pt-8 md:ml-0 overflow-x-hidden">
         {children}
       </main>
     </div>

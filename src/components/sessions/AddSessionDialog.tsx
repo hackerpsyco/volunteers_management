@@ -50,6 +50,15 @@ interface Facilitator {
   status: string;
 }
 
+interface Coordinator {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  location: string;
+  status: string;
+}
+
 interface Centre {
   id: string;
   name: string;
@@ -81,6 +90,7 @@ export function AddSessionDialog({
 }: AddSessionDialogProps) {
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
   const [facilitators, setFacilitators] = useState<Facilitator[]>([]);
+  const [coordinators, setCoordinators] = useState<Coordinator[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [modules, setModules] = useState<string[]>([]);
   const [topics, setTopics] = useState<CurriculumItem[]>([]);
@@ -92,6 +102,7 @@ export function AddSessionDialog({
   const [selectedTopic, setSelectedTopic] = useState<CurriculumItem | null>(null);
   const [selectedCentre, setSelectedCentre] = useState<string>('');
   const [selectedSlot, setSelectedSlot] = useState<string>('');
+  const [selectedCoordinator, setSelectedCoordinator] = useState<string>('');
   const [formData, setFormData] = useState({
     title: '',
     content_category: '',
@@ -101,6 +112,7 @@ export function AddSessionDialog({
     quiz_content_ppt: '',
     status: 'pending',
     facilitator_name: '',
+    coordinator_name: '',
     volunteer_name: '',
   });
   const { user } = useAuth();
@@ -111,6 +123,7 @@ export function AddSessionDialog({
     if (open) {
       fetchVolunteers();
       fetchFacilitators();
+      fetchCoordinators();
       fetchCategories();
       fetchCentres();
     }
@@ -179,6 +192,22 @@ export function AddSessionDialog({
     } catch (error) {
       console.error('Error fetching facilitators:', error);
       setFacilitators([]);
+    }
+  };
+
+  const fetchCoordinators = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('coordinators')
+        .select('id, name, email, phone, location, status')
+        .eq('status', 'active')
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setCoordinators(data || []);
+    } catch (error) {
+      console.error('Error fetching coordinators:', error);
+      setCoordinators([]);
     }
   };
 
@@ -343,9 +372,19 @@ export function AddSessionDialog({
       return;
     }
 
+    if (!selectedCoordinator) {
+      toast({
+        title: 'Error',
+        description: 'Please select a coordinator',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     const slot = centreSlots.find(s => s.id === selectedSlot);
     const selectedVolunteerData = volunteers.find(v => v.id === selectedVolunteer);
     const selectedFacilitatorData = facilitators.find(f => f.name === formData.facilitator_name);
+    const selectedCoordinatorData = coordinators.find(c => c.id === selectedCoordinator);
 
     const sessionData = {
       title: formData.title,
@@ -359,6 +398,8 @@ export function AddSessionDialog({
       videos: formData.videos,
       quiz_content_ppt: formData.quiz_content_ppt,
       facilitator_name: formData.facilitator_name,
+      coordinator_name: selectedCoordinatorData?.name || '',
+      coordinator_id: selectedCoordinator,
       volunteer_name: formData.volunteer_name,
     };
 
@@ -457,6 +498,7 @@ ${formData.quiz_content_ppt ? `- PPT: ${formData.quiz_content_ppt}` : ''}
     setSelectedTopic(null);
     setSelectedCentre('');
     setSelectedSlot('');
+    setSelectedCoordinator('');
     setFormData({
       title: '',
       content_category: '',
@@ -466,6 +508,7 @@ ${formData.quiz_content_ppt ? `- PPT: ${formData.quiz_content_ppt}` : ''}
       quiz_content_ppt: '',
       status: 'pending',
       facilitator_name: '',
+      coordinator_name: '',
       volunteer_name: '',
     });
     onOpenChange(false);
@@ -529,6 +572,24 @@ ${formData.quiz_content_ppt ? `- PPT: ${formData.quiz_content_ppt}` : ''}
                   {facilitators.map((facilitator) => (
                     <SelectItem key={facilitator.id} value={facilitator.name}>
                       {facilitator.name} ({facilitator.location})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="coordinator" className="text-sm sm:text-base">
+                Select Coordinator *
+              </Label>
+              <Select value={selectedCoordinator} onValueChange={(value) => setSelectedCoordinator(value)}>
+                <SelectTrigger className="text-sm sm:text-base">
+                  <SelectValue placeholder="Choose a coordinator" />
+                </SelectTrigger>
+                <SelectContent>
+                  {coordinators.map((coordinator) => (
+                    <SelectItem key={coordinator.id} value={coordinator.id}>
+                      {coordinator.name} ({coordinator.location})
                     </SelectItem>
                   ))}
                 </SelectContent>
