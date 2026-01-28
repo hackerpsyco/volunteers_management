@@ -4,6 +4,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { SessionTypeDialog } from '@/components/sessions/SessionTypeDialog';
 import { AddSessionDialog } from '@/components/sessions/AddSessionDialog';
 import { UnifiedImportDialog } from '@/components/sessions/UnifiedImportDialog';
 
@@ -43,8 +44,10 @@ interface Session {
 export default function Sessions() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isTypeDialogOpen, setIsTypeDialogOpen] = useState(false);
+  const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [selectedSessionType, setSelectedSessionType] = useState<'guest_teacher' | 'guest_speaker' | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   useEffect(() => {
@@ -92,7 +95,12 @@ export default function Sessions() {
 
   const handleAddSession = () => {
     setSelectedDate(new Date());
-    setIsDialogOpen(true);
+    setIsTypeDialogOpen(true);
+  };
+
+  const handleSessionTypeSelect = (type: 'guest_teacher' | 'guest_speaker') => {
+    setSelectedSessionType(type);
+    setIsFormDialogOpen(true);
   };
 
   return (
@@ -321,11 +329,19 @@ export default function Sessions() {
         </div>
       </div>
 
-      {/* Add Session Dialog */}
+      {/* Add Session Dialog - Type Selection */}
+      <SessionTypeDialog
+        open={isTypeDialogOpen}
+        onOpenChange={setIsTypeDialogOpen}
+        onSelectType={handleSessionTypeSelect}
+      />
+
+      {/* Add Session Dialog - Form */}
       <AddSessionDialog
-        open={isDialogOpen}
-        onOpenChange={setIsDialogOpen}
+        open={isFormDialogOpen}
+        onOpenChange={setIsFormDialogOpen}
         selectedDate={selectedDate}
+        sessionType={selectedSessionType}
         onSuccess={fetchSessions}
       />
 

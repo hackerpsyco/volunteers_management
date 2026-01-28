@@ -19,6 +19,15 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
+// Dynamic import for xlsx library
+let XLSX: any = null;
+const loadXLSX = async () => {
+  if (!XLSX) {
+    XLSX = await import('xlsx');
+  }
+  return XLSX;
+};
+
 interface UnifiedImportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -33,9 +42,11 @@ const CURRICULUM_COLUMNS = [
   { value: 'content_category', label: 'Content Category' },
   { value: 'module_no', label: 'Module No. / S.No' },
   { value: 'module_name', label: 'Module Name / Modules' },
-  { value: 'topics_covered', label: 'Topics Covered' },
+  { value: 'topics_covered', label: 'Topics No. & name' },
   { value: 'videos', label: 'Videos' },
-  { value: 'quiz_content_ppt', label: 'Quiz/Content PPT' },
+  { value: 'quiz_content_ppt', label: 'QUIZ/CONTENT PPT' },
+  { value: 'fresh_session', label: 'Fresh Session' },
+  { value: 'revision_session', label: 'Revision Session' },
   { value: 'skip', label: 'Skip this column' },
 ];
 
@@ -70,7 +81,7 @@ function parseCSV(text: string): { headers: string[]; rows: any[] } {
   }
 
   // Parse data rows
-  const rows = lines.slice(headerLineIndex + 1).map((line, idx) => {
+  const rows = lines.slice(headerLineIndex + 1).map((line) => {
     const values = line.split(',').map(v => v.trim().replace(/^"|"$/g, '').replace(/\r/g, ''));
     const row: any = {};
     headers.forEach((header, index) => {
@@ -87,6 +98,93 @@ function parseCSV(text: string): { headers: string[]; rows: any[] } {
   return { headers, rows };
 }
 
+async function parseExcel(file: File): Promise<{ headers: string[]; rows: any[]; sheets: string[] }> {
+  try {
+    const xlsx = await loadXLSX();
+    const arrayBuffer = await file.arrayBuffer();
+    const workbook = xlsx.read(arrayBuffer, { type: 'array' });
+    
+    // Return sheet names so user can select
+    return {
+      headers: [],
+      rows: [],
+      sheets: workbook.SheetNames,
+    };
+  } catch (error) {
+    console.error('Error reading Excel:', error);
+    throw new Error(`Failed to read Excel file: ${error}`);
+  }
+}
+
+async function parseExcelSheet(file: File, sheetName: string): Promise<{ headers: string[]; rows: any[] }> {
+  try {
+    const xlsx = await loadXLSX();
+    const arrayBuffer = await file.arrayBuffer();
+    const workbook = xlsx.read(arrayBuffer, { type: 'array' });
+    
+    // Get the specified sheet
+    const worksheet = workbook.Sheets[sheetName];
+    if (!worksheet) {
+      throw new Error(`Sheet "${sheetName}" not found`);
+    }
+    
+    // Convert to JSON
+    const data = xlsx.utils.sheet_to_json(worksheet, { header: 1 });
+    
+    if (!data || data.length === 0) {
+      return { headers: [], rows: [] };
+    }
+
+    let headerLineIndex = 0;
+    let headers: string[] = [];
+    
+    // Find header row - look for a row with meaningful text headers
+    for (let i = 0; i < Math.min(data.length, 20); i++) {
+      const potentialHeaders = (data[i] as any[])
+        .map(h => String(h || '').trim())
+        .filter(h => h !== '');
+      
+      // Check if this looks like a header row:
+      // - Has multiple non-empty values
+      // - Contains mostly text (not numbers)
+      // - Not a title row (not just 1-2 items)
+      if (potentialHeaders.length >= 3) {
+        const textCount = potentialHeaders.filter(h => isNaN(Number(h))).length;
+        if (textCount >= potentialHeaders.length * 0.7) {
+          headers = potentialHeaders;
+          headerLineIndex = i;
+          console.log('Found headers at row', i, ':', headers);
+          break;
+        }
+      }
+    }
+
+    if (headers.length === 0) {
+      console.error('No headers found in Excel sheet');
+      return { headers: [], rows: [] };
+    }
+
+    // Parse data rows
+    const rows = (data as any[]).slice(headerLineIndex + 1).map((row) => {
+      const obj: any = {};
+      headers.forEach((header, index) => {
+        const value = row[index];
+        obj[header] = value ? String(value).trim() : '';
+      });
+      return obj;
+    }).filter(row => {
+      // Keep rows that have at least one non-empty value
+      return Object.values(row).some(v => v !== '');
+    });
+
+    console.log(`Parsed ${rows.length} data rows from Excel sheet "${sheetName}"`);
+    return { headers, rows };
+  } catch (error) {
+    console.error('Error parsing Excel sheet:', error);
+    throw new Error(`Failed to parse Excel sheet: ${error}`);
+  }
+}
+
 export function UnifiedImportDialog({
   open,
   onOpenChange,
@@ -97,7 +195,9 @@ export function UnifiedImportDialog({
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [columnMapping, setColumnMapping] = useState<ColumnMapping>({});
   const [isLoading, setIsLoading] = useState(false);
-  const [step, setStep] = useState<'upload' | 'mapping'>('upload');
+  const [step, setStep] = useState<'upload' | 'sheet-select' | 'mapping'>('upload');
+  const [availableSheets, setAvailableSheets] = useState<string[]>([]);
+  const [selectedSheet, setSelectedSheet] = useState<string>('');
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -106,24 +206,90 @@ export function UnifiedImportDialog({
     setFile(selectedFile);
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
-        const text = event.target?.result as string;
-        const { headers, rows } = parseCSV(text);
+        const fileExtension = selectedFile.name.split('.').pop()?.toLowerCase();
+        let headers: string[] = [];
+        let rows: any[] = [];
 
-        if (rows.length > 0) {
-          setCsvData(rows);
-          setCsvHeaders(headers);
-          setStep('mapping');
-          toast.success(`Loaded ${rows.length} rows from CSV`);
+        if (fileExtension === 'xlsx' || fileExtension === 'xls') {
+          // Handle Excel files - get sheet names first
+          const result = await parseExcel(selectedFile);
+          setAvailableSheets(result.sheets);
+          
+          // Auto-select "Curriculum" sheet if available, otherwise first sheet
+          const curriculumSheet = result.sheets.find(s => s.toLowerCase().includes('curriculum'));
+          const sheetToUse = curriculumSheet || result.sheets[0];
+          setSelectedSheet(sheetToUse);
+          
+          // If only one sheet or Curriculum sheet found, proceed directly to mapping
+          if (result.sheets.length === 1 || curriculumSheet) {
+            const sheetData = await parseExcelSheet(selectedFile, sheetToUse);
+            headers = sheetData.headers;
+            rows = sheetData.rows;
+            
+            if (rows.length > 0) {
+              setCsvData(rows);
+              setCsvHeaders(headers);
+              setStep('mapping');
+              toast.success(`Loaded ${rows.length} rows from "${sheetToUse}" sheet`);
+            } else {
+              toast.error('No data found in sheet');
+            }
+          } else {
+            // Multiple sheets - let user select
+            setStep('sheet-select');
+            toast.info('Please select a sheet to import');
+          }
         } else {
-          toast.error('No data found in CSV file');
+          // Handle CSV files
+          const text = event.target?.result as string;
+          const result = parseCSV(text);
+          headers = result.headers;
+          rows = result.rows;
+          
+          if (rows.length > 0) {
+            setCsvData(rows);
+            setCsvHeaders(headers);
+            setStep('mapping');
+            toast.success(`Loaded ${rows.length} rows from file`);
+          } else {
+            toast.error('No data found in file');
+          }
         }
       } catch (error) {
-        toast.error(`Error parsing CSV: ${error}`);
+        toast.error(`Error parsing file: ${error}`);
       }
     };
-    reader.readAsText(selectedFile);
+
+    if (selectedFile.name.endsWith('.xlsx') || selectedFile.name.endsWith('.xls')) {
+      reader.readAsArrayBuffer(selectedFile);
+    } else {
+      reader.readAsText(selectedFile);
+    }
+  };
+
+  const handleSheetSelect = async (sheetName: string) => {
+    if (!file) return;
+    
+    try {
+      setIsLoading(true);
+      const result = await parseExcelSheet(file, sheetName);
+      
+      if (result.rows.length > 0) {
+        setCsvData(result.rows);
+        setCsvHeaders(result.headers);
+        setSelectedSheet(sheetName);
+        setStep('mapping');
+        toast.success(`Loaded ${result.rows.length} rows from "${sheetName}" sheet`);
+      } else {
+        toast.error(`No data found in "${sheetName}" sheet`);
+      }
+    } catch (error) {
+      toast.error(`Error loading sheet: ${error}`);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleMappingChange = (csvColumn: string, dbColumn: string) => {
@@ -255,6 +421,8 @@ export function UnifiedImportDialog({
     setCsvData([]);
     setCsvHeaders([]);
     setColumnMapping({});
+    setAvailableSheets([]);
+    setSelectedSheet('');
     setStep('upload');
     onOpenChange(false);
   };
@@ -274,7 +442,7 @@ export function UnifiedImportDialog({
             <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
               <input
                 type="file"
-                accept=".csv"
+                accept=".csv,.xlsx,.xls"
                 onChange={handleFileSelect}
                 className="hidden"
                 id="file-input"
@@ -282,16 +450,40 @@ export function UnifiedImportDialog({
               <label htmlFor="file-input" className="cursor-pointer">
                 <div className="space-y-2">
                   <Upload className="h-8 w-8 mx-auto text-muted-foreground" />
-                  <p className="text-sm font-medium">Click to upload CSV file</p>
+                  <p className="text-sm font-medium">Click to upload CSV or Excel file</p>
                   <p className="text-xs text-muted-foreground">
-                    CSV file with curriculum data
+                    Supports .csv, .xlsx, and .xls files
                   </p>
                 </div>
               </label>
             </div>
             <p className="text-xs text-muted-foreground">
-              Expected columns: Content Category, Module No., Module Name, Topics Covered, Videos, Quiz/Content PPT
+              Expected columns: Content Category, Module No., Module Name, Topics No. & name, Videos, QUIZ/CONTENT PPT, Fresh Session, Revision Session
             </p>
+          </div>
+        )}
+
+        {step === 'sheet-select' && (
+          <div className="space-y-4 py-4">
+            <div>
+              <h3 className="font-medium mb-3">Select Sheet to Import</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Your Excel file has multiple sheets. Select which sheet contains the curriculum data.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              {availableSheets.map((sheet) => (
+                <button
+                  key={sheet}
+                  onClick={() => handleSheetSelect(sheet)}
+                  disabled={isLoading}
+                  className="w-full p-3 text-left border border-border rounded-lg hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <p className="font-medium text-sm">{sheet}</p>
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -346,9 +538,17 @@ export function UnifiedImportDialog({
               Next: Map Columns
             </Button>
           )}
+          {step === 'sheet-select' && (
+            <Button variant="outline" onClick={() => setStep('upload')}>
+              Back
+            </Button>
+          )}
           {step === 'mapping' && (
             <>
-              <Button variant="outline" onClick={() => setStep('upload')}>
+              <Button 
+                variant="outline" 
+                onClick={() => availableSheets.length > 1 ? setStep('sheet-select') : setStep('upload')}
+              >
                 Back
               </Button>
               <Button onClick={handleImport} disabled={isLoading}>

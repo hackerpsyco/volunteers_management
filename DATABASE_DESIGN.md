@@ -1,116 +1,48 @@
 # Curriculum Database Design
 
 ## Overview
-The curriculum system uses a hierarchical structure to organize educational content with support for multiple languages and session tracking.
+The curriculum system stores educational content with support for videos, PPT resources, and session tracking (Fresh and Revision sessions).
 
-## Table Relationships
+## Table Structure
 
-```
-content_categories (1) ──→ (many) modules
-                                    ↓
-                                  topics (1) ──→ (many) topic_sessions
-```
-
-## Tables
-
-### 1. content_categories
-Master table for content categories (e.g., "Microsoft - AI Content")
+### curriculum
+Main table for curriculum items
 - `id` (UUID, PK)
-- `name` (TEXT, UNIQUE) - Category name
-- `description` (TEXT) - Optional description
-- `created_at`, `updated_at` - Timestamps
-
-### 2. modules
-Modules within a category (e.g., "Overview of AI - Part A")
-- `id` (UUID, PK)
-- `category_id` (UUID, FK) - References content_categories
-- `module_code` (TEXT) - Module number (e.g., "1", "2")
-- `title` (TEXT) - Module title
-- `description` (TEXT) - Optional description
-- `created_at`, `updated_at` - Timestamps
-- **Unique constraint**: (category_id, module_code)
-
-### 3. topics
-Topics within a module (e.g., "1.1 Introduction of AI")
-- `id` (UUID, PK)
-- `module_id` (UUID, FK) - References modules
-- `topic_code` (TEXT) - Topic code extracted from title (e.g., "1.1")
-- `title` (TEXT) - Full topic title
-- `duration_min` (INTEGER) - Minimum duration in minutes
-- `duration_max` (INTEGER) - Maximum duration in minutes
-- `created_at`, `updated_at` - Timestamps
-- **Unique constraint**: (module_id, topic_code)
-
-### 4. topic_sessions
-Sessions for a topic with different statuses (pending, available, completed, committed)
-- `id` (UUID, PK)
-- `topic_id` (UUID, FK) - References topics
-- `status` (TEXT) - Session status (CHECK constraint)
-- `mentor_name` (TEXT) - Session mentor/teacher name
-- `mentor_email` (TEXT) - Session mentor email
-- `session_date` (DATE) - Session date
-- `session_time` (TIME) - Session time
-- **English Resources**:
-  - `video_english` (TEXT) - Video link
-  - `worksheet_english` (TEXT) - Worksheet link
-  - `practical_activity_english` (TEXT) - Practical activity link
-- **Hindi Resources**:
-  - `video_hindi` (TEXT) - Hindi video link
-  - `worksheet_hindi` (TEXT) - Hindi worksheet link
-  - `practical_activity_hindi` (TEXT) - Hindi practical activity link
-- **Content**:
-  - `quiz_content_ppt` (TEXT) - Quiz/content PPT link
-  - `final_content_ppt` (TEXT) - Final content PPT link
-- **Revision Information**:
-  - `revision_status` (TEXT) - Revision status
-  - `revision_mentor_name` (TEXT) - Revision mentor name
-  - `revision_mentor_email` (TEXT) - Revision mentor email
-  - `revision_date` (DATE) - Revision date
-- `created_at`, `updated_at` - Timestamps
+- `content_category` (TEXT) - Category name (e.g., "Microsoft - AI Content")
+- `module_no` (INTEGER) - Module number (e.g., 1, 2, 3)
+- `module_name` (TEXT) - Module name/title
+- `topics_covered` (TEXT) - Topic code and name (e.g., "1.1 Introduction of AI")
+- `videos` (TEXT) - Video link/URL
+- `quiz_content_ppt` (TEXT) - Quiz/Content PPT link/URL
+- `fresh_session` (TEXT) - Fresh session information/link
+- `revision_session` (TEXT) - Revision session information/link
+- `created_at` (TIMESTAMP) - Record creation timestamp
+- `updated_at` (TIMESTAMP) - Record update timestamp
 
 ## Key Features
 
-### 1. Hierarchical Organization
-- Categories → Modules → Topics → Sessions
-- Allows organizing content at multiple levels
-- Supports sub-topics (topics without module codes use DEFAULT module)
+### 1. Simple Flat Structure
+- Single table design for easy data management
+- Direct mapping from Excel columns to database fields
+- No complex hierarchies or relationships
 
-### 2. Multi-Language Support
-- Separate resource fields for English and Hindi
-- Each session can have resources in both languages
+### 2. Resource Management
+- Stores links to videos and PPT resources
+- Supports session tracking for fresh and revision sessions
+- All resources stored as URLs/links
 
-### 3. Session Status Tracking
-- `pending` - Session not yet scheduled
-- `available` - Session available for enrollment
-- `completed` - Session completed
-- `committed` - Session committed/confirmed
-
-### 4. Revision Tracking
-- Separate revision status and mentor information
-- Allows tracking of content revisions
-
-### 5. Resource Management
-- Stores links to videos, worksheets, practical activities, and PPTs
-- Supports both English and Hindi versions
+### 3. Content Organization
+- Organized by category, module, and topic
+- Module numbers and topic codes preserved from source data
+- Easy filtering and searching
 
 ## Indexes
-- `idx_modules_category_id` - Fast lookup of modules by category
-- `idx_topics_module_id` - Fast lookup of topics by module
-- `idx_topic_sessions_topic_id` - Fast lookup of sessions by topic
-- `idx_topic_sessions_status` - Fast filtering by status
-- `idx_topic_sessions_session_date` - Fast filtering by date
-- `idx_topic_sessions_mentor_name` - Fast lookup by mentor
-
-## Views
-
-### curriculum_by_status
-Denormalized view showing all curriculum data with joins:
-- Combines all tables into a single queryable view
-- Ordered by category → module → topic → status
-- Used by the Curriculum UI for display
+- `idx_curriculum_category` - Fast lookup by content category
+- `idx_curriculum_module` - Fast lookup by module number
+- `idx_curriculum_topic` - Fast lookup by topic code
 
 ## Row Level Security (RLS)
-All tables have RLS enabled with policies allowing authenticated users to:
+Table has RLS enabled with policies allowing authenticated users to:
 - SELECT (read) all data
 - INSERT (create) new records
 - UPDATE (modify) existing records
@@ -118,16 +50,28 @@ All tables have RLS enabled with policies allowing authenticated users to:
 
 ## Data Import Flow
 
-1. **CSV Parsing**: Extract data from CSV file
-2. **Header Detection**: Find the header row (row 3 in the provided CSV)
-3. **Category Creation**: Create/upsert categories
-4. **Module Creation**: Create/upsert modules (or DEFAULT for sub-topics)
-5. **Topic Creation**: Create/upsert topics with extracted topic codes
-6. **Session Insertion**: Batch insert all sessions
+1. **CSV Parsing**: Extract data from Excel/CSV file
+2. **Column Mapping**: Map Excel columns to database fields
+3. **Data Transformation**: Handle empty cells and type conversion
+4. **Batch Insert**: Insert data in batches of 50 records
+5. **Validation**: Ensure required fields are present
+
+## Column Mapping from Excel
+
+| Excel Column | Database Field | Description |
+|---|---|---|
+| Content Category | content_category | Category name |
+| Module No. & S.No | module_no | Module number |
+| Modules | module_name | Module name/title |
+| Topics No. & name | topics_covered | Topic code and name |
+| Videos | videos | Video URL |
+| QUIZ/CONTENT PPT | quiz_content_ppt | PPT URL |
+| Fresh Session | fresh_session | Fresh session info |
+| Revision Session | revision_session | Revision session info |
 
 ## Notes
 
-- Foreign keys use ON DELETE CASCADE to maintain referential integrity
-- UNIQUE constraints prevent duplicate entries at each level
-- The DEFAULT module is used for topics without explicit module codes
 - All timestamps are in UTC (TIMESTAMP WITH TIME ZONE)
+- URLs are stored as TEXT fields
+- Empty cells are handled gracefully during import
+- Grouped cells (category, module) are inherited from previous rows during import

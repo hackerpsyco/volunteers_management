@@ -41,35 +41,50 @@ interface Volunteer {
   organization_name: string;
 }
 
+interface Facilitator {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  location: string;
+  status: string;
+}
+
 interface AddSessionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   selectedDate: Date | null;
+  sessionType: 'guest_teacher' | 'guest_speaker' | null;
   onSuccess: () => void;
 }
 
 export function AddSessionDialog({ 
   open, 
   onOpenChange, 
-  selectedDate, 
+  selectedDate,
+  sessionType,
   onSuccess 
 }: AddSessionDialogProps) {
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
+  const [facilitators, setFacilitators] = useState<Facilitator[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
+  const [modules, setModules] = useState<string[]>([]);
   const [topics, setTopics] = useState<CurriculumItem[]>([]);
   const [selectedVolunteer, setSelectedVolunteer] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [selectedModule, setSelectedModule] = useState<string>('');
   const [selectedTopic, setSelectedTopic] = useState<CurriculumItem | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     session_time: '09:00',
     content_category: '',
-    module_no: '',
     module_name: '',
     topics_covered: '',
     videos: '',
     quiz_content_ppt: '',
     status: 'pending',
+    guest_speaker: '',
+    guest_teacher: '',
   });
   const { user } = useAuth();
   const { toast } = useToast();
@@ -78,16 +93,26 @@ export function AddSessionDialog({
   useEffect(() => {
     if (open) {
       fetchVolunteers();
+      fetchFacilitators();
       fetchCategories();
     }
   }, [open]);
 
-  // Load topics when category changes
+  // Load modules when category changes
   useEffect(() => {
     if (selectedCategory) {
-      fetchTopics(selectedCategory);
+      fetchModules(selectedCategory);
+      setSelectedModule('');
+      setTopics([]);
     }
   }, [selectedCategory]);
+
+  // Load topics when module changes
+  useEffect(() => {
+    if (selectedCategory && selectedModule) {
+      fetchTopics(selectedCategory, selectedModule);
+    }
+  }, [selectedCategory, selectedModule]);
 
   const fetchVolunteers = async () => {
     try {
@@ -115,6 +140,22 @@ export function AddSessionDialog({
     }
   };
 
+  const fetchFacilitators = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('facilitators')
+        .select('id, name, email, phone, location, status')
+        .eq('status', 'active')
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setFacilitators(data || []);
+    } catch (error) {
+      console.error('Error fetching facilitators:', error);
+      setFacilitators([]);
+    }
+  };
+
   const fetchCategories = async () => {
     try {
       const { data, error } = await supabase
@@ -131,13 +172,31 @@ export function AddSessionDialog({
     }
   };
 
-  const fetchTopics = async (category: string) => {
+  const fetchModules = async (category: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('curriculum')
+        .select('module_name')
+        .eq('content_category', category)
+        .not('module_name', 'is', null);
+
+      if (error) throw error;
+      
+      const uniqueModules = [...new Set(data?.map(item => item.module_name) || [])];
+      setModules(uniqueModules as string[]);
+    } catch (error) {
+      console.error('Error fetching modules:', error);
+    }
+  };
+
+  const fetchTopics = async (category: string, moduleName: string) => {
     try {
       const { data, error } = await supabase
         .from('curriculum')
         .select('*')
         .eq('content_category', category)
-        .order('module_no', { ascending: true });
+        .eq('module_name', moduleName)
+        .order('topics_covered', { ascending: true });
 
       if (error) throw error;
       setTopics(data || []);
@@ -148,12 +207,24 @@ export function AddSessionDialog({
 
   const handleCategoryChange = (category: string) => {
     setSelectedCategory(category);
+    setSelectedModule('');
     setSelectedTopic(null);
     setFormData(prev => ({
       ...prev,
       content_category: category,
-      module_no: '',
       module_name: '',
+      topics_covered: '',
+      videos: '',
+      quiz_content_ppt: '',
+    }));
+  };
+
+  const handleModuleChange = (moduleName: string) => {
+    setSelectedModule(moduleName);
+    setSelectedTopic(null);
+    setFormData(prev => ({
+      ...prev,
+      module_name: moduleName,
       topics_covered: '',
       videos: '',
       quiz_content_ppt: '',
@@ -166,7 +237,6 @@ export function AddSessionDialog({
       setSelectedTopic(topic);
       setFormData(prev => ({
         ...prev,
-        module_no: topic.module_no?.toString() || '',
         module_name: topic.module_name || '',
         topics_covered: topic.topics_covered || '',
         videos: topic.videos || '',
@@ -189,15 +259,6 @@ export function AddSessionDialog({
       return;
     }
 
-    if (!selectedVolunteer) {
-      toast({
-        title: 'Error',
-        description: 'Please select a volunteer',
-        variant: 'destructive',
-      });
-      return;
-    }
-
     const volunteer = volunteers.find(v => v.id === selectedVolunteer);
 
     const sessionData = {
@@ -207,12 +268,13 @@ export function AddSessionDialog({
       session_type: 'guest_teacher',
       status: formData.status,
       content_category: formData.content_category,
-      module_no: formData.module_no ? parseInt(formData.module_no) : null,
       module_name: formData.module_name,
       topics_covered: formData.topics_covered,
       videos: formData.videos,
       quiz_content_ppt: formData.quiz_content_ppt,
-      guest_teacher: volunteer?.name || '',
+      guest_speaker: formData.guest_speaker,
+      guest_teacher: formData.guest_teacher,
+      volunteer_name: volunteer?.name || '',
       mentor_email: volunteer?.work_email || volunteer?.personal_email || '',
     };
 
@@ -237,17 +299,19 @@ export function AddSessionDialog({
   const handleClose = () => {
     setSelectedVolunteer('');
     setSelectedCategory('');
+    setSelectedModule('');
     setSelectedTopic(null);
     setFormData({
       title: '',
       session_time: '09:00',
       content_category: '',
-      module_no: '',
       module_name: '',
       topics_covered: '',
       videos: '',
       quiz_content_ppt: '',
       status: 'pending',
+      guest_speaker: '',
+      guest_teacher: '',
     });
     onOpenChange(false);
   };
@@ -256,10 +320,10 @@ export function AddSessionDialog({
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="w-full max-w-[95vw] sm:max-w-[600px] md:max-w-[700px] max-h-[90vh] overflow-y-auto p-4 sm:p-6">
-        <DialogHeader className="mb-4">
+      <DialogHeader className="mb-4">
           <DialogTitle className="flex flex-col sm:flex-row items-start sm:items-center gap-2 text-lg sm:text-xl">
             <GraduationCap className="h-5 w-5 text-green-500 flex-shrink-0" />
-            <span className="break-words">New Session - {selectedDate && format(selectedDate, 'MMM d, yyyy')}</span>
+            <span className="break-words">New {sessionType === 'guest_teacher' ? 'Guest Teacher' : 'Guest Speaker'} Session - {selectedDate && format(selectedDate, 'MMM d, yyyy')}</span>
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
@@ -286,6 +350,32 @@ export function AddSessionDialog({
             )}
           </div>
 
+          {/* Guest Speaker & Guest Teacher */}
+          <div className="border-t border-border pt-4">
+            <h4 className="font-medium text-sm sm:text-base text-foreground mb-3">
+              {sessionType === 'guest_teacher' ? 'Guest Teacher' : 'Guest Speaker'} Information
+            </h4>
+            
+            <div className="space-y-2 mb-4">
+              <Label htmlFor="guest_person" className="text-sm sm:text-base">
+                {sessionType === 'guest_teacher' ? 'Select Guest Teacher' : 'Select Guest Speaker'} *
+              </Label>
+              <Select value={formData.guest_teacher} onValueChange={(value) => setFormData({ ...formData, guest_teacher: value })}>
+                <SelectTrigger className="text-sm sm:text-base">
+                  <SelectValue placeholder={`Choose a ${sessionType === 'guest_teacher' ? 'teacher' : 'speaker'}`} />
+                </SelectTrigger>
+                <SelectContent>
+                  {facilitators.map((facilitator) => (
+                    <SelectItem key={facilitator.id} value={facilitator.name}>
+                      {facilitator.name} ({facilitator.location})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Content Selection */}
           <div className="border-t border-border pt-4">
             <h4 className="font-medium text-sm sm:text-base text-foreground mb-3">Select Content & Topic</h4>
             
@@ -305,7 +395,25 @@ export function AddSessionDialog({
               </Select>
             </div>
 
-            {selectedCategory && topics.length > 0 && (
+            {selectedCategory && modules.length > 0 && (
+              <div className="space-y-2 mb-4">
+                <Label htmlFor="module" className="text-sm sm:text-base">Module Name *</Label>
+                <Select value={selectedModule} onValueChange={handleModuleChange}>
+                  <SelectTrigger className="text-sm sm:text-base">
+                    <SelectValue placeholder="Select a module" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {modules.map((module) => (
+                      <SelectItem key={module} value={module}>
+                        {module}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {selectedModule && topics.length > 0 && (
               <div className="space-y-2 mb-4">
                 <Label htmlFor="topic" className="text-sm sm:text-base">Select Topic *</Label>
                 <Select value={selectedTopic?.id || ''} onValueChange={handleTopicSelect}>
@@ -324,8 +432,9 @@ export function AddSessionDialog({
             )}
           </div>
 
+          {/* Content Details */}
           <div className="border-t border-border pt-4">
-            <h4 className="font-medium text-sm sm:text-base text-foreground mb-3">Content Details {selectedTopic && '(Auto-filled - Read-only)'}</h4>
+            <h4 className="font-medium text-sm sm:text-base text-foreground mb-3">Content Details {selectedTopic && '(Auto-filled)'}</h4>
             
             <div className="space-y-2 mb-4">
               <Label htmlFor="status" className="text-sm sm:text-base">Status *</Label>
@@ -340,44 +449,6 @@ export function AddSessionDialog({
                   <SelectItem value="completed">Completed</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="module_no" className="text-sm sm:text-base">Module No. *</Label>
-                <Select value={formData.module_no} onValueChange={(value) => setFormData({ ...formData, module_no: value })}>
-                  <SelectTrigger className="text-sm sm:text-base">
-                    <SelectValue placeholder="Select module number" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {selectedCategory && topics.length > 0 && (
-                      [...new Set(topics.map(t => t.module_no))].sort((a, b) => (a || 0) - (b || 0)).map((moduleNo) => (
-                        <SelectItem key={moduleNo} value={moduleNo?.toString() || '0'}>
-                          {moduleNo}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="module_name" className="text-sm sm:text-base">Module Name *</Label>
-                <Select value={formData.module_name} onValueChange={(value) => setFormData({ ...formData, module_name: value })}>
-                  <SelectTrigger className="text-sm sm:text-base">
-                    <SelectValue placeholder="Select module name" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {formData.module_no && topics.length > 0 && (
-                      [...new Set(topics.filter(t => t.module_no?.toString() === formData.module_no).map(t => t.module_name))].map((moduleName) => (
-                        <SelectItem key={moduleName} value={moduleName || 'N/A'}>
-                          {moduleName}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
 
             <div className="space-y-2 mt-4">
