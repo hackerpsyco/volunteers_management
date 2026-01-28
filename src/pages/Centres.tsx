@@ -36,10 +36,17 @@ interface Centre {
   name: string;
   location: string;
   address: string;
-  phone: string;
-  email: string;
   status: string;
   created_at: string;
+  updated_at: string;
+}
+
+interface CentreTimeSlot {
+  id: string;
+  centre_id: string;
+  day: string;
+  start_time: string;
+  end_time: string;
 }
 
 export default function Centres() {
@@ -49,14 +56,23 @@ export default function Centres() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedCentre, setSelectedCentre] = useState<Centre | null>(null);
+  const [expandedCentreId, setExpandedCentreId] = useState<string | null>(null);
+  const [centreSlots, setCentreSlots] = useState<Record<string, CentreTimeSlot[]>>({});
+  const [showSlotForm, setShowSlotForm] = useState<string | null>(null);
+  const [slotFormData, setSlotFormData] = useState({
+    day: 'Monday',
+    start_time: '09:00',
+    end_time: '10:00',
+  });
   const [formData, setFormData] = useState({
     name: '',
     location: '',
     address: '',
-    phone: '',
-    email: '',
     status: 'active',
   });
+  const [timeSlots, setTimeSlots] = useState<Array<{ day: string; start_time: string; end_time: string }>>([
+    { day: 'Monday', start_time: '09:00', end_time: '10:00' }
+  ]);
 
   useEffect(() => {
     fetchCentres();
@@ -72,11 +88,37 @@ export default function Centres() {
 
       if (error) throw error;
       setCentres(data || []);
+      
+      // Fetch slots for all centres
+      if (data && data.length > 0) {
+        for (const centre of data) {
+          await fetchCentreSlots(centre.id);
+        }
+      }
     } catch (error) {
       console.error('Error fetching centres:', error);
       toast.error('Failed to load centres');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchCentreSlots = async (centreId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('centre_time_slots')
+        .select('*')
+        .eq('centre_id', centreId)
+        .order('day', { ascending: true })
+        .order('start_time', { ascending: true });
+
+      if (error) throw error;
+      setCentreSlots(prev => ({
+        ...prev,
+        [centreId]: data || []
+      }));
+    } catch (error) {
+      console.error('Error fetching centre slots:', error);
     }
   };
 
@@ -89,6 +131,8 @@ export default function Centres() {
     }
 
     try {
+      let centreId = editingId;
+
       if (editingId) {
         const { error } = await supabase
           .from('centres')
@@ -98,12 +142,31 @@ export default function Centres() {
         if (error) throw error;
         toast.success('Centre updated successfully');
       } else {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('centres')
-          .insert([formData]);
+          .insert([formData])
+          .select();
 
         if (error) throw error;
+        centreId = data?.[0]?.id;
         toast.success('Centre created successfully');
+      }
+
+      // Add time slots if creating new centre
+      if (centreId && !editingId && timeSlots.length > 0) {
+        const slotsToInsert = timeSlots.map(slot => ({
+          centre_id: centreId,
+          day: slot.day,
+          start_time: slot.start_time,
+          end_time: slot.end_time,
+        }));
+
+        const { error: slotError } = await supabase
+          .from('centre_time_slots')
+          .insert(slotsToInsert);
+
+        if (slotError) throw slotError;
+        toast.success('Time slots added successfully');
       }
 
       resetForm();
@@ -138,8 +201,6 @@ export default function Centres() {
       name: centre.name,
       location: centre.location,
       address: centre.address,
-      phone: centre.phone,
-      email: centre.email,
       status: centre.status,
     });
     setEditingId(centre.id);
@@ -153,10 +214,52 @@ export default function Centres() {
       name: '',
       location: '',
       address: '',
-      phone: '',
-      email: '',
       status: 'active',
     });
+    setTimeSlots([{ day: 'Monday', start_time: '09:00', end_time: '10:00' }]);
+  };
+
+  const handleAddSlot = async (centreId: string) => {
+    if (!slotFormData.start_time || !slotFormData.end_time) {
+      toast.error('Please fill in all time slot fields');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('centre_time_slots')
+        .insert([{
+          centre_id: centreId,
+          day: slotFormData.day,
+          start_time: slotFormData.start_time,
+          end_time: slotFormData.end_time,
+        }]);
+
+      if (error) throw error;
+      toast.success('Time slot added successfully');
+      setShowSlotForm(null);
+      setSlotFormData({ day: 'Monday', start_time: '09:00', end_time: '10:00' });
+      await fetchCentreSlots(centreId);
+    } catch (error) {
+      console.error('Error adding time slot:', error);
+      toast.error('Failed to add time slot');
+    }
+  };
+
+  const handleDeleteSlot = async (slotId: string, centreId: string) => {
+    try {
+      const { error } = await supabase
+        .from('centre_time_slots')
+        .delete()
+        .eq('id', slotId);
+
+      if (error) throw error;
+      toast.success('Time slot deleted successfully');
+      await fetchCentreSlots(centreId);
+    } catch (error) {
+      console.error('Error deleting time slot:', error);
+      toast.error('Failed to delete time slot');
+    }
   };
 
   return (
@@ -220,26 +323,6 @@ export default function Centres() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Phone</label>
-                    <input
-                      type="tel"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                      placeholder="Phone number"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Email</label>
-                    <input
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                      placeholder="Email address"
-                    />
-                  </div>
-                  <div>
                     <label className="block text-sm font-medium mb-1">Status</label>
                     <select
                       value={formData.status}
@@ -251,7 +334,84 @@ export default function Centres() {
                     </select>
                   </div>
                 </div>
-                <div className="flex gap-2">
+
+                {/* Time Slots Section */}
+                {!editingId && (
+                  <div className="border-t pt-4 mt-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="font-medium text-sm">Add Time Slots</h3>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setTimeSlots([...timeSlots, { day: 'Monday', start_time: '09:00', end_time: '10:00' }])}
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        Add Slot
+                      </Button>
+                    </div>
+
+                    <div className="space-y-3">
+                      {timeSlots.map((slot, index) => (
+                        <div key={index} className="flex gap-2 items-end">
+                          <div className="flex-1">
+                            <label className="block text-xs font-medium mb-1">Day</label>
+                            <select
+                              value={slot.day}
+                              onChange={(e) => {
+                                const newSlots = [...timeSlots];
+                                newSlots[index].day = e.target.value;
+                                setTimeSlots(newSlots);
+                              }}
+                              className="w-full px-2 py-2 border border-input rounded-md text-sm"
+                            >
+                              {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => (
+                                <option key={day} value={day}>{day}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="flex-1">
+                            <label className="block text-xs font-medium mb-1">Start Time</label>
+                            <input
+                              type="time"
+                              value={slot.start_time}
+                              onChange={(e) => {
+                                const newSlots = [...timeSlots];
+                                newSlots[index].start_time = e.target.value;
+                                setTimeSlots(newSlots);
+                              }}
+                              className="w-full px-2 py-2 border border-input rounded-md text-sm"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <label className="block text-xs font-medium mb-1">End Time</label>
+                            <input
+                              type="time"
+                              value={slot.end_time}
+                              onChange={(e) => {
+                                const newSlots = [...timeSlots];
+                                newSlots[index].end_time = e.target.value;
+                                setTimeSlots(newSlots);
+                              }}
+                              className="w-full px-2 py-2 border border-input rounded-md text-sm"
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setTimeSlots(timeSlots.filter((_, i) => i !== index))}
+                            className="h-9 w-9 p-0"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-4">
                   <Button type="submit">
                     {editingId ? 'Update Centre' : 'Add Centre'}
                   </Button>
@@ -294,8 +454,6 @@ export default function Centres() {
                         <TableHead>Name</TableHead>
                         <TableHead>Location</TableHead>
                         <TableHead>Address</TableHead>
-                        <TableHead>Phone</TableHead>
-                        <TableHead>Email</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="w-[60px]">Actions</TableHead>
                       </TableRow>
@@ -306,8 +464,6 @@ export default function Centres() {
                           <TableCell className="font-medium">{centre.name}</TableCell>
                           <TableCell>{centre.location}</TableCell>
                           <TableCell className="max-w-[200px] truncate">{centre.address || '-'}</TableCell>
-                          <TableCell>{centre.phone || '-'}</TableCell>
-                          <TableCell className="max-w-[150px] truncate">{centre.email || '-'}</TableCell>
                           <TableCell>
                             <Badge variant={centre.status === 'active' ? 'default' : 'secondary'}>
                               {centre.status}
@@ -348,71 +504,139 @@ export default function Centres() {
                 {/* Mobile Card View */}
                 <div className="md:hidden space-y-4">
                   {centres.map((centre) => (
-                    <div key={centre.id} className="bg-muted/50 rounded-lg p-4 space-y-3 border border-border">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <h3 className="font-semibold text-foreground break-words">{centre.name}</h3>
-                          <p className="text-xs text-muted-foreground mt-1">ID: {centre.id.substring(0, 8)}</p>
+                    <div key={centre.id} className="bg-muted/50 rounded-lg border border-border overflow-hidden">
+                      <div className="p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <h3 className="font-semibold text-foreground break-words">{centre.name}</h3>
+                            <p className="text-xs text-muted-foreground mt-1">ID: {centre.id.substring(0, 8)}</p>
+                          </div>
+                          <Badge variant={centre.status === 'active' ? 'default' : 'secondary'} className="flex-shrink-0">
+                            {centre.status}
+                          </Badge>
                         </div>
-                        <Badge variant={centre.status === 'active' ? 'default' : 'secondary'} className="flex-shrink-0">
-                          {centre.status}
-                        </Badge>
+
+                        <div className="text-xs">
+                          <span className="text-muted-foreground block">Location</span>
+                          <p className="font-medium text-sm">{centre.location}</p>
+                        </div>
+
+                        {centre.address && (
+                          <div className="text-xs">
+                            <span className="text-muted-foreground">Address</span>
+                            <p className="font-medium text-sm break-words">{centre.address}</p>
+                          </div>
+                        )}
+
+                        <div className="flex gap-2 pt-2 border-t border-border">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleEdit(centre)}
+                            className="flex-1"
+                          >
+                            Edit
+                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-9 w-9">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="bg-popover">
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setSelectedCentre(centre);
+                                  setDeleteDialogOpen(true);
+                                }}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </div>
 
-                      <div className="text-xs">
-                        <span className="text-muted-foreground block">Location</span>
-                        <p className="font-medium text-sm">{centre.location}</p>
-                      </div>
-
-                      {centre.address && (
-                        <div className="text-xs">
-                          <span className="text-muted-foreground">Address</span>
-                          <p className="font-medium text-sm break-words">{centre.address}</p>
+                      {/* Time Slots Section */}
+                      <div className="border-t border-border bg-background/50 p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-medium text-sm">Time Slots</h4>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setShowSlotForm(expandedCentreId === centre.id ? null : centre.id)}
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            Add Slot
+                          </Button>
                         </div>
-                      )}
 
-                      {centre.phone && (
-                        <div className="text-xs">
-                          <span className="text-muted-foreground">Phone</span>
-                          <p className="font-medium text-sm">{centre.phone}</p>
-                        </div>
-                      )}
-
-                      {centre.email && (
-                        <div className="text-xs">
-                          <span className="text-muted-foreground">Email</span>
-                          <p className="font-medium break-all text-sm">{centre.email}</p>
-                        </div>
-                      )}
-
-                      <div className="flex gap-2 pt-2 border-t border-border">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleEdit(centre)}
-                          className="flex-1"
-                        >
-                          Edit
-                        </Button>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-9 w-9">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="bg-popover">
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setSelectedCentre(centre);
-                                setDeleteDialogOpen(true);
-                              }}
-                              className="text-destructive focus:text-destructive"
+                        {showSlotForm === centre.id && (
+                          <div className="bg-muted p-3 rounded mb-3 space-y-2">
+                            <select
+                              value={slotFormData.day}
+                              onChange={(e) => setSlotFormData({ ...slotFormData, day: e.target.value })}
+                              className="w-full px-2 py-1 text-sm border border-input rounded"
                             >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                              {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => (
+                                <option key={day} value={day}>{day}</option>
+                              ))}
+                            </select>
+                            <div className="flex gap-2">
+                              <input
+                                type="time"
+                                value={slotFormData.start_time}
+                                onChange={(e) => setSlotFormData({ ...slotFormData, start_time: e.target.value })}
+                                className="flex-1 px-2 py-1 text-sm border border-input rounded"
+                              />
+                              <input
+                                type="time"
+                                value={slotFormData.end_time}
+                                onChange={(e) => setSlotFormData({ ...slotFormData, end_time: e.target.value })}
+                                className="flex-1 px-2 py-1 text-sm border border-input rounded"
+                              />
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => handleAddSlot(centre.id)}
+                                className="flex-1"
+                              >
+                                Save
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setShowSlotForm(null)}
+                                className="flex-1"
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        {centreSlots[centre.id] && centreSlots[centre.id].length > 0 ? (
+                          <div className="space-y-2">
+                            {centreSlots[centre.id].map(slot => (
+                              <div key={slot.id} className="flex items-center justify-between bg-background p-2 rounded text-xs border border-border">
+                                <span className="font-medium">{slot.day} {slot.start_time}-{slot.end_time}</span>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleDeleteSlot(slot.id, centre.id)}
+                                  className="h-6 w-6 p-0"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">No time slots added yet</p>
+                        )}
                       </div>
                     </div>
                   ))}

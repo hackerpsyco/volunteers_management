@@ -1,7 +1,33 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Upload } from 'lucide-react';
+import { Plus, Trash2, Upload, MoreVertical, GraduationCap } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { SessionTypeDialog } from '@/components/sessions/SessionTypeDialog';
@@ -9,34 +35,19 @@ import { AddSessionDialog } from '@/components/sessions/AddSessionDialog';
 import { UnifiedImportDialog } from '@/components/sessions/UnifiedImportDialog';
 
 interface Session {
-  session_id: string;
-  category_id: string;
-  content_category: string;
-  module_id: string;
-  module_code: string;
-  module_title: string;
-  topic_id: string;
-  topic_code: string;
-  topic_title: string;
-  duration_min: number;
-  duration_max: number;
-  status: string;
-  mentor_name: string;
-  mentor_email: string;
+  id: string;
+  title: string;
   session_date: string;
   session_time: string;
-  video_english: string;
-  video_hindi: string;
-  worksheet_english: string;
-  worksheet_hindi: string;
-  practical_activity_english: string;
-  practical_activity_hindi: string;
-  quiz_content_ppt: string;
-  final_content_ppt: string;
-  revision_status: string;
-  revision_mentor_name: string;
-  revision_mentor_email: string;
-  revision_date: string;
+  session_type: string;
+  status: string;
+  content_category: string | null;
+  module_name: string | null;
+  topics_covered: string | null;
+  videos: string | null;
+  quiz_content_ppt: string | null;
+  facilitator_name: string | null;
+  volunteer_name: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -47,8 +58,10 @@ export default function Sessions() {
   const [isTypeDialogOpen, setIsTypeDialogOpen] = useState(false);
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedSessionType, setSelectedSessionType] = useState<'guest_teacher' | 'guest_speaker' | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedSession, setSelectedSession] = useState<Session | null>(null);
 
   useEffect(() => {
     fetchSessions();
@@ -57,13 +70,10 @@ export default function Sessions() {
   const fetchSessions = async () => {
     try {
       setLoading(true);
-      const { data, error } = await (supabase
-        .from('curriculum_by_status' as any)
+      const { data, error } = await supabase
+        .from('sessions')
         .select('*')
-        .order('content_category', { ascending: true })
-        .order('module_code', { ascending: true })
-        .order('topic_code', { ascending: true })
-        .order('status', { ascending: true }) as any);
+        .order('session_date', { ascending: false });
 
       if (error) throw error;
       setSessions((data || []) as Session[]);
@@ -79,14 +89,16 @@ export default function Sessions() {
     if (!confirm('Are you sure you want to delete this session?')) return;
 
     try {
-      const { error } = await (supabase
-        .from('session_meta' as any)
+      const { error } = await supabase
+        .from('sessions')
         .delete()
-        .eq('id', id) as any);
+        .eq('id', id);
 
       if (error) throw error;
       toast.success('Session deleted successfully');
-      fetchSessions();
+      setSessions(sessions.filter((s) => s.id !== id));
+      setDeleteDialogOpen(false);
+      setSelectedSession(null);
     } catch (error) {
       console.error('Error deleting session:', error);
       toast.error('Failed to delete session');
@@ -105,7 +117,7 @@ export default function Sessions() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 md:space-y-8">
+      <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="min-w-0">
@@ -114,219 +126,209 @@ export default function Sessions() {
               Manage volunteer sessions and events
             </p>
           </div>
-          <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-            <Button
-              onClick={handleAddSession}
-              className="gap-2"
-            >
-              <Plus className="h-4 w-4" />
-              New Session
-            </Button>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
             <Button
               onClick={() => setIsImportOpen(true)}
               variant="outline"
-              className="gap-2"
+              className="w-full sm:w-auto gap-2"
             >
               <Upload className="h-4 w-4" />
-              Import Data
+              <span className="hidden sm:inline">Import Data</span>
+              <span className="sm:hidden">Import</span>
+            </Button>
+            <Button
+              onClick={handleAddSession}
+              className="w-full sm:w-auto gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">New Session</span>
+              <span className="sm:hidden">Add</span>
             </Button>
           </div>
         </div>
 
-        {/* Sessions List */}
-        <div className="space-y-3 md:space-y-4">
-          {loading ? (
-            <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-          ) : sessions.length === 0 ? (
-            <div className="text-center py-12 bg-card border border-border rounded-lg">
-              <p className="text-sm md:text-base text-muted-foreground">No sessions yet. Create one to get started!</p>
-            </div>
-          ) : (
-            sessions.map((session) => (
-              <div key={session.session_id} className="bg-card border border-border rounded-lg p-4 md:p-6 hover:shadow-md transition-shadow">
-                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-col gap-2">
-                      <div>
-                        <p className="text-xs text-muted-foreground">Category</p>
-                        <h3 className="text-sm font-semibold text-foreground">{session.content_category}</h3>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Module {session.module_code}</p>
-                        <h4 className="text-base font-semibold text-foreground break-words">{session.module_title}</h4>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Topic {session.topic_code}</p>
-                        <h4 className="text-base font-semibold text-foreground break-words">{session.topic_title}</h4>
-                      </div>
-                    </div>
-                    
-                    {/* Status Badge */}
-                    <div className="mt-3 flex items-center gap-2">
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold capitalize ${
-                        session.status === 'completed' ? 'bg-green-100 text-green-800' :
-                        session.status === 'available' ? 'bg-blue-100 text-blue-800' :
-                        session.status === 'committed' ? 'bg-purple-100 text-purple-800' :
-                        'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {session.status}
-                      </span>
-                    </div>
-
-                    {/* Session Info */}
-                    <div className="flex flex-wrap gap-2 md:gap-4 mt-3 text-xs md:text-sm text-muted-foreground">
-                      {session.session_date && <span className="whitespace-nowrap">📅 {new Date(session.session_date).toLocaleDateString()}</span>}
-                      {session.session_time && <span className="whitespace-nowrap">🕐 {session.session_time}</span>}
-                      {session.status && <span className="capitalize whitespace-nowrap">✓ {session.status}</span>}
-                    </div>
-
-                    {/* Mentor Info */}
-                    {session.mentor_name && (
-                      <div className="mt-3 text-xs md:text-sm">
-                        <span className="text-muted-foreground">👤 Mentor: </span>
-                        <span className="font-medium">{session.mentor_name}</span>
-                        {session.mentor_email && <span className="text-muted-foreground"> ({session.mentor_email})</span>}
-                      </div>
-                    )}
-
-                    {/* Resources */}
-                    <div className="mt-4 space-y-2 text-xs md:text-sm">
-                      {session.video_english && (
-                        <div className="flex flex-col gap-1">
-                          <span className="text-muted-foreground">🎥 Video (EN):</span>
-                          <a 
-                            href={session.video_english} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline break-all pl-4"
-                          >
-                            {session.video_english.length > 60 ? session.video_english.substring(0, 60) + '...' : session.video_english}
-                          </a>
-                        </div>
-                      )}
-                      {session.video_hindi && (
-                        <div className="flex flex-col gap-1">
-                          <span className="text-muted-foreground">🎥 Video (HI):</span>
-                          <a 
-                            href={session.video_hindi} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline break-all pl-4"
-                          >
-                            {session.video_hindi.length > 60 ? session.video_hindi.substring(0, 60) + '...' : session.video_hindi}
-                          </a>
-                        </div>
-                      )}
-                      {session.worksheet_english && (
-                        <div className="flex flex-col gap-1">
-                          <span className="text-muted-foreground">📄 Worksheets (EN):</span>
-                          <a 
-                            href={session.worksheet_english} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline break-all pl-4"
-                          >
-                            {session.worksheet_english.length > 60 ? session.worksheet_english.substring(0, 60) + '...' : session.worksheet_english}
-                          </a>
-                        </div>
-                      )}
-                      {session.worksheet_hindi && (
-                        <div className="flex flex-col gap-1">
-                          <span className="text-muted-foreground">📄 Worksheets (HI):</span>
-                          <a 
-                            href={session.worksheet_hindi} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline break-all pl-4"
-                          >
-                            {session.worksheet_hindi.length > 60 ? session.worksheet_hindi.substring(0, 60) + '...' : session.worksheet_hindi}
-                          </a>
-                        </div>
-                      )}
-                      {session.practical_activity_english && (
-                        <div className="flex flex-col gap-1">
-                          <span className="text-muted-foreground">🛠️ Practical (EN):</span>
-                          <a 
-                            href={session.practical_activity_english} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline break-all pl-4"
-                          >
-                            {session.practical_activity_english.length > 60 ? session.practical_activity_english.substring(0, 60) + '...' : session.practical_activity_english}
-                          </a>
-                        </div>
-                      )}
-                      {session.practical_activity_hindi && (
-                        <div className="flex flex-col gap-1">
-                          <span className="text-muted-foreground">🛠️ Practical (HI):</span>
-                          <a 
-                            href={session.practical_activity_hindi} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline break-all pl-4"
-                          >
-                            {session.practical_activity_hindi.length > 60 ? session.practical_activity_hindi.substring(0, 60) + '...' : session.practical_activity_hindi}
-                          </a>
-                        </div>
-                      )}
-                      {session.quiz_content_ppt && (
-                        <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-2">
-                          <span className="text-muted-foreground flex-shrink-0">📊 Quiz/Content:</span>
-                          <a 
-                            href={session.quiz_content_ppt} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline break-all"
-                          >
-                            {session.quiz_content_ppt.length > 50 ? session.quiz_content_ppt.substring(0, 50) + '...' : session.quiz_content_ppt}
-                          </a>
-                        </div>
-                      )}
-                      {session.final_content_ppt && (
-                        <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-2">
-                          <span className="text-muted-foreground flex-shrink-0">📄 Final Content:</span>
-                          <a 
-                            href={session.final_content_ppt} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline break-all"
-                          >
-                            {session.final_content_ppt.length > 50 ? session.final_content_ppt.substring(0, 50) + '...' : session.final_content_ppt}
-                          </a>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Revision Info */}
-                    {session.revision_status && (
-                      <div className="mt-4 pt-4 border-t border-border">
-                        <p className="text-xs font-semibold text-muted-foreground mb-2">Revision</p>
-                        <div className="space-y-1 text-xs">
-                          <div><span className="text-muted-foreground">Status: </span><span className="font-medium">{session.revision_status}</span></div>
-                          {session.revision_mentor_name && <div><span className="text-muted-foreground">Mentor: </span><span className="font-medium">{session.revision_mentor_name}</span></div>}
-                          {session.revision_date && <div><span className="text-muted-foreground">Date: </span><span className="font-medium">{new Date(session.revision_date).toLocaleDateString()}</span></div>}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex gap-2 w-full md:w-auto md:flex-col">
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => handleDelete(session.session_id)}
-                      className="gap-1 flex-1 md:flex-none"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      <span className="hidden sm:inline">Delete</span>
-                    </Button>
-                  </div>
-                </div>
+        {/* Sessions Table/Cards */}
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <GraduationCap className="h-5 w-5 text-primary" />
+              All Sessions
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="flex justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
               </div>
-            ))
-          )}
-        </div>
+            ) : sessions.length === 0 ? (
+              <div className="text-center py-12">
+                <GraduationCap className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-foreground mb-2">
+                  No sessions yet
+                </h3>
+                <p className="text-muted-foreground mb-4">
+                  Get started by creating your first session
+                </p>
+                <Button onClick={handleAddSession}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  New Session
+                </Button>
+              </div>
+            ) : (
+              <>
+                {/* Desktop Table View */}
+                <div className="hidden md:block overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Topic</TableHead>
+                        <TableHead>Category</TableHead>
+                        <TableHead>Module</TableHead>
+                        <TableHead>Facilitator</TableHead>
+                        <TableHead>Volunteer</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Time</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="w-[60px]">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {sessions.map((session) => (
+                        <TableRow key={session.id}>
+                          <TableCell className="font-medium">{session.topics_covered || '-'}</TableCell>
+                          <TableCell>{session.content_category || '-'}</TableCell>
+                          <TableCell>{session.module_name || '-'}</TableCell>
+                          <TableCell>{session.facilitator_name || '-'}</TableCell>
+                          <TableCell>{session.volunteer_name || '-'}</TableCell>
+                          <TableCell>{new Date(session.session_date).toLocaleDateString()}</TableCell>
+                          <TableCell>{session.session_time}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="capitalize">
+                              {session.session_type === 'guest_teacher' ? 'Guest Teacher' : 'Guest Speaker'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={
+                              session.status === 'completed' ? 'default' :
+                              session.status === 'pending' ? 'secondary' :
+                              'outline'
+                            }>
+                              {session.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="bg-popover">
+                                <DropdownMenuItem 
+                                  onClick={() => {
+                                    setSelectedSession(session);
+                                    setDeleteDialogOpen(true);
+                                  }}
+                                  className="text-destructive focus:text-destructive"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Mobile Card View */}
+                <div className="md:hidden space-y-4">
+                  {sessions.map((session) => (
+                    <div key={session.id} className="bg-muted/50 rounded-lg p-4 space-y-3 border border-border">
+                      {/* Topic and Status */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-semibold text-foreground break-words">{session.topics_covered || '-'}</h3>
+                          <p className="text-xs text-muted-foreground mt-1">ID: {session.id.substring(0, 8)}</p>
+                        </div>
+                        <Badge variant={
+                          session.status === 'completed' ? 'default' :
+                          session.status === 'pending' ? 'secondary' :
+                          'outline'
+                        }>
+                          {session.status}
+                        </Badge>
+                      </div>
+
+                      {/* Category and Module */}
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <span className="text-muted-foreground block">Category</span>
+                          <span className="font-medium text-sm">{session.content_category || '-'}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground block">Module</span>
+                          <span className="font-medium text-sm">{session.module_name || '-'}</span>
+                        </div>
+                      </div>
+
+                      {/* Facilitator and Volunteer */}
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <span className="text-muted-foreground block">Facilitator</span>
+                          <span className="font-medium text-sm">{session.facilitator_name || '-'}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground block">Volunteer</span>
+                          <span className="font-medium text-sm">{session.volunteer_name || '-'}</span>
+                        </div>
+                      </div>
+
+                      {/* Date and Time */}
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <span className="text-muted-foreground block">Date</span>
+                          <span className="font-medium text-sm">{new Date(session.session_date).toLocaleDateString()}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground block">Time</span>
+                          <span className="font-medium text-sm">{session.session_time}</span>
+                        </div>
+                      </div>
+
+                      {/* Type */}
+                      <div className="text-xs">
+                        <span className="text-muted-foreground">Type</span>
+                        <Badge variant="outline" className="capitalize mt-1">
+                          {session.session_type === 'guest_teacher' ? 'Guest Teacher' : 'Guest Speaker'}
+                        </Badge>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex gap-2 pt-2 border-t border-border">
+                        <Button 
+                          size="sm" 
+                          variant="destructive"
+                          onClick={() => {
+                            setSelectedSession(session);
+                            setDeleteDialogOpen(true);
+                          }}
+                          className="flex-1"
+                        >
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Add Session Dialog - Type Selection */}
@@ -351,6 +353,27 @@ export default function Sessions() {
         onOpenChange={setIsImportOpen}
         onSuccess={fetchSessions}
       />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Session</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{selectedSession?.topics_covered}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => selectedSession && handleDelete(selectedSession.id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }

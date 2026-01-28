@@ -1,0 +1,8 @@
+{
+  "functions": [
+    {
+      "key": "sync-google-calendar",
+      "excludeAuth": true
+    }
+  ]
+}

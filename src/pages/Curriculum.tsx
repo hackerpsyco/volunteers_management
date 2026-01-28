@@ -27,6 +27,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { UnifiedImportDialog } from '@/components/sessions/UnifiedImportDialog';
@@ -62,14 +69,28 @@ interface CurriculumItem {
 
 export default function Curriculum() {
   const [curriculum, setCurriculum] = useState<CurriculumItem[]>([]);
+  const [filteredCurriculum, setFilteredCurriculum] = useState<CurriculumItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<CurriculumItem | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [categories, setCategories] = useState<string[]>([]);
 
   useEffect(() => {
     fetchCurriculum();
   }, []);
+
+  useEffect(() => {
+    // Filter curriculum based on selected category
+    if (selectedCategory === 'all') {
+      setFilteredCurriculum(curriculum);
+    } else {
+      setFilteredCurriculum(
+        curriculum.filter((item) => item.content_category === selectedCategory)
+      );
+    }
+  }, [selectedCategory, curriculum]);
 
   const fetchCurriculum = async () => {
     try {
@@ -101,6 +122,10 @@ export default function Curriculum() {
       }));
 
       setCurriculum(formattedData);
+
+      // Extract unique categories
+      const uniqueCategories = [...new Set(formattedData.map((item) => item.content_category))].sort();
+      setCategories(uniqueCategories as string[]);
     } catch (error) {
       console.error('Error fetching curriculum:', error);
       toast.error('Failed to load curriculum');
@@ -151,6 +176,33 @@ export default function Curriculum() {
           </Button>
         </div>
 
+        {/* Filter Section */}
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+          <div className="w-full sm:w-64">
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              Filter by Category
+            </label>
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select a category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {categories.map((category) => (
+                  <SelectItem key={category} value={category}>
+                    {category}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {selectedCategory !== 'all' && (
+            <div className="text-sm text-muted-foreground mt-2 sm:mt-0">
+              Showing {filteredCurriculum.length} item{filteredCurriculum.length !== 1 ? 's' : ''}
+            </div>
+          )}
+        </div>
+
         {/* Curriculum Table */}
         <Card className="shadow-sm">
           <CardHeader>
@@ -171,6 +223,12 @@ export default function Curriculum() {
                   Import Curriculum
                 </Button>
               </div>
+            ) : filteredCurriculum.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-sm md:text-base text-muted-foreground mb-4">
+                  No curriculum items found for the selected category.
+                </p>
+              </div>
             ) : (
               <>
                 {/* Desktop Table View */}
@@ -190,7 +248,7 @@ export default function Curriculum() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {curriculum.map((item) => (
+                      {filteredCurriculum.map((item) => (
                         <TableRow key={item.id}>
                           <TableCell>
                             <Badge variant="outline">{item.content_category}</Badge>
@@ -283,7 +341,7 @@ export default function Curriculum() {
 
                 {/* Mobile Card View */}
                 <div className="md:hidden space-y-4">
-                  {curriculum.map((item) => (
+                  {filteredCurriculum.map((item) => (
                     <div key={item.id} className="bg-muted/50 rounded-lg p-4 space-y-3 border border-border">
                       {/* Category and Module No */}
                       <div className="flex items-start justify-between gap-2">

@@ -50,6 +50,20 @@ interface Facilitator {
   status: string;
 }
 
+interface Centre {
+  id: string;
+  name: string;
+  location: string;
+}
+
+interface CentreTimeSlot {
+  id: string;
+  centre_id: string;
+  day: string;
+  start_time: string;
+  end_time: string;
+}
+
 interface AddSessionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -70,21 +84,24 @@ export function AddSessionDialog({
   const [categories, setCategories] = useState<string[]>([]);
   const [modules, setModules] = useState<string[]>([]);
   const [topics, setTopics] = useState<CurriculumItem[]>([]);
+  const [centres, setCentres] = useState<Centre[]>([]);
+  const [centreSlots, setCentreSlots] = useState<CentreTimeSlot[]>([]);
   const [selectedVolunteer, setSelectedVolunteer] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedModule, setSelectedModule] = useState<string>('');
   const [selectedTopic, setSelectedTopic] = useState<CurriculumItem | null>(null);
+  const [selectedCentre, setSelectedCentre] = useState<string>('');
+  const [selectedSlot, setSelectedSlot] = useState<string>('');
   const [formData, setFormData] = useState({
     title: '',
-    session_time: '09:00',
     content_category: '',
     module_name: '',
     topics_covered: '',
     videos: '',
     quiz_content_ppt: '',
     status: 'pending',
-    guest_speaker: '',
-    guest_teacher: '',
+    facilitator_name: '',
+    volunteer_name: '',
   });
   const { user } = useAuth();
   const { toast } = useToast();
@@ -95,6 +112,7 @@ export function AddSessionDialog({
       fetchVolunteers();
       fetchFacilitators();
       fetchCategories();
+      fetchCentres();
     }
   }, [open]);
 
@@ -113,6 +131,14 @@ export function AddSessionDialog({
       fetchTopics(selectedCategory, selectedModule);
     }
   }, [selectedCategory, selectedModule]);
+
+  // Load centre slots when centre changes
+  useEffect(() => {
+    if (selectedCentre) {
+      fetchCentreSlots(selectedCentre);
+      setSelectedSlot('');
+    }
+  }, [selectedCentre]);
 
   const fetchVolunteers = async () => {
     try {
@@ -205,6 +231,37 @@ export function AddSessionDialog({
     }
   };
 
+  const fetchCentres = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('centres')
+        .select('id, name, location')
+        .eq('status', 'active')
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setCentres(data || []);
+    } catch (error) {
+      console.error('Error fetching centres:', error);
+    }
+  };
+
+  const fetchCentreSlots = async (centreId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('centre_time_slots')
+        .select('id, centre_id, day, start_time, end_time')
+        .eq('centre_id', centreId)
+        .order('day', { ascending: true })
+        .order('start_time', { ascending: true });
+
+      if (error) throw error;
+      setCentreSlots(data || []);
+    } catch (error) {
+      console.error('Error fetching centre slots:', error);
+    }
+  };
+
   const handleCategoryChange = (category: string) => {
     setSelectedCategory(category);
     setSelectedModule('');
@@ -248,7 +305,16 @@ export function AddSessionDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedDate || !user) return;
+    if (!selectedDate || !user || !sessionType) return;
+
+    if (!selectedVolunteer) {
+      toast({
+        title: 'Error',
+        description: 'Please select a volunteer',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     if (!selectedTopic) {
       toast({
@@ -259,38 +325,126 @@ export function AddSessionDialog({
       return;
     }
 
-    const volunteer = volunteers.find(v => v.id === selectedVolunteer);
+    if (!selectedSlot) {
+      toast({
+        title: 'Error',
+        description: 'Please select a centre time slot',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!formData.facilitator_name) {
+      toast({
+        title: 'Error',
+        description: 'Please select a facilitator',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const slot = centreSlots.find(s => s.id === selectedSlot);
+    const selectedVolunteerData = volunteers.find(v => v.id === selectedVolunteer);
+    const selectedFacilitatorData = facilitators.find(f => f.name === formData.facilitator_name);
 
     const sessionData = {
       title: formData.title,
       session_date: format(selectedDate, 'yyyy-MM-dd'),
-      session_time: formData.session_time,
-      session_type: 'guest_teacher',
+      session_time: slot?.start_time || '09:00',
+      session_type: sessionType,
       status: formData.status,
       content_category: formData.content_category,
       module_name: formData.module_name,
       topics_covered: formData.topics_covered,
       videos: formData.videos,
       quiz_content_ppt: formData.quiz_content_ppt,
-      guest_speaker: formData.guest_speaker,
-      guest_teacher: formData.guest_teacher,
-      volunteer_name: volunteer?.name || '',
-      mentor_email: volunteer?.work_email || volunteer?.personal_email || '',
+      facilitator_name: formData.facilitator_name,
+      volunteer_name: formData.volunteer_name,
     };
 
-    const { error } = await supabase.from('sessions').insert([sessionData]);
+    const { data: insertedSession, error } = await supabase
+      .from('sessions')
+      .insert([sessionData])
+      .select('id');
 
     if (error) {
+      console.error('Session insert error:', error);
       toast({
         title: 'Error',
         description: 'Failed to create session. Please try again.',
         variant: 'destructive',
       });
     } else {
-      toast({
-        title: 'Session Created',
-        description: `Session "${formData.title}" has been scheduled for ${format(selectedDate, 'MMMM d, yyyy')}`,
-      });
+      const sessionId = insertedSession?.[0]?.id;
+
+      // Add to Google Calendar for volunteer and facilitator
+      if (sessionId) {
+        try {
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+          
+          // Format session data for calendar
+          const startDateTime = new Date(`${format(selectedDate, 'yyyy-MM-dd')}T${slot?.start_time || '09:00'}`);
+          const endDateTime = new Date(startDateTime.getTime() + 60 * 60 * 1000); // 1 hour
+          
+          const calendarEventData = {
+            sessionId,
+            title: formData.title,
+            description: `
+Session Details:
+- Category: ${formData.content_category}
+- Module: ${formData.module_name}
+- Topic: ${formData.topics_covered}
+- Type: ${sessionType === 'guest_teacher' ? 'Guest Teacher' : 'Guest Speaker'}
+- Facilitator: ${formData.facilitator_name}
+- Volunteer: ${formData.volunteer_name}
+${formData.videos ? `- Videos: ${formData.videos}` : ''}
+${formData.quiz_content_ppt ? `- PPT: ${formData.quiz_content_ppt}` : ''}
+            `.trim(),
+            startDateTime: startDateTime.toISOString(),
+            endDateTime: endDateTime.toISOString(),
+            volunteerEmail: selectedVolunteerData?.work_email || '',
+            volunteerName: selectedVolunteerData?.name || '',
+            facilitatorEmail: selectedFacilitatorData?.email || '',
+            facilitatorName: selectedFacilitatorData?.name || '',
+          };
+
+          // Try to sync with Google Calendar
+          try {
+            const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+            
+            const response = await fetch(`${supabaseUrl}/functions/v1/sync-google-calendar`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${supabaseAnonKey}`,
+              },
+              body: JSON.stringify(calendarEventData),
+            });
+
+            if (!response.ok) {
+              const errorData = await response.json();
+              console.warn('Calendar sync error:', errorData);
+            } else {
+              const result = await response.json();
+              console.log('Calendar sync result:', result);
+            }
+          } catch (calendarError) {
+            console.warn('Calendar sync not available:', calendarError);
+          }
+          
+          toast({
+            title: 'Session Created',
+            description: `Session "${formData.title}" has been scheduled. Calendar invites sent to volunteer and facilitator.`,
+          });
+        } catch (notificationError) {
+          console.error('Error with calendar sync:', notificationError);
+          toast({
+            title: 'Session Created',
+            description: `Session created successfully`,
+          });
+        }
+      }
+
       handleClose();
       onSuccess();
     }
@@ -301,17 +455,18 @@ export function AddSessionDialog({
     setSelectedCategory('');
     setSelectedModule('');
     setSelectedTopic(null);
+    setSelectedCentre('');
+    setSelectedSlot('');
     setFormData({
       title: '',
-      session_time: '09:00',
       content_category: '',
       module_name: '',
       topics_covered: '',
       videos: '',
       quiz_content_ppt: '',
       status: 'pending',
-      guest_speaker: '',
-      guest_teacher: '',
+      facilitator_name: '',
+      volunteer_name: '',
     });
     onOpenChange(false);
   };
@@ -335,7 +490,13 @@ export function AddSessionDialog({
                 No active volunteers available. Please add volunteers first.
               </div>
             ) : (
-              <Select value={selectedVolunteer} onValueChange={setSelectedVolunteer}>
+              <Select value={selectedVolunteer} onValueChange={(value) => {
+                setSelectedVolunteer(value);
+                const volunteer = volunteers.find(v => v.id === value);
+                if (volunteer) {
+                  setFormData(prev => ({ ...prev, volunteer_name: volunteer.name }));
+                }
+              }}>
                 <SelectTrigger className="text-sm sm:text-base">
                   <SelectValue placeholder="Choose a volunteer" />
                 </SelectTrigger>
@@ -353,16 +514,16 @@ export function AddSessionDialog({
           {/* Guest Speaker & Guest Teacher */}
           <div className="border-t border-border pt-4">
             <h4 className="font-medium text-sm sm:text-base text-foreground mb-3">
-              {sessionType === 'guest_teacher' ? 'Guest Teacher' : 'Guest Speaker'} Information
+              Facilitator Information
             </h4>
             
             <div className="space-y-2 mb-4">
-              <Label htmlFor="guest_person" className="text-sm sm:text-base">
-                {sessionType === 'guest_teacher' ? 'Select Guest Teacher' : 'Select Guest Speaker'} *
+              <Label htmlFor="facilitator" className="text-sm sm:text-base">
+                Select Facilitator *
               </Label>
-              <Select value={formData.guest_teacher} onValueChange={(value) => setFormData({ ...formData, guest_teacher: value })}>
+              <Select value={formData.facilitator_name} onValueChange={(value) => setFormData({ ...formData, facilitator_name: value })}>
                 <SelectTrigger className="text-sm sm:text-base">
-                  <SelectValue placeholder={`Choose a ${sessionType === 'guest_teacher' ? 'teacher' : 'speaker'}`} />
+                  <SelectValue placeholder="Choose a facilitator" />
                 </SelectTrigger>
                 <SelectContent>
                   {facilitators.map((facilitator) => (
@@ -473,6 +634,76 @@ export function AddSessionDialog({
                 disabled={!!selectedTopic}
                 className="text-sm sm:text-base"
               />
+            </div>
+          </div>
+
+          {/* Centre & Time Slot Selection */}
+          <div className="border-t border-border pt-4">
+            <h4 className="font-medium text-sm sm:text-base text-foreground mb-3">Select Centre & Time Slot</h4>
+            
+            <div className="space-y-2 mb-4">
+              <Label htmlFor="centre" className="text-sm sm:text-base">Centre *</Label>
+              {centres.length === 0 ? (
+                <div className="p-3 bg-yellow-50 border border-yellow-200 rounded text-xs sm:text-sm text-yellow-800">
+                  No active centres available. Please add centres first.
+                </div>
+              ) : (
+                <Select value={selectedCentre} onValueChange={setSelectedCentre}>
+                  <SelectTrigger className="text-sm sm:text-base">
+                    <SelectValue placeholder="Choose a centre" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {centres.map((centre) => (
+                      <SelectItem key={centre.id} value={centre.id}>
+                        {centre.name} ({centre.location})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            {selectedCentre && centreSlots.length > 0 && (
+              <div className="space-y-2">
+                <Label htmlFor="slot" className="text-sm sm:text-base">Time Slot *</Label>
+                <Select value={selectedSlot} onValueChange={setSelectedSlot}>
+                  <SelectTrigger className="text-sm sm:text-base">
+                    <SelectValue placeholder="Choose a time slot" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {centreSlots.map((slot) => (
+                      <SelectItem key={slot.id} value={slot.id}>
+                        {slot.day} - {slot.start_time} to {slot.end_time}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {selectedCentre && centreSlots.length === 0 && (
+              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded text-xs sm:text-sm text-yellow-800">
+                No time slots available for this centre.
+              </div>
+            )}
+          </div>
+
+          {/* Session Template */}
+          <div className="border-t border-border pt-4">
+            <h4 className="font-medium text-sm sm:text-base text-foreground mb-3">Session Template</h4>
+            
+            <div className="space-y-2">
+              <a 
+                href="https://docs.google.com/presentation/d/1xd5BC2fBf-OM0bCwiyZJwrkn4WBjfRrGz84HNaO-5Yc/edit?usp=sharing"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-600 hover:bg-blue-100 transition-colors"
+              >
+                📄 Open Session Template
+              </a>
+              <p className="text-xs text-muted-foreground mt-2">
+                Use this template to prepare your session content
+              </p>
             </div>
           </div>
 

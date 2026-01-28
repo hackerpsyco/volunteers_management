@@ -50,73 +50,160 @@ export type Database = {
         }
         Relationships: []
       }
-      sessions: {
+      facilitators: {
         Row: {
-          content_category: string | null
-          created_at: string
-          final_content_ppt: string | null
           id: string
-          modules: string | null
-          quiz_content_ppt: string | null
-          s_no: number | null
-          session_date: string
-          session_status: string | null
-          session_time: string
-          session_type: string
+          name: string
+          email: string | null
+          phone: string | null
+          location: string | null
           status: string
-          title: string
-          topics_covered: string | null
+          created_at: string
           updated_at: string
-          videos: string | null
-          volunteer_id: string | null
         }
         Insert: {
-          content_category?: string | null
-          created_at?: string
-          final_content_ppt?: string | null
           id?: string
-          modules?: string | null
-          quiz_content_ppt?: string | null
-          s_no?: number | null
-          session_date: string
-          session_status?: string | null
-          session_time: string
-          session_type?: string
+          name: string
+          email?: string | null
+          phone?: string | null
+          location?: string | null
           status?: string
-          title: string
-          topics_covered?: string | null
+          created_at?: string
           updated_at?: string
-          videos?: string | null
-          volunteer_id?: string | null
         }
         Update: {
-          content_category?: string | null
-          created_at?: string
-          final_content_ppt?: string | null
           id?: string
-          modules?: string | null
-          quiz_content_ppt?: string | null
-          s_no?: number | null
-          session_date?: string
-          session_status?: string | null
-          session_time?: string
-          session_type?: string
+          name?: string
+          email?: string | null
+          phone?: string | null
+          location?: string | null
           status?: string
-          title?: string
-          topics_covered?: string | null
+          created_at?: string
           updated_at?: string
-          videos?: string | null
-          volunteer_id?: string | null
+        }
+        Relationships: []
+      }
+      centres: {
+        Row: {
+          id: string
+          name: string
+          location: string
+          address: string | null
+          status: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          location: string
+          address?: string | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          location?: string
+          address?: string | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      centre_time_slots: {
+        Row: {
+          id: string
+          centre_id: string
+          day: string
+          start_time: string
+          end_time: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          centre_id: string
+          day: string
+          start_time: string
+          end_time: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          centre_id?: string
+          day?: string
+          start_time?: string
+          end_time?: string
+          created_at?: string
+          updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "sessions_volunteer_id_fkey"
-            columns: ["volunteer_id"]
+            foreignKeyName: "centre_time_slots_centre_id_fkey"
+            columns: ["centre_id"]
             isOneToOne: false
-            referencedRelation: "volunteers"
+            referencedRelation: "centres"
             referencedColumns: ["id"]
-          },
+          }
         ]
+      }
+      sessions: {
+        Row: {
+          id: string
+          title: string
+          session_date: string
+          session_time: string
+          session_type: string
+          status: string
+          content_category: string | null
+          module_name: string | null
+          topics_covered: string | null
+          videos: string | null
+          quiz_content_ppt: string | null
+          facilitator_name: string | null
+          volunteer_name: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          title: string
+          session_date: string
+          session_time: string
+          session_type?: string
+          status?: string
+          content_category?: string | null
+          module_name?: string | null
+          topics_covered?: string | null
+          videos?: string | null
+          quiz_content_ppt?: string | null
+          facilitator_name?: string | null
+          volunteer_name?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          title?: string
+          session_date?: string
+          session_time?: string
+          session_type?: string
+          status?: string
+          content_category?: string | null
+          module_name?: string | null
+          topics_covered?: string | null
+          videos?: string | null
+          quiz_content_ppt?: string | null
+          facilitator_name?: string | null
+          volunteer_name?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       volunteers: {
         Row: {

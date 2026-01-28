@@ -2,8 +2,27 @@ import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogClose,
+} from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+
+interface Volunteer {
+  id: string;
+  name: string;
+}
 
 interface Session {
   id: string;
@@ -14,8 +33,8 @@ interface Session {
   status: string;
   session_date: string;
   session_time: string;
-  guest_teacher?: string;
-  mentor_email?: string;
+  facilitator_name?: string;
+  volunteer_name?: string;
   videos?: string;
   quiz_content_ppt?: string;
   final_content_ppt?: string;
@@ -30,17 +49,36 @@ interface CalendarDay {
 export default function Calendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
+  const [selectedVolunteer, setSelectedVolunteer] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [calendarDays, setCalendarDays] = useState<CalendarDay[]>([]);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
 
   useEffect(() => {
+    fetchVolunteers();
     fetchSessions();
   }, []);
 
   useEffect(() => {
     generateCalendar();
-  }, [currentDate, sessions]);
+  }, [currentDate, sessions, selectedVolunteer]);
+
+  const fetchVolunteers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('volunteers')
+        .select('id, name')
+        .eq('is_active', true)
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setVolunteers(data || []);
+    } catch (error) {
+      console.error('Error fetching volunteers:', error);
+      toast.error('Failed to load volunteers');
+    }
+  };
 
   const fetchSessions = async () => {
     try {
@@ -71,6 +109,11 @@ export default function Calendar() {
 
     const days: CalendarDay[] = [];
 
+    // Filter sessions based on selected volunteer
+    const filteredSessions = selectedVolunteer === 'all' 
+      ? sessions 
+      : sessions.filter(s => s.facilitator_name === selectedVolunteer);
+
     // Previous month days
     const prevMonthLastDay = new Date(year, month, 0).getDate();
     for (let i = startingDayOfWeek - 1; i >= 0; i--) {
@@ -86,7 +129,7 @@ export default function Calendar() {
     for (let i = 1; i <= daysInMonth; i++) {
       const date = new Date(year, month, i);
       const dateStr = date.toISOString().split('T')[0];
-      const daySessions = sessions.filter(s => s.session_date === dateStr);
+      const daySessions = filteredSessions.filter(s => s.session_date === dateStr);
       
       days.push({
         date,
@@ -151,6 +194,26 @@ export default function Calendar() {
           <p className="text-muted-foreground mt-1">Plan and track session progress</p>
         </div>
 
+        {/* Volunteer Filter */}
+        <div className="bg-card border border-border rounded-lg p-4">
+          <label className="text-sm font-medium text-foreground block mb-2">
+            Filter by Volunters
+          </label>
+          <Select value={selectedVolunteer} onValueChange={setSelectedVolunteer}>
+            <SelectTrigger className="w-full md:w-64">
+              <SelectValue placeholder="Select a Volunters" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Volunters</SelectItem>
+              {volunteers.map((volunteer) => (
+                <SelectItem key={volunteer.id} value={volunteer.name}>
+                  {volunteer.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <div className="grid grid-cols-1 gap-6">
           {/* Calendar */}
           <div className="bg-card border border-border rounded-lg p-6">
@@ -213,214 +276,140 @@ export default function Calendar() {
               ))}
             </div>
           </div>
-
-          {/* Add Session Panel */}
-          <div className="bg-card border border-border rounded-lg p-6 h-fit">
-            <h3 className="text-lg font-semibold mb-4">Session Time</h3>
-            
-            <div className="space-y-4">
-              {selectedSession ? (
-                <>
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                    <p className="text-sm text-blue-900">
-                      <strong>Selected:</strong> {selectedSession.topic_title}
-                    </p>
-                  </div>
-
-                  {/* Time Selection */}
-                  <div>
-                    <label className="text-sm font-medium text-foreground block mb-2">
-                      Session Time
-                    </label>
-                    <input
-                      type="time"
-                      value={selectedSession.session_time || '09:00'}
-                      onChange={(e) => {
-                        if (selectedSession) {
-                          setSelectedSession({
-                            ...selectedSession,
-                            session_time: e.target.value,
-                          });
-                        }
-                      }}
-                      className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground text-sm"
-                    />
-                  </div>
-
-                  {/* Update Button */}
-                  <Button
-                    onClick={async () => {
-                      if (selectedSession) {
-                        try {
-                          const { error } = await (supabase
-                            .from('topic_sessions' as any)
-                            .update({
-                              session_time: selectedSession.session_time,
-                            })
-                            .eq('id', selectedSession.id) as any);
-
-                          if (error) throw error;
-                          toast.success('Session time updated');
-                          fetchSessions();
-                        } catch (error) {
-                          console.error('Error updating session:', error);
-                          toast.error('Failed to update session time');
-                        }
-                      }
-                    }}
-                    className="w-full gap-2"
-                  >
-                    Update Time
-                  </Button>
-
-                  <Button
-                    onClick={() => setSelectedSession(null)}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    Clear Selection
-                  </Button>
-                </>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <p className="text-sm">Click on a session in the calendar to edit its time</p>
-                </div>
-              )}
-            </div>
-
-            {/* Info */}
-            <div className="mt-6 pt-6 border-t border-border">
-              <p className="text-sm font-medium text-foreground mb-3">How to Use</p>
-              <div className="space-y-2 text-xs text-muted-foreground">
-                <p>1. Click on a session in the calendar</p>
-                <p>2. Set the session time</p>
-                <p>3. Click "Update Time" to save</p>
-              </div>
-            </div>
-          </div>
         </div>
 
-        {/* Session Details Panel */}
-        {selectedSession && (
-          <div className="bg-card border border-border rounded-lg p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">Session Details</h3>
-              <button
-                onClick={() => setSelectedSession(null)}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                ✕
-              </button>
-            </div>
+        {/* Session Details Modal */}
+        <Dialog open={!!selectedSession} onOpenChange={(open) => !open && setSelectedSession(null)}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Session Details</DialogTitle>
+              <DialogClose />
+            </DialogHeader>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Topic & Basic Info */}
-              <div className="space-y-3">
-                {selectedSession.content_category && (
+            {selectedSession && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Topic & Basic Info */}
+                <div className="space-y-3">
+                  {selectedSession.content_category && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Category</p>
+                      <p className="font-medium">{selectedSession.content_category}</p>
+                    </div>
+                  )}
+                  {selectedSession.module_name && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Module</p>
+                      <p className="font-medium">{selectedSession.module_name}</p>
+                    </div>
+                  )}
+                  {selectedSession.topics_covered && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Topic</p>
+                      <p className="font-medium">{selectedSession.topics_covered}</p>
+                    </div>
+                  )}
                   <div>
-                    <p className="text-xs text-muted-foreground">Category</p>
-                    <p className="font-medium">{selectedSession.content_category}</p>
+                    <p className="text-xs text-muted-foreground">Title</p>
+                    <p className="font-medium">{selectedSession.title}</p>
                   </div>
-                )}
-                {selectedSession.module_name && (
                   <div>
-                    <p className="text-xs text-muted-foreground">Module</p>
-                    <p className="font-medium">{selectedSession.module_name}</p>
+                    <p className="text-xs text-muted-foreground">Date</p>
+                    <p className="font-medium">{new Date(selectedSession.session_date).toLocaleDateString()}</p>
                   </div>
-                )}
-                {selectedSession.topics_covered && (
                   <div>
-                    <p className="text-xs text-muted-foreground">Topic</p>
-                    <p className="font-medium">{selectedSession.topics_covered}</p>
+                    <p className="text-xs text-muted-foreground">Time</p>
+                    <p className="font-medium">{selectedSession.session_time}</p>
                   </div>
-                )}
-                <div>
-                  <p className="text-xs text-muted-foreground">Title</p>
-                  <p className="font-medium">{selectedSession.title}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Date</p>
-                  <p className="font-medium">{new Date(selectedSession.session_date).toLocaleDateString()}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Time</p>
-                  <p className="font-medium">{selectedSession.session_time}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Status</p>
-                  <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold capitalize ${
-                    selectedSession.status === 'completed' ? 'bg-green-100 text-green-800' :
-                    selectedSession.status === 'available' ? 'bg-blue-100 text-blue-800' :
-                    selectedSession.status === 'committed' ? 'bg-purple-100 text-purple-800' :
-                    'bg-yellow-100 text-yellow-800'
-                  }`}>
-                    {selectedSession.status}
-                  </span>
-                </div>
-                {selectedSession.guest_teacher && (
                   <div>
-                    <p className="text-xs text-muted-foreground">Volunteer</p>
-                    <p className="font-medium">{selectedSession.guest_teacher}</p>
-                    {selectedSession.mentor_email && <p className="text-xs text-muted-foreground">{selectedSession.mentor_email}</p>}
+                    <p className="text-xs text-muted-foreground">Status</p>
+                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold capitalize ${
+                      selectedSession.status === 'completed' ? 'bg-green-100 text-green-800' :
+                      selectedSession.status === 'available' ? 'bg-blue-100 text-blue-800' :
+                      selectedSession.status === 'committed' ? 'bg-purple-100 text-purple-800' :
+                      'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {selectedSession.status}
+                    </span>
                   </div>
-                )}
+                  {selectedSession.facilitator_name && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Facilitator</p>
+                      <p className="font-medium">{selectedSession.facilitator_name}</p>
+                    </div>
+                  )}
+                  {selectedSession.volunteer_name && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Volunteer</p>
+                      <p className="font-medium">{selectedSession.volunteer_name}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Resources */}
+                <div className="space-y-3">
+                  <h4 className="font-semibold text-sm">Resources</h4>
+                  
+                  {selectedSession.videos ? (
+                    <div>
+                      <p className="text-xs text-muted-foreground">🎥 Videos</p>
+                      <a
+                        href={selectedSession.videos}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline text-sm break-all"
+                      >
+                        {selectedSession.videos.substring(0, 50)}...
+                      </a>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-muted-foreground">🎥 Videos - Not available</div>
+                  )}
+
+                  {selectedSession.quiz_content_ppt ? (
+                    <div>
+                      <p className="text-xs text-muted-foreground">📊 Quiz/Content PPT</p>
+                      <a
+                        href={selectedSession.quiz_content_ppt}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline text-sm break-all"
+                      >
+                        {selectedSession.quiz_content_ppt.substring(0, 50)}...
+                      </a>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-muted-foreground">📊 Quiz/Content PPT - Not available</div>
+                  )}
+
+                  {selectedSession.final_content_ppt ? (
+                    <div>
+                      <p className="text-xs text-muted-foreground">📄 Final Content PPT</p>
+                      <a
+                        href={selectedSession.final_content_ppt}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline text-sm break-all"
+                      >
+                        {selectedSession.final_content_ppt.substring(0, 50)}...
+                      </a>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-muted-foreground">📄 Final Content PPT - Not available</div>
+                  )}
+                </div>
               </div>
+            )}
 
-              {/* Resources */}
-              <div className="space-y-3">
-                <h4 className="font-semibold text-sm">Resources</h4>
-                
-                {selectedSession.videos ? (
-                  <div>
-                    <p className="text-xs text-muted-foreground">🎥 Videos</p>
-                    <a
-                      href={selectedSession.videos}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline text-sm break-all"
-                    >
-                      {selectedSession.videos.substring(0, 50)}...
-                    </a>
-                  </div>
-                ) : (
-                  <div className="text-xs text-muted-foreground">🎥 Videos - Not available</div>
-                )}
-
-                {selectedSession.quiz_content_ppt ? (
-                  <div>
-                    <p className="text-xs text-muted-foreground">📊 Quiz/Content PPT</p>
-                    <a
-                      href={selectedSession.quiz_content_ppt}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline text-sm break-all"
-                    >
-                      {selectedSession.quiz_content_ppt.substring(0, 50)}...
-                    </a>
-                  </div>
-                ) : (
-                  <div className="text-xs text-muted-foreground">📊 Quiz/Content PPT - Not available</div>
-                )}
-
-                {selectedSession.final_content_ppt ? (
-                  <div>
-                    <p className="text-xs text-muted-foreground">📄 Final Content PPT</p>
-                    <a
-                      href={selectedSession.final_content_ppt}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline text-sm break-all"
-                    >
-                      {selectedSession.final_content_ppt.substring(0, 50)}...
-                    </a>
-                  </div>
-                ) : (
-                  <div className="text-xs text-muted-foreground">📄 Final Content PPT - Not available</div>
-                )}
+            {/* Action Buttons */}
+            {selectedSession && (
+              <div className="border-t border-border pt-4 mt-4 space-y-2">
+                <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-800">
+                  ℹ️ Calendar invitations have been sent to the volunteer and facilitator. They will receive email notifications from Google Calendar.
+                </div>
               </div>
-            </div>
-          </div>
-        )}
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
