@@ -48,6 +48,8 @@ interface Session {
   quiz_content_ppt: string | null;
   facilitator_name: string | null;
   volunteer_name: string | null;
+  coordinator_name: string | null;
+  meeting_link: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -72,11 +74,21 @@ export default function Sessions() {
       setLoading(true);
       const { data, error } = await supabase
         .from('sessions')
-        .select('*')
+        .select(`
+          *,
+          coordinators:coordinator_id(name)
+        `)
         .order('session_date', { ascending: false });
 
       if (error) throw error;
-      setSessions((data || []) as Session[]);
+      
+      // Transform data to flatten coordinator name
+      const transformedData = (data || []).map((session: any) => ({
+        ...session,
+        coordinator_name: session.coordinators?.name || null,
+      }));
+      
+      setSessions(transformedData as Session[]);
     } catch (error) {
       console.error('Error fetching sessions:', error);
       toast.error('Failed to load sessions');
@@ -186,10 +198,12 @@ export default function Sessions() {
                         <TableHead>Module</TableHead>
                         <TableHead>Facilitator</TableHead>
                         <TableHead>Volunteer</TableHead>
+                        <TableHead>Coordinator</TableHead>
                         <TableHead>Date</TableHead>
                         <TableHead>Time</TableHead>
                         <TableHead>Type</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead>Meeting Link</TableHead>
                         <TableHead className="w-[60px]">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -201,6 +215,7 @@ export default function Sessions() {
                           <TableCell>{session.module_name || '-'}</TableCell>
                           <TableCell>{session.facilitator_name || '-'}</TableCell>
                           <TableCell>{session.volunteer_name || '-'}</TableCell>
+                          <TableCell>{session.coordinator_name || '-'}</TableCell>
                           <TableCell>{new Date(session.session_date).toLocaleDateString()}</TableCell>
                           <TableCell>{session.session_time}</TableCell>
                           <TableCell>
@@ -216,6 +231,21 @@ export default function Sessions() {
                             }>
                               {session.status}
                             </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {session.meeting_link ? (
+                              <a
+                                href={session.meeting_link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary hover:underline text-sm truncate max-w-[150px] inline-block"
+                                title={session.meeting_link}
+                              >
+                                Join Meeting
+                              </a>
+                            ) : (
+                              <span className="text-muted-foreground text-sm">-</span>
+                            )}
                           </TableCell>
                           <TableCell>
                             <DropdownMenu>
@@ -286,6 +316,27 @@ export default function Sessions() {
                           <span className="font-medium text-sm">{session.volunteer_name || '-'}</span>
                         </div>
                       </div>
+
+                      {/* Coordinator */}
+                      <div className="text-xs">
+                        <span className="text-muted-foreground block">Coordinator</span>
+                        <span className="font-medium text-sm">{session.coordinator_name || '-'}</span>
+                      </div>
+
+                      {/* Meeting Link */}
+                      {session.meeting_link && (
+                        <div className="text-xs">
+                          <span className="text-muted-foreground block">Meeting Link</span>
+                          <a
+                            href={session.meeting_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline font-medium text-sm"
+                          >
+                            Join Meeting
+                          </a>
+                        </div>
+                      )}
 
                       {/* Date and Time */}
                       <div className="grid grid-cols-2 gap-2 text-xs">

@@ -18,6 +18,9 @@ interface CalendarSyncRequest {
   volunteerName: string;
   facilitatorEmail: string;
   facilitatorName: string;
+  coordinatorEmail?: string;
+  coordinatorName?: string;
+  meetingLink?: string;
 }
 
 // Convert PEM private key to DER format
@@ -252,7 +255,7 @@ serve(async (req: Request) => {
 
     const calendarEvent = {
       summary: syncData.title,
-      description: syncData.description || "",
+      description: syncData.description + (syncData.meetingLink ? `\n\n📹 Google Meet: ${syncData.meetingLink}` : ""),
       start: {
         dateTime: syncData.startDateTime,
         timeZone: "UTC",
@@ -264,14 +267,24 @@ serve(async (req: Request) => {
       attendees: [
         { email: syncData.volunteerEmail, displayName: syncData.volunteerName },
         { email: syncData.facilitatorEmail, displayName: syncData.facilitatorName },
+        ...(syncData.coordinatorEmail ? [{ email: syncData.coordinatorEmail, displayName: syncData.coordinatorName }] : []),
       ],
+      conferenceData: {
+        createRequest: {
+          requestId: crypto.randomUUID(),
+          conferenceSolutionKey: {
+            type: "hangoutsMeet",
+          },
+        },
+      },
       sendNotifications: true,
     };
 
     let volunteerEventId = "";
     let facilitatorEventId = "";
+    let coordinatorEventId = "";
 
-    // Create events for both volunteer and facilitator using Service Account
+    // Create events for volunteer, facilitator, and coordinator using Service Account
     volunteerEventId = await createCalendarEventWithServiceAccount(
       syncData.volunteerEmail,
       calendarEvent,
@@ -287,6 +300,17 @@ serve(async (req: Request) => {
       privateKey,
       workspaceDomain
     );
+
+    // Create event for coordinator if provided
+    if (syncData.coordinatorEmail) {
+      coordinatorEventId = await createCalendarEventWithServiceAccount(
+        syncData.coordinatorEmail,
+        calendarEvent,
+        serviceAccountEmail,
+        privateKey,
+        workspaceDomain
+      );
+    }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -309,6 +333,7 @@ serve(async (req: Request) => {
         message: "Calendar invitations sent",
         volunteerEventId,
         facilitatorEventId,
+        coordinatorEventId,
       }),
       {
         status: 200,

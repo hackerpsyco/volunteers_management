@@ -114,6 +114,7 @@ export function AddSessionDialog({
     facilitator_name: '',
     coordinator_name: '',
     volunteer_name: '',
+    meeting_link: '',
   });
   const { user } = useAuth();
   const { toast } = useToast();
@@ -398,15 +399,14 @@ export function AddSessionDialog({
       videos: formData.videos,
       quiz_content_ppt: formData.quiz_content_ppt,
       facilitator_name: formData.facilitator_name,
-      coordinator_name: selectedCoordinatorData?.name || '',
       coordinator_id: selectedCoordinator,
       volunteer_name: formData.volunteer_name,
+      meeting_link: formData.meeting_link,
     };
 
     const { data: insertedSession, error } = await supabase
       .from('sessions')
-      .insert([sessionData])
-      .select('id');
+      .insert([sessionData]);
 
     if (error) {
       console.error('Session insert error:', error);
@@ -416,7 +416,7 @@ export function AddSessionDialog({
         variant: 'destructive',
       });
     } else {
-      const sessionId = insertedSession?.[0]?.id;
+      const sessionId = insertedSession?.[0]?.id || selectedDate?.getTime().toString();
 
       // Add to Google Calendar for volunteer and facilitator
       if (sessionId) {
@@ -437,6 +437,7 @@ Session Details:
 - Topic: ${formData.topics_covered}
 - Type: ${sessionType === 'guest_teacher' ? 'Guest Teacher' : 'Guest Speaker'}
 - Facilitator: ${formData.facilitator_name}
+- Coordinator: ${selectedCoordinatorData?.name || 'N/A'}
 - Volunteer: ${formData.volunteer_name}
 ${formData.videos ? `- Videos: ${formData.videos}` : ''}
 ${formData.quiz_content_ppt ? `- PPT: ${formData.quiz_content_ppt}` : ''}
@@ -447,6 +448,9 @@ ${formData.quiz_content_ppt ? `- PPT: ${formData.quiz_content_ppt}` : ''}
             volunteerName: selectedVolunteerData?.name || '',
             facilitatorEmail: selectedFacilitatorData?.email || '',
             facilitatorName: selectedFacilitatorData?.name || '',
+            coordinatorEmail: selectedCoordinatorData?.email || '',
+            coordinatorName: selectedCoordinatorData?.name || '',
+            meetingLink: formData.meeting_link || '',
           };
 
           // Try to sync with Google Calendar
@@ -475,7 +479,7 @@ ${formData.quiz_content_ppt ? `- PPT: ${formData.quiz_content_ppt}` : ''}
           
           toast({
             title: 'Session Created',
-            description: `Session "${formData.title}" has been scheduled. Calendar invites sent to volunteer and facilitator.`,
+            description: `Session "${formData.title}" has been scheduled. Calendar invites sent to volunteer, facilitator, and coordinator.`,
           });
         } catch (notificationError) {
           console.error('Error with calendar sync:', notificationError);
@@ -510,6 +514,7 @@ ${formData.quiz_content_ppt ? `- PPT: ${formData.quiz_content_ppt}` : ''}
       facilitator_name: '',
       coordinator_name: '',
       volunteer_name: '',
+      meeting_link: '',
     });
     onOpenChange(false);
   };
@@ -594,6 +599,29 @@ ${formData.quiz_content_ppt ? `- PPT: ${formData.quiz_content_ppt}` : ''}
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          </div>
+
+          {/* Meeting Link */}
+          <div className="border-t border-border pt-4">
+            <h4 className="font-medium text-sm sm:text-base text-foreground mb-3">
+              Meeting Details
+            </h4>
+            
+            <div className="space-y-2">
+              <Label htmlFor="meeting_link" className="text-sm sm:text-base">
+                Google Meet Link
+              </Label>
+              <Input
+                id="meeting_link"
+                placeholder="https://meet.google.com/..."
+                value={formData.meeting_link}
+                onChange={(e) => setFormData({ ...formData, meeting_link: e.target.value })}
+                className="text-sm sm:text-base"
+              />
+              <p className="text-xs text-muted-foreground">
+                Paste the Google Meet link here. This will be shared with participants.
+              </p>
             </div>
           </div>
 

@@ -35,9 +35,12 @@ interface Session {
   session_time: string;
   facilitator_name?: string;
   volunteer_name?: string;
+  coordinator_name?: string;
   videos?: string;
   quiz_content_ppt?: string;
   final_content_ppt?: string;
+  meeting_link?: string;
+  centre_id?: string;
 }
 
 interface CalendarDay {
@@ -84,12 +87,21 @@ export default function Calendar() {
     try {
       const { data, error } = await supabase
         .from('sessions')
-        .select('*')
+        .select(`
+          *,
+          coordinators:coordinator_id(name)
+        `)
         .order('session_date', { ascending: true });
 
       if (error) throw error;
       
-      setSessions(data || []);
+      // Transform data to flatten coordinator name
+      const transformedData = (data || []).map((session: any) => ({
+        ...session,
+        coordinator_name: session.coordinators?.name || null,
+      }));
+      
+      setSessions(transformedData || []);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching sessions:', error);
@@ -343,15 +355,37 @@ export default function Calendar() {
                       <p className="font-medium">{selectedSession.volunteer_name}</p>
                     </div>
                   )}
+                  {selectedSession.coordinator_name && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Coordinator</p>
+                      <p className="font-medium">{selectedSession.coordinator_name}</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Resources */}
                 <div className="space-y-3">
-                  <h4 className="font-semibold text-sm">Resources</h4>
+                  <h4 className="font-semibold text-sm">Resources & Meeting</h4>
                   
+                  {selectedSession.meeting_link ? (
+                    <div>
+                      <p className="text-xs text-muted-foreground">🎥 Google Meet Link</p>
+                      <a
+                        href={selectedSession.meeting_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline text-sm break-all font-medium"
+                      >
+                        Join Meeting
+                      </a>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-muted-foreground">🎥 Google Meet Link - Not available</div>
+                  )}
+
                   {selectedSession.videos ? (
                     <div>
-                      <p className="text-xs text-muted-foreground">🎥 Videos</p>
+                      <p className="text-xs text-muted-foreground">📹 Videos</p>
                       <a
                         href={selectedSession.videos}
                         target="_blank"
@@ -362,7 +396,7 @@ export default function Calendar() {
                       </a>
                     </div>
                   ) : (
-                    <div className="text-xs text-muted-foreground">🎥 Videos - Not available</div>
+                    <div className="text-xs text-muted-foreground">📹 Videos - Not available</div>
                   )}
 
                   {selectedSession.quiz_content_ppt ? (
