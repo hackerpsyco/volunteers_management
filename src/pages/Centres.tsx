@@ -67,7 +67,7 @@ export default function Centres() {
         console.warn('Centres table not found:', error);
         setCentres([]);
       } else {
-        setCentres(data || []);
+        setCentres((data as unknown as Centre[]) || []);
       }
     } catch (error) {
       console.error('Error fetching centres:', error);
@@ -154,7 +154,7 @@ export default function Centres() {
         console.warn('Time slots table not found:', error);
         setTimeSlots([]);
       } else {
-        setTimeSlots(data || []);
+        setTimeSlots((data as unknown as TimeSlot[]) || []);
       }
     } catch (error) {
       console.error('Error fetching time slots:', error);

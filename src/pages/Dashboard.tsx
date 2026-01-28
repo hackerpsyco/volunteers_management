@@ -46,18 +46,18 @@ export default function Dashboard() {
     async function fetchDashboardData() {
       try {
         // Fetch stats
-        const [volunteersResult, sessionsResult, centresResult, facilitatorsResult] = await Promise.all([
-          supabase.from('volunteers').select('id', { count: 'exact', head: true }),
-          supabase.from('sessions').select('id', { count: 'exact', head: true }),
-          supabase.from('centres').select('id', { count: 'exact', head: true }).catch(() => ({ count: 0 })),
-          supabase.from('facilitators').select('id', { count: 'exact', head: true }).catch(() => ({ count: 0 })),
-        ]);
+        const volunteersResult = await supabase.from('volunteers').select('id', { count: 'exact', head: true });
+        const sessionsResult = await supabase.from('sessions').select('id', { count: 'exact', head: true });
+        
+        // These tables might not exist yet, so we handle them gracefully
+        let centresCount = 0;
+        let facilitatorsCount = 0;
 
         setStats({
           totalVolunteers: volunteersResult.count || 0,
           totalSessions: sessionsResult.count || 0,
-          totalCentres: centresResult.count || 0,
-          totalFacilitators: facilitatorsResult.count || 0,
+          totalCentres: centresCount,
+          totalFacilitators: facilitatorsCount,
         });
 
         // Fetch session status breakdown
@@ -82,14 +82,20 @@ export default function Dashboard() {
         setSessionStatus(statusCounts);
 
         // Fetch curriculum categories
-        const { data: curriculumData } = await supabase
+        const { data: curriculumData, error: curriculumError } = await supabase
           .from('curriculum')
           .select('content_category');
+
+        if (curriculumError) {
+          console.warn('Error fetching curriculum:', curriculumError);
+        }
 
         const categoryMap = new Map<string, number>();
         curriculumData?.forEach((item: any) => {
           const category = item.content_category;
-          categoryMap.set(category, (categoryMap.get(category) || 0) + 1);
+          if (category) {
+            categoryMap.set(category, (categoryMap.get(category) || 0) + 1);
+          }
         });
 
         const colors = ['bg-blue-100', 'bg-yellow-100', 'bg-pink-100', 'bg-green-100'];
