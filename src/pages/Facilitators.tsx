@@ -141,14 +141,14 @@ export default function Facilitators() {
               Manage facilitators and instructors
             </p>
           </div>
-          {/* <Button
+          <Button
             onClick={() => setShowForm(!showForm)}
             className="gap-2 w-full sm:w-auto"
           >
             <Plus className="h-4 w-4" />
             <span className="hidden sm:inline">New Facilitator</span>
             <span className="sm:hidden">Add</span>
-          </Button> */}
+          </Button>
         </div>
 
         {/* Form */}
@@ -190,7 +190,7 @@ export default function Facilitators() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Specialization</label>
+                  <label className="block text-sm font-medium mb-1">Location</label>
                   <input
                     type="text"
                     value={formData.specialization}
@@ -199,16 +199,7 @@ export default function Facilitators() {
                     placeholder="Area of expertise"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Experience (Years)</label>
-                  <input
-                    type="number"
-                    value={formData.experience_years}
-                    onChange={(e) => setFormData({ ...formData, experience_years: parseInt(e.target.value) })}
-                    className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                    min="0"
-                  />
-                </div>
+               
                 <div>
                   <label className="block text-sm font-medium mb-1">Status</label>
                   <select
