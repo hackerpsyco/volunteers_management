@@ -1,4 +1,4 @@
-import { Home, Users, LogOut, CalendarDays, BookOpen, Menu, X, Users2, MapPin } from 'lucide-react';
+import { Home, Users, LogOut, CalendarDays, BookOpen, Menu, X, Users2, MapPin, FileText } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -9,6 +9,7 @@ const navItems = [
   { title: 'Dashboard', url: '/dashboard', icon: Home },
   { title: 'Calendar', url: '/calendar', icon: CalendarDays },
   { title: 'Session', url: '/sessions', icon: BookOpen },
+  { title: 'Feedback & Record', url: '/feedback', icon: FileText },
   { title: 'Curriculum', url: '/curriculum', icon: BookOpen },
   { title: 'Facilitator', url: '/facilitators', icon: Users2 },
   { title: 'Coordinators', url: '/coordinators', icon: Users2 },

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Plus, MoreVertical, Trash2 } from 'lucide-react';
+import { Plus, MoreVertical, Trash2, BookOpen } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,6 +32,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { AddCoordinatorDialog } from '@/components/coordinators/AddCoordinatorDialog';
+import { SessionTypeDialog } from '@/components/sessions/SessionTypeDialog';
+import { AddSessionDialog } from '@/components/sessions/AddSessionDialog';
 
 interface Coordinator {
   id: string;
@@ -42,11 +45,15 @@ interface Coordinator {
 }
 
 export function Coordinators() {
+  const navigate = useNavigate();
   const [coordinators, setCoordinators] = useState<Coordinator[]>([]);
   const [loading, setLoading] = useState(true);
   const [openDialog, setOpenDialog] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedCoordinator, setSelectedCoordinator] = useState<Coordinator | null>(null);
+  const [isTypeDialogOpen, setIsTypeDialogOpen] = useState(false);
+  const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
+  const [selectedSessionType, setSelectedSessionType] = useState<'guest_teacher' | 'guest_speaker' | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -100,6 +107,15 @@ export function Coordinators() {
       setDeleteDialogOpen(false);
       setSelectedCoordinator(null);
     }
+  };
+
+  const handleAddSession = () => {
+    setIsTypeDialogOpen(true);
+  };
+
+  const handleSessionTypeSelect = (type: 'guest_teacher' | 'guest_speaker') => {
+    setSelectedSessionType(type);
+    setIsFormDialogOpen(true);
   };
 
   return (
@@ -179,6 +195,13 @@ export function Coordinators() {
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="bg-popover">
                                 <DropdownMenuItem
+                                  onClick={handleAddSession}
+                                  className="gap-2"
+                                >
+                                  <BookOpen className="h-4 w-4" />
+                                  Add Session
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
                                   onClick={() => {
                                     setSelectedCoordinator(coordinator);
                                     setDeleteDialogOpen(true);
@@ -239,6 +262,13 @@ export function Coordinators() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="bg-popover">
                             <DropdownMenuItem
+                              onClick={handleAddSession}
+                              className="gap-2"
+                            >
+                              <BookOpen className="h-4 w-4" />
+                              Add Session
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
                               onClick={() => {
                                 setSelectedCoordinator(coordinator);
                                 setDeleteDialogOpen(true);
@@ -263,6 +293,22 @@ export function Coordinators() {
       <AddCoordinatorDialog
         open={openDialog}
         onOpenChange={setOpenDialog}
+        onSuccess={fetchCoordinators}
+      />
+
+      {/* Add Session Dialog - Type Selection */}
+      <SessionTypeDialog
+        open={isTypeDialogOpen}
+        onOpenChange={setIsTypeDialogOpen}
+        onSelectType={handleSessionTypeSelect}
+      />
+
+      {/* Add Session Dialog - Form */}
+      <AddSessionDialog
+        open={isFormDialogOpen}
+        onOpenChange={setIsFormDialogOpen}
+        selectedDate={new Date()}
+        sessionType={selectedSessionType}
         onSuccess={fetchCoordinators}
       />
 

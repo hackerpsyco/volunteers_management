@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Upload, MoreVertical, GraduationCap } from 'lucide-react';
+import { Plus, Trash2, Upload, MoreVertical, GraduationCap, FileText } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -28,6 +29,13 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { SessionTypeDialog } from '@/components/sessions/SessionTypeDialog';
@@ -62,6 +70,7 @@ interface Session {
 }
 
 export default function Sessions() {
+  const navigate = useNavigate();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [isTypeDialogOpen, setIsTypeDialogOpen] = useState(false);
@@ -71,6 +80,8 @@ export default function Sessions() {
   const [selectedSessionType, setSelectedSessionType] = useState<'guest_teacher' | 'guest_speaker' | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [timeFilter, setTimeFilter] = useState<string | null>(null);
 
   useEffect(() => {
     fetchSessions();
@@ -135,6 +146,31 @@ export default function Sessions() {
     setSelectedDate(new Date());
     setIsTypeDialogOpen(true);
   };
+
+  const getFilteredSessions = () => {
+    let filtered = sessions;
+
+    // Apply status filter
+    if (statusFilter) {
+      filtered = filtered.filter(s => s.status === statusFilter);
+    }
+
+    // Apply time filter
+    if (timeFilter) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      if (timeFilter === 'upcoming') {
+        filtered = filtered.filter(s => new Date(s.session_date) >= today);
+      } else if (timeFilter === 'past') {
+        filtered = filtered.filter(s => new Date(s.session_date) < today);
+      }
+    }
+
+    return filtered;
+  };
+
+  const filteredSessions = getFilteredSessions();
 
   const handleSessionTypeSelect = (type: 'guest_teacher' | 'guest_speaker') => {
     setSelectedSessionType(type);
@@ -202,6 +238,58 @@ export default function Sessions() {
               </div>
             ) : (
               <>
+                {/* Filters */}
+                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center mb-6">
+                  {/* Status Filter */}
+                  <div className="w-full sm:w-64">
+                    <label className="text-sm font-medium text-foreground mb-2 block">
+                      Filter by Status
+                    </label>
+                    <Select value={statusFilter || 'all'} onValueChange={(value) => setStatusFilter(value === 'all' ? null : value)}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Statuses</SelectItem>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="committed">Committed</SelectItem>
+                        <SelectItem value="available">Available</SelectItem>
+                        <SelectItem value="completed">Completed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Time Filter */}
+                  <div className="w-full sm:w-64">
+                    <label className="text-sm font-medium text-foreground mb-2 block">
+                      Filter by Time
+                    </label>
+                    <Select value={timeFilter || 'all'} onValueChange={(value) => setTimeFilter(value === 'all' ? null : value)}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select time" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Times</SelectItem>
+                        <SelectItem value="upcoming">Upcoming</SelectItem>
+                        <SelectItem value="past">Past</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Active Filters Summary */}
+                  {(statusFilter || timeFilter) && (
+                    <div className="text-sm text-muted-foreground mt-2 sm:mt-0">
+                      Showing {filteredSessions.length} of {sessions.length} sessions
+                    </div>
+                  )}
+                </div>
+
+                {filteredSessions.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">No sessions match the selected filters</p>
+                  </div>
+                ) : (
+                  <>
                 {/* Desktop Table View */}
                 <div className="hidden md:block overflow-x-auto">
                   <Table>
@@ -223,7 +311,7 @@ export default function Sessions() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {sessions.map((session) => (
+                      {filteredSessions.map((session) => (
                         <TableRow key={session.id}>
                           <TableCell className="font-medium">{session.topics_covered || '-'}</TableCell>
                           <TableCell>{session.content_category || '-'}</TableCell>
@@ -276,6 +364,12 @@ export default function Sessions() {
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="bg-popover">
                                 <DropdownMenuItem 
+                                  onClick={() => navigate(`/sessions/${session.id}/recording`)}
+                                >
+                                  <FileText className="h-4 w-4 mr-2" />
+                                  Record Session
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
                                   onClick={() => {
                                     setSelectedSession(session);
                                     setDeleteDialogOpen(true);
@@ -296,7 +390,7 @@ export default function Sessions() {
 
                 {/* Mobile Card View */}
                 <div className="md:hidden space-y-4">
-                  {sessions.map((session) => (
+                  {filteredSessions.map((session) => (
                     <div key={session.id} className="bg-muted/50 rounded-lg p-4 space-y-3 border border-border">
                       {/* Topic and Status */}
                       <div className="flex items-start justify-between gap-2">
@@ -398,6 +492,15 @@ export default function Sessions() {
                       <div className="flex gap-2 pt-2 border-t border-border">
                         <Button 
                           size="sm" 
+                          variant="outline"
+                          onClick={() => navigate(`/sessions/${session.id}/recording`)}
+                          className="flex-1"
+                        >
+                          <FileText className="h-4 w-4 mr-1" />
+                          Record
+                        </Button>
+                        <Button 
+                          size="sm" 
                           variant="destructive"
                           onClick={() => {
                             setSelectedSession(session);
@@ -412,6 +515,8 @@ export default function Sessions() {
                     </div>
                   ))}
                 </div>
+                  </>
+                )}
               </>
             )}
           </CardContent>

@@ -30,9 +30,11 @@ import {
 } from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Plus, Users, MoreVertical, Pencil, Calendar, Trash2, UserCheck, UserX, Upload } from 'lucide-react';
+import { Plus, Users, MoreVertical, Pencil, Calendar, Trash2, UserCheck, UserX, Upload, BookOpen } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { BulkUploadDialog } from '@/components/volunteers/BulkUploadDialog';
+import { SessionTypeDialog } from '@/components/sessions/SessionTypeDialog';
+import { AddSessionDialog } from '@/components/sessions/AddSessionDialog';
 
 interface Volunteer {
   id: string;
@@ -55,6 +57,9 @@ export default function VolunteerList() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
   const [selectedVolunteer, setSelectedVolunteer] = useState<Volunteer | null>(null);
+  const [isTypeDialogOpen, setIsTypeDialogOpen] = useState(false);
+  const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
+  const [selectedSessionType, setSelectedSessionType] = useState<'guest_teacher' | 'guest_speaker' | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -133,6 +138,15 @@ export default function VolunteerList() {
     if (volunteer.country) parts.push(volunteer.country);
     return parts.length > 0 ? parts.join(', ') : '-';
   }
+
+  const handleAddSession = () => {
+    setIsTypeDialogOpen(true);
+  };
+
+  const handleSessionTypeSelect = (type: 'guest_teacher' | 'guest_speaker') => {
+    setSelectedSessionType(type);
+    setIsFormDialogOpen(true);
+  };
 
   return (
     <DashboardLayout>
@@ -261,6 +275,13 @@ export default function VolunteerList() {
                                 >
                                   <Calendar className="h-4 w-4 mr-2" />
                                   Assign Session
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  onClick={handleAddSession}
+                                  className="gap-2"
+                                >
+                                  <BookOpen className="h-4 w-4" />
+                                  Add Session
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem 
@@ -405,6 +426,13 @@ export default function VolunteerList() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="bg-popover">
+                            <DropdownMenuItem
+                              onClick={handleAddSession}
+                              className="gap-2"
+                            >
+                              <BookOpen className="h-4 w-4" />
+                              Add Session
+                            </DropdownMenuItem>
                             <DropdownMenuItem 
                               onClick={() => toggleVolunteerStatus(volunteer)}
                             >
@@ -462,6 +490,23 @@ export default function VolunteerList() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      
+      {/* Add Session Dialog - Type Selection */}
+      <SessionTypeDialog
+        open={isTypeDialogOpen}
+        onOpenChange={setIsTypeDialogOpen}
+        onSelectType={handleSessionTypeSelect}
+      />
+
+      {/* Add Session Dialog - Form */}
+      <AddSessionDialog
+        open={isFormDialogOpen}
+        onOpenChange={setIsFormDialogOpen}
+        selectedDate={new Date()}
+        sessionType={selectedSessionType}
+        onSuccess={fetchVolunteers}
+      />
+
       {/* Bulk Upload Dialog */}
       <BulkUploadDialog
         open={bulkUploadOpen}

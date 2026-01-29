@@ -166,6 +166,25 @@ export type Database = {
           quiz_content_ppt: string | null
           facilitator_name: string | null
           volunteer_name: string | null
+          coordinator_id: string | null
+          meeting_link: string | null
+          centre_id: string | null
+          centre_time_slot_id: string | null
+          session_objective: string | null
+          practical_activities: string | null
+          session_highlights: string | null
+          learning_outcomes: string | null
+          facilitator_reflection: string | null
+          best_performer: string | null
+          guest_teacher_feedback: string | null
+          incharge_reviewer_feedback: string | null
+          mic_sound_rating: number | null
+          seating_view_rating: number | null
+          session_strength: number | null
+          class_batch: string | null
+          guest_teacher_id: string | null
+          recorded_at: string | null
+          recorded_by: string | null
           created_at: string
           updated_at: string
         }
@@ -183,6 +202,25 @@ export type Database = {
           quiz_content_ppt?: string | null
           facilitator_name?: string | null
           volunteer_name?: string | null
+          coordinator_id?: string | null
+          meeting_link?: string | null
+          centre_id?: string | null
+          centre_time_slot_id?: string | null
+          session_objective?: string | null
+          practical_activities?: string | null
+          session_highlights?: string | null
+          learning_outcomes?: string | null
+          facilitator_reflection?: string | null
+          best_performer?: string | null
+          guest_teacher_feedback?: string | null
+          incharge_reviewer_feedback?: string | null
+          mic_sound_rating?: number | null
+          seating_view_rating?: number | null
+          session_strength?: number | null
+          class_batch?: string | null
+          guest_teacher_id?: string | null
+          recorded_at?: string | null
+          recorded_by?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -200,6 +238,25 @@ export type Database = {
           quiz_content_ppt?: string | null
           facilitator_name?: string | null
           volunteer_name?: string | null
+          coordinator_id?: string | null
+          meeting_link?: string | null
+          centre_id?: string | null
+          centre_time_slot_id?: string | null
+          session_objective?: string | null
+          practical_activities?: string | null
+          session_highlights?: string | null
+          learning_outcomes?: string | null
+          facilitator_reflection?: string | null
+          best_performer?: string | null
+          guest_teacher_feedback?: string | null
+          incharge_reviewer_feedback?: string | null
+          mic_sound_rating?: number | null
+          seating_view_rating?: number | null
+          session_strength?: number | null
+          class_batch?: string | null
+          guest_teacher_id?: string | null
+          recorded_at?: string | null
+          recorded_by?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -252,6 +309,80 @@ export type Database = {
           work_email?: string
         }
         Relationships: []
+      }
+      coordinators: {
+        Row: {
+          id: string
+          name: string
+          email: string | null
+          phone: string | null
+          location: string | null
+          status: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          email?: string | null
+          phone?: string | null
+          location?: string | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          email?: string | null
+          phone?: string | null
+          location?: string | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      student_performance: {
+        Row: {
+          id: string
+          session_id: string
+          student_name: string
+          questions_asked: number
+          performance_rating: number
+          performance_comment: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          session_id: string
+          student_name: string
+          questions_asked?: number
+          performance_rating: number
+          performance_comment?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          session_id?: string
+          student_name?: string
+          questions_asked?: number
+          performance_rating?: number
+          performance_comment?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_performance_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          }
+        ]
       }
     }
     Views: {

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, MoreVertical } from 'lucide-react';
+import { Plus, Trash2, MoreVertical, BookOpen } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -30,6 +31,8 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
+import { SessionTypeDialog } from '@/components/sessions/SessionTypeDialog';
+import { AddSessionDialog } from '@/components/sessions/AddSessionDialog';
 
 interface Facilitator {
   id: string;
@@ -42,12 +45,16 @@ interface Facilitator {
 }
 
 export default function Facilitators() {
+  const navigate = useNavigate();
   const [facilitators, setFacilitators] = useState<Facilitator[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedFacilitator, setSelectedFacilitator] = useState<Facilitator | null>(null);
+  const [isTypeDialogOpen, setIsTypeDialogOpen] = useState(false);
+  const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
+  const [selectedSessionType, setSelectedSessionType] = useState<'guest_teacher' | 'guest_speaker' | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -153,6 +160,15 @@ export default function Facilitators() {
       location: '',
       status: 'active',
     });
+  };
+
+  const handleAddSession = () => {
+    setIsTypeDialogOpen(true);
+  };
+
+  const handleSessionTypeSelect = (type: 'guest_teacher' | 'guest_speaker') => {
+    setSelectedSessionType(type);
+    setIsFormDialogOpen(true);
   };
 
   return (
@@ -311,6 +327,13 @@ export default function Facilitators() {
                                   Edit
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
+                                  onClick={handleAddSession}
+                                  className="gap-2"
+                                >
+                                  <BookOpen className="h-4 w-4" />
+                                  Add Session
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
                                   onClick={() => {
                                     setSelectedFacilitator(facilitator);
                                     setDeleteDialogOpen(true);
@@ -379,6 +402,13 @@ export default function Facilitators() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="bg-popover">
                             <DropdownMenuItem
+                              onClick={() => navigate('/sessions')}
+                              className="gap-2"
+                            >
+                              <BookOpen className="h-4 w-4" />
+                              Add Session
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
                               onClick={() => {
                                 setSelectedFacilitator(facilitator);
                                 setDeleteDialogOpen(true);
@@ -399,6 +429,22 @@ export default function Facilitators() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Add Session Dialog - Type Selection */}
+      <SessionTypeDialog
+        open={isTypeDialogOpen}
+        onOpenChange={setIsTypeDialogOpen}
+        onSelectType={handleSessionTypeSelect}
+      />
+
+      {/* Add Session Dialog - Form */}
+      <AddSessionDialog
+        open={isFormDialogOpen}
+        onOpenChange={setIsFormDialogOpen}
+        selectedDate={new Date()}
+        sessionType={selectedSessionType}
+        onSuccess={fetchFacilitators}
+      />
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

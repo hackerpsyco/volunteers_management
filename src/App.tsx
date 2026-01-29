@@ -8,6 +8,9 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Calendar from "./pages/Calendar";
 import Sessions from "./pages/Sessions";
+import SessionRecording from "./pages/SessionRecording";
+import StudentPerformance from "./pages/StudentPerformance";
+import FeedbackSelection from "./pages/FeedbackSelection";
 import Curriculum from "./pages/Curriculum";
 import Facilitators from "./pages/Facilitators";
 import { Coordinators } from "./pages/Coordinators";
@@ -31,6 +34,9 @@ const App = () => (
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/calendar" element={<Calendar />} />
             <Route path="/sessions" element={<Sessions />} />
+            <Route path="/feedback" element={<FeedbackSelection />} />
+            <Route path="/sessions/:sessionId/recording" element={<SessionRecording />} />
+            <Route path="/student-performance/:sessionId" element={<StudentPerformance />} />
             <Route path="/curriculum" element={<Curriculum />} />
             <Route path="/facilitators" element={<Facilitators />} />
             <Route path="/coordinators" element={<Coordinators />} />
