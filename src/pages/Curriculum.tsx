@@ -237,8 +237,7 @@ export default function Curriculum() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Category</TableHead>
-                        <TableHead>Module No.</TableHead>
-                        <TableHead>Module Name</TableHead>
+                        <TableHead>Module No & Module Name</TableHead>
                         <TableHead>Topics Covered</TableHead>
                         <TableHead>Videos</TableHead>
                         <TableHead>PPT/Quiz</TableHead>
@@ -253,8 +252,7 @@ export default function Curriculum() {
                           <TableCell>
                             <Badge variant="outline">{item.content_category}</Badge>
                           </TableCell>
-                          <TableCell className="font-medium">{item.module_code}</TableCell>
-                          <TableCell>{item.module_title}</TableCell>
+                          <TableCell className="font-medium">{item.module_code} - {item.module_title}</TableCell>
                           <TableCell className="max-w-[200px] truncate">{item.topic_title}</TableCell>
                           <TableCell>
                             {item.videos ? (
@@ -341,14 +339,14 @@ export default function Curriculum() {
 
                 {/* Mobile Card View */}
                 <div className="md:hidden space-y-4">
-                  {filteredCurriculum.map((item) => (
+                      {filteredCurriculum.map((item) => (
                     <div key={item.id} className="bg-muted/50 rounded-lg p-4 space-y-3 border border-border">
-                      {/* Category and Module No */}
+                      {/* Category and Module Info */}
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
                           <Badge variant="outline" className="mb-2">{item.content_category}</Badge>
-                          <h3 className="font-semibold text-foreground break-words">{item.module_title}</h3>
-                          <p className="text-xs text-muted-foreground mt-1">Module: {item.module_code}</p>
+                          <h3 className="font-semibold text-foreground break-words">{item.module_code} - {item.module_title}</h3>
+                          <p className="text-xs text-muted-foreground mt-1">Module No & Module Name</p>
                         </div>
                       </div>
 

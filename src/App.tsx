@@ -11,6 +11,7 @@ import Sessions from "./pages/Sessions";
 import SessionRecording from "./pages/SessionRecording";
 import StudentPerformance from "./pages/StudentPerformance";
 import FeedbackSelection from "./pages/FeedbackSelection";
+import FeedbackDetails from "./pages/FeedbackDetails";
 import Curriculum from "./pages/Curriculum";
 import Facilitators from "./pages/Facilitators";
 import { Coordinators } from "./pages/Coordinators";
@@ -36,6 +37,7 @@ const App = () => (
             <Route path="/sessions" element={<Sessions />} />
             <Route path="/feedback" element={<FeedbackSelection />} />
             <Route path="/sessions/:sessionId/recording" element={<SessionRecording />} />
+            <Route path="/sessions/:sessionId/feedback-details" element={<FeedbackDetails />} />
             <Route path="/student-performance/:sessionId" element={<StudentPerformance />} />
             <Route path="/curriculum" element={<Curriculum />} />
             <Route path="/facilitators" element={<Facilitators />} />

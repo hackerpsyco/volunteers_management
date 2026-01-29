@@ -82,6 +82,9 @@ export default function Sessions() {
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [timeFilter, setTimeFilter] = useState<string | null>(null);
+  const [volunteerFilter, setVolunteerFilter] = useState<string | null>(null);
+  const [facilitatorFilter, setFacilitatorFilter] = useState<string | null>(null);
+  const [coordinatorFilter, setCoordinatorFilter] = useState<string | null>(null);
 
   useEffect(() => {
     fetchSessions();
@@ -167,6 +170,21 @@ export default function Sessions() {
       }
     }
 
+    // Apply volunteer filter
+    if (volunteerFilter) {
+      filtered = filtered.filter(s => s.volunteer_name === volunteerFilter);
+    }
+
+    // Apply facilitator filter
+    if (facilitatorFilter) {
+      filtered = filtered.filter(s => s.facilitator_name === facilitatorFilter);
+    }
+
+    // Apply coordinator filter
+    if (coordinatorFilter) {
+      filtered = filtered.filter(s => s.coordinator_name === coordinatorFilter);
+    }
+
     return filtered;
   };
 
@@ -241,7 +259,7 @@ export default function Sessions() {
                 {/* Filters */}
                 <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center mb-6">
                   {/* Status Filter */}
-                  <div className="w-full sm:w-64">
+                  <div className="w-full sm:w-48">
                     <label className="text-sm font-medium text-foreground mb-2 block">
                       Filter by Status
                     </label>
@@ -260,7 +278,7 @@ export default function Sessions() {
                   </div>
 
                   {/* Time Filter */}
-                  <div className="w-full sm:w-64">
+                  <div className="w-full sm:w-48">
                     <label className="text-sm font-medium text-foreground mb-2 block">
                       Filter by Time
                     </label>
@@ -276,8 +294,68 @@ export default function Sessions() {
                     </Select>
                   </div>
 
+                  {/* Volunteer Filter */}
+                  <div className="w-full sm:w-48">
+                    <label className="text-sm font-medium text-foreground mb-2 block">
+                      Filter by Volunteer
+                    </label>
+                    <Select value={volunteerFilter || 'all'} onValueChange={(value) => setVolunteerFilter(value === 'all' ? null : value)}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select volunteer" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Volunteers</SelectItem>
+                        {[...new Set(sessions.map(s => s.volunteer_name).filter(Boolean))].sort().map((volunteer) => (
+                          <SelectItem key={volunteer} value={volunteer || ''}>
+                            {volunteer}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Facilitator Filter */}
+                  <div className="w-full sm:w-48">
+                    <label className="text-sm font-medium text-foreground mb-2 block">
+                      Filter by Facilitator
+                    </label>
+                    <Select value={facilitatorFilter || 'all'} onValueChange={(value) => setFacilitatorFilter(value === 'all' ? null : value)}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select facilitator" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Facilitators</SelectItem>
+                        {[...new Set(sessions.map(s => s.facilitator_name).filter(Boolean))].sort().map((facilitator) => (
+                          <SelectItem key={facilitator} value={facilitator || ''}>
+                            {facilitator}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Coordinator Filter */}
+                  <div className="w-full sm:w-48">
+                    <label className="text-sm font-medium text-foreground mb-2 block">
+                      Filter by Coordinator
+                    </label>
+                    <Select value={coordinatorFilter || 'all'} onValueChange={(value) => setCoordinatorFilter(value === 'all' ? null : value)}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select coordinator" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Coordinators</SelectItem>
+                        {[...new Set(sessions.map(s => s.coordinator_name).filter(Boolean))].sort().map((coordinator) => (
+                          <SelectItem key={coordinator} value={coordinator || ''}>
+                            {coordinator}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   {/* Active Filters Summary */}
-                  {(statusFilter || timeFilter) && (
+                  {(statusFilter || timeFilter || volunteerFilter || facilitatorFilter || coordinatorFilter) && (
                     <div className="text-sm text-muted-foreground mt-2 sm:mt-0">
                       Showing {filteredSessions.length} of {sessions.length} sessions
                     </div>
@@ -295,9 +373,9 @@ export default function Sessions() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Topic</TableHead>
                         <TableHead>Category</TableHead>
                         <TableHead>Module</TableHead>
+                        <TableHead className="max-w-[200px]">Topic</TableHead>
                         <TableHead>Facilitator</TableHead>
                         <TableHead>Volunteer</TableHead>
                         <TableHead>Coordinator</TableHead>
@@ -313,9 +391,11 @@ export default function Sessions() {
                     <TableBody>
                       {filteredSessions.map((session) => (
                         <TableRow key={session.id}>
-                          <TableCell className="font-medium">{session.topics_covered || '-'}</TableCell>
                           <TableCell>{session.content_category || '-'}</TableCell>
                           <TableCell>{session.module_name || '-'}</TableCell>
+                          <TableCell className="max-w-[200px] truncate" title={session.topics_covered || ''}>
+                            <span className="font-medium">{session.topics_covered || '-'}</span>
+                          </TableCell>
                           <TableCell>{session.facilitator_name || '-'}</TableCell>
                           <TableCell>{session.volunteer_name || '-'}</TableCell>
                           <TableCell>{session.coordinator_name || '-'}</TableCell>
