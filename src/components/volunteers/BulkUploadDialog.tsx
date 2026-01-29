@@ -71,24 +71,24 @@ export function BulkUploadDialog({ open, onOpenChange, onSuccess }: BulkUploadDi
       jsonData.forEach((row, index) => {
         const rowNum = index + 2; // Excel row number (1-indexed, plus header row)
         
-        const name = row['Name'] || row['name'] || '';
-        const orgType = (row['Organization Type'] || row['organization_type'] || 'individual').toLowerCase();
-        const orgName = row['Organization Name'] || row['organization_name'] || '';
-        const workEmail = row['Work Email'] || row['work_email'] || row['Email'] || row['email'] || '';
-        const personalEmail = row['Personal Email'] || row['personal_email'] || '';
-        const phone = row['Phone'] || row['phone_number'] || row['Phone Number'] || '';
-        const country = row['Country'] || row['country'] || '';
-        const city = row['City'] || row['city'] || '';
-        const linkedin = row['LinkedIn'] || row['linkedin_profile'] || row['LinkedIn Profile'] || '';
+        const name = String(row['Name'] || row['name'] || '').trim();
+        const orgType = String(row['Organization Type'] || row['organization_type'] || 'individual').toLowerCase();
+        const orgName = String(row['Organization Name'] || row['organization_name'] || '').trim();
+        const workEmail = String(row['Work Email'] || row['work_email'] || row['Email'] || row['email'] || '').trim();
+        const personalEmail = String(row['Personal Email'] || row['personal_email'] || '').trim();
+        const phone = String(row['Phone'] || row['phone_number'] || row['Phone Number'] || '').trim();
+        const country = String(row['Country'] || row['country'] || '').trim();
+        const city = String(row['City'] || row['city'] || '').trim();
+        const linkedin = String(row['LinkedIn'] || row['linkedin_profile'] || row['LinkedIn Profile'] || '').trim();
 
         // Validation
-        if (!name.trim()) {
+        if (!name) {
           parseErrors.push(`Row ${rowNum}: Name is required`);
         }
-        if (!workEmail.trim()) {
+        if (!workEmail) {
           parseErrors.push(`Row ${rowNum}: Work Email is required`);
         }
-        if (!phone.trim()) {
+        if (!phone) {
           parseErrors.push(`Row ${rowNum}: Phone Number is required`);
         }
 
@@ -96,15 +96,15 @@ export function BulkUploadDialog({ open, onOpenChange, onSuccess }: BulkUploadDi
         const normalizedOrgType = validOrgTypes.includes(orgType) ? orgType : 'individual';
 
         parsedData.push({
-          name: name.trim(),
+          name: name,
           organization_type: normalizedOrgType,
-          organization_name: normalizedOrgType === 'individual' ? undefined : orgName.trim() || undefined,
-          work_email: workEmail.trim(),
-          personal_email: personalEmail.trim() || undefined,
-          phone_number: phone.trim(),
-          country: country.trim() || undefined,
-          city: city.trim() || undefined,
-          linkedin_profile: linkedin.trim() || undefined,
+          organization_name: normalizedOrgType === 'individual' ? undefined : orgName || undefined,
+          work_email: workEmail,
+          personal_email: personalEmail || undefined,
+          phone_number: phone,
+          country: country || undefined,
+          city: city || undefined,
+          linkedin_profile: linkedin || undefined,
         });
       });
 
@@ -130,16 +130,71 @@ export function BulkUploadDialog({ open, onOpenChange, onSuccess }: BulkUploadDi
     setUploading(true);
 
     try {
-      const { error } = await supabase.from('volunteers').insert(previewData);
+      // Check for existing volunteers to avoid duplicates
+      const existingEmails = new Set<string>();
+      const { data: existingVolunteers } = await supabase
+        .from('volunteers')
+        .select('work_email, personal_email');
 
-      if (error) throw error;
+      if (existingVolunteers) {
+        existingVolunteers.forEach((v: any) => {
+          if (v.work_email) existingEmails.add(v.work_email.toLowerCase());
+          if (v.personal_email) existingEmails.add(v.personal_email.toLowerCase());
+        });
+      }
 
-      toast.success(`Successfully uploaded ${previewData.length} volunteers`);
+      // Filter out duplicates
+      const newVolunteers = previewData.filter(v => 
+        !existingEmails.has(v.work_email.toLowerCase())
+      );
+
+      if (newVolunteers.length === 0) {
+        toast.error('All volunteers already exist in the system');
+        return;
+      }
+
+      if (newVolunteers.length < previewData.length) {
+        toast.warning(`${previewData.length - newVolunteers.length} duplicate(s) skipped`);
+      }
+
+      // Insert with error handling for conflicts
+      const { error } = await supabase.from('volunteers').insert(newVolunteers);
+
+      if (error) {
+        if (error.code === '23505') {
+          // Unique constraint violation - try inserting one by one to identify which ones fail
+          let successCount = 0;
+          const failedVolunteers: string[] = [];
+
+          for (const volunteer of newVolunteers) {
+            const { error: insertError } = await supabase.from('volunteers').insert([volunteer]);
+            if (insertError) {
+              failedVolunteers.push(volunteer.work_email);
+            } else {
+              successCount++;
+            }
+          }
+
+          if (successCount > 0) {
+            toast.success(`Successfully uploaded ${successCount} volunteer(s)`);
+            if (failedVolunteers.length > 0) {
+              toast.warning(`${failedVolunteers.length} volunteer(s) already exist: ${failedVolunteers.join(', ')}`);
+            }
+          } else {
+            toast.error('All volunteers already exist in the system');
+          }
+        } else {
+          throw error;
+        }
+      } else {
+        toast.success(`Successfully uploaded ${newVolunteers.length} volunteers`);
+      }
+
       onSuccess();
       handleClose();
     } catch (error) {
       console.error('Error uploading volunteers:', error);
-      toast.error('Failed to upload volunteers. Please try again.');
+      toast.error('Failed to upload volunteers. Please check the data and try again.');
     } finally {
       setUploading(false);
     }
