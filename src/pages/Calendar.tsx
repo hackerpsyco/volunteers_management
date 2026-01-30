@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,6 +18,8 @@ import {
 } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { AddSessionDialog } from '@/components/sessions/AddSessionDialog';
+import { SessionTypeDialog } from '@/components/sessions/SessionTypeDialog';
 
 interface Volunteer {
   id: string;
@@ -63,6 +65,9 @@ export default function Calendar() {
   const [loading, setLoading] = useState(true);
   const [calendarDays, setCalendarDays] = useState<CalendarDay[]>([]);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
+  const [isSessionTypeOpen, setIsSessionTypeOpen] = useState(false);
+  const [isAddSessionOpen, setIsAddSessionOpen] = useState(false);
+  const [selectedSessionType, setSelectedSessionType] = useState<'guest_teacher' | 'guest_speaker' | null>(null);
 
   useEffect(() => {
     fetchVolunteers();
@@ -214,9 +219,19 @@ export default function Calendar() {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Session Calendar</h1>
-          <p className="text-muted-foreground mt-1">Plan and track session progress</p>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="text-2xl md:text-3xl font-bold text-foreground">Session Calendar</h1>
+            <p className="text-sm md:text-base text-muted-foreground mt-1">Plan and track session progress</p>
+          </div>
+          <Button
+            onClick={() => setIsSessionTypeOpen(true)}
+            className="w-full sm:w-auto gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">Add Session</span>
+            <span className="sm:hidden">Add</span>
+          </Button>
         </div>
 
         {/* Volunteer Filter */}
@@ -465,6 +480,26 @@ export default function Calendar() {
             )}
           </DialogContent>
         </Dialog>
+
+        {/* Add Session Dialog */}
+        <AddSessionDialog
+          open={isAddSessionOpen}
+          onOpenChange={setIsAddSessionOpen}
+          selectedDate={null}
+          sessionType={selectedSessionType}
+          onSuccess={fetchSessions}
+        />
+
+        {/* Session Type Dialog */}
+        <SessionTypeDialog
+          open={isSessionTypeOpen}
+          onOpenChange={setIsSessionTypeOpen}
+          onSelectType={(type) => {
+            setSelectedSessionType(type);
+            setIsSessionTypeOpen(false);
+            setIsAddSessionOpen(true);
+          }}
+        />
       </div>
     </DashboardLayout>
   );

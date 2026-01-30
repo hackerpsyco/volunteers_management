@@ -304,8 +304,8 @@ export default function SessionRecording() {
           </CardContent>
         </Card>
 
-        {/* Page Indicator */}
-        <div className="flex justify-center gap-2">
+        {/* Page Indicator - 3 Tabs */}
+        <div className="flex justify-center gap-2 flex-wrap">
           <button
             onClick={() => setCurrentPage(1)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -314,7 +314,7 @@ export default function SessionRecording() {
                 : 'bg-muted text-muted-foreground hover:bg-muted/80'
             }`}
           >
-            Page 1: Feedback
+            1. Prepare Session
           </button>
           <button
             onClick={() => setCurrentPage(2)}
@@ -324,11 +324,21 @@ export default function SessionRecording() {
                 : 'bg-muted text-muted-foreground hover:bg-muted/80'
             }`}
           >
-            Page 2: Performance
+            2. Performance Record
+          </button>
+          <button
+            onClick={() => setCurrentPage(3)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              currentPage === 3
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted text-muted-foreground hover:bg-muted/80'
+            }`}
+          >
+            3. Feedback & Closure
           </button>
         </div>
 
-        {/* Page 1: Session Feedback */}
+        {/* Page 1: Prepare Session */}
         {currentPage === 1 && (
           <div className="space-y-4">
             <Card>
@@ -399,7 +409,12 @@ export default function SessionRecording() {
                 />
               </CardContent>
             </Card>
+          </div>
+        )}
 
+        {/* Page 3: Feedback & Closure */}
+        {currentPage === 3 && (
+          <div className="space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Facilitator Reflection</CardTitle>
@@ -501,8 +516,6 @@ export default function SessionRecording() {
             </Card>
           </div>
         )}
-
-        {/* Page 2: Student Performance */}
         {currentPage === 2 && (
           <div className="space-y-4">
             <Card>
@@ -632,10 +645,10 @@ export default function SessionRecording() {
           </Button>
 
           <div className="flex gap-2">
-            {currentPage === 2 && (
+            {currentPage > 1 && (
               <Button
                 variant="outline"
-                onClick={() => setCurrentPage(1)}
+                onClick={() => setCurrentPage(currentPage - 1)}
                 className="gap-2"
               >
                 <ChevronLeft className="h-4 w-4" />
@@ -643,9 +656,9 @@ export default function SessionRecording() {
               </Button>
             )}
 
-            {currentPage === 1 && (
+            {currentPage < 3 && (
               <Button
-                onClick={() => setCurrentPage(2)}
+                onClick={() => setCurrentPage(currentPage + 1)}
                 variant="outline"
                 className="gap-2"
               >
@@ -661,7 +674,7 @@ export default function SessionRecording() {
                 className="gap-2"
               >
                 <Save className="h-4 w-4" />
-                {saving ? 'Saving...' : 'Save Feedback'}
+                {saving ? 'Saving...' : 'Save'}
               </Button>
             )}
 
@@ -672,7 +685,18 @@ export default function SessionRecording() {
                 className="gap-2"
               >
                 <Save className="h-4 w-4" />
-                {savingStudents ? 'Saving...' : 'Save Student Performance'}
+                {savingStudents ? 'Saving...' : 'Save'}
+              </Button>
+            )}
+
+            {currentPage === 3 && (
+              <Button
+                onClick={handleSaveFeedback}
+                disabled={saving}
+                className="gap-2"
+              >
+                <Save className="h-4 w-4" />
+                {saving ? 'Saving...' : 'Save & Complete'}
               </Button>
             )}
           </div>

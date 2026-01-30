@@ -143,8 +143,8 @@ async function createCalendarEventWithServiceAccount(
         email
       );
     } else {
-      // For non-Workspace emails, use the service account's own calendar
-      // and add the external email as an attendee
+      // For external emails, create event on service account's calendar
+      // and add external email as attendee
       accessToken = await getAccessToken(
         serviceAccountEmail,
         privateKey,
@@ -166,8 +166,21 @@ async function createCalendarEventWithServiceAccount(
     );
 
     if (!response.ok) {
-      const error = await response.text();
-      console.warn(`Failed to create event for ${email}:`, error);
+      const errorText = await response.text();
+      try {
+        const errorData = JSON.parse(errorText);
+        console.warn(`Failed to create event for ${email}:`, errorData);
+        
+        // Check for specific errors
+        if (errorData.error?.message?.includes("Domain-Wide Delegation")) {
+          console.warn(`Domain-Wide Delegation not set up for ${email}. Please configure in Google Workspace Admin Console.`);
+        }
+        if (errorData.error?.message?.includes("not been used in project")) {
+          console.warn(`Google Calendar API not enabled. Please enable it in Google Cloud Console.`);
+        }
+      } catch {
+        console.warn(`Failed to create event for ${email}:`, errorText);
+      }
       return "";
     }
 
@@ -238,21 +251,6 @@ serve(async (req: Request) => {
     }
 
     // Validate that emails are from Workspace domain
-    const volunteerDomain = syncData.volunteerEmail.split("@")[1];
-    const facilitatorDomain = syncData.facilitatorEmail.split("@")[1];
-
-    if (volunteerDomain !== workspaceDomain) {
-      console.warn(
-        `Volunteer email ${syncData.volunteerEmail} is not from Workspace domain ${workspaceDomain}`
-      );
-    }
-
-    if (facilitatorDomain !== workspaceDomain) {
-      console.warn(
-        `Facilitator email ${syncData.facilitatorEmail} is not from Workspace domain ${workspaceDomain}`
-      );
-    }
-
     const calendarEvent = {
       summary: syncData.title,
       description: syncData.description + (syncData.meetingLink ? `\n\n📹 Google Meet: ${syncData.meetingLink}` : ""),
@@ -265,9 +263,9 @@ serve(async (req: Request) => {
         timeZone: "UTC",
       },
       attendees: [
-        { email: syncData.volunteerEmail, displayName: syncData.volunteerName },
-        { email: syncData.facilitatorEmail, displayName: syncData.facilitatorName },
-        ...(syncData.coordinatorEmail ? [{ email: syncData.coordinatorEmail, displayName: syncData.coordinatorName }] : []),
+        { email: syncData.volunteerEmail, displayName: syncData.volunteerName, optional: false },
+        { email: syncData.facilitatorEmail, displayName: syncData.facilitatorName, optional: false },
+        ...(syncData.coordinatorEmail ? [{ email: syncData.coordinatorEmail, displayName: syncData.coordinatorName, optional: false }] : []),
       ],
       conferenceData: {
         createRequest: {
@@ -284,7 +282,7 @@ serve(async (req: Request) => {
     let facilitatorEventId = "";
     let coordinatorEventId = "";
 
-    // Create events for volunteer, facilitator, and coordinator using Service Account
+    // Create events for all emails (both Workspace and external)
     volunteerEventId = await createCalendarEventWithServiceAccount(
       syncData.volunteerEmail,
       calendarEvent,

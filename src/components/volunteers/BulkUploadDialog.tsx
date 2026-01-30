@@ -29,6 +29,14 @@ interface VolunteerRow {
   country?: string;
   city?: string;
   linkedin_profile?: string;
+  regular_volunteering?: boolean;
+  frequency_per_month?: number;
+  interested_area?: string;
+  interested_topic?: string;
+  preferred_day?: string;
+  preferred_class?: string;
+  remarks?: string;
+  volunteer_status?: string;
 }
 
 export function BulkUploadDialog({ open, onOpenChange, onSuccess }: BulkUploadDialogProps) {
@@ -62,52 +70,85 @@ export function BulkUploadDialog({ open, onOpenChange, onSuccess }: BulkUploadDi
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data);
       const sheetName = workbook.SheetNames[0];
+      console.log('Sheet name:', sheetName);
       const sheet = workbook.Sheets[sheetName];
       const jsonData = XLSX.utils.sheet_to_json<Record<string, string>>(sheet);
+      
+      console.log('Total rows in file:', jsonData.length);
+      if (jsonData.length > 0) {
+        console.log('First row:', jsonData[0]);
+      }
 
       const parsedData: VolunteerRow[] = [];
       const parseErrors: string[] = [];
 
+      // Log the first row to see what column names we're getting
+      if (jsonData.length > 0) {
+        console.log('Excel columns found:', Object.keys(jsonData[0]));
+      }
+
       jsonData.forEach((row, index) => {
         const rowNum = index + 2; // Excel row number (1-indexed, plus header row)
         
-        const name = String(row['Name'] || row['name'] || '').trim();
-        const orgType = String(row['Organization Type'] || row['organization_type'] || 'individual').toLowerCase();
-        const orgName = String(row['Organization Name'] || row['organization_name'] || '').trim();
-        const workEmail = String(row['Work Email'] || row['work_email'] || row['Email'] || row['email'] || '').trim();
-        const personalEmail = String(row['Personal Email'] || row['personal_email'] || '').trim();
-        const phone = String(row['Phone'] || row['phone_number'] || row['Phone Number'] || '').trim();
-        const country = String(row['Country'] || row['country'] || '').trim();
-        const city = String(row['City'] || row['city'] || '').trim();
-        const linkedin = String(row['LinkedIn'] || row['linkedin_profile'] || row['LinkedIn Profile'] || '').trim();
+        // Helper function to get value from row with multiple possible column names
+        const getValue = (keys: string[]): string => {
+          for (const key of keys) {
+            const value = row[key];
+            if (value !== undefined && value !== null && value !== '') {
+              return String(value).trim();
+            }
+          }
+          return '';
+        };
 
-        // Validation
-        if (!name) {
-          parseErrors.push(`Row ${rowNum}: Name is required`);
-        }
-        if (!workEmail) {
-          parseErrors.push(`Row ${rowNum}: Work Email is required`);
-        }
-        if (!phone) {
-          parseErrors.push(`Row ${rowNum}: Phone Number is required`);
+        const name = getValue(['Name', 'name', 'NAME']);
+        const orgType = getValue(['Organization Type', 'organization_type', 'ORGANIZATION_TYPE', 'Org Type']).toLowerCase() || 'individual';
+        const orgName = getValue(['Organization Name', 'organization_name', 'ORGANIZATION_NAME', 'Org Name']);
+        const workEmail = getValue(['Work Email', 'work_email', 'WORK_EMAIL', 'Email', 'email', 'EMAIL']);
+        const personalEmail = getValue(['Personal Email', 'personal_email', 'PERSONAL_EMAIL']);
+        const phone = getValue(['Phone', 'phone_number', 'PHONE_NUMBER', 'Phone Number', 'Mobile', 'mobile']);
+        const country = getValue(['Country', 'country', 'COUNTRY']);
+        const city = getValue(['City', 'city', 'CITY']);
+        const linkedin = getValue(['LinkedIn', 'linkedin_profile', 'LINKEDIN_PROFILE', 'LinkedIn Profile']);
+        const regularVolunteering = getValue(['Regular Volunteering', 'regular_volunteering', 'REGULAR_VOLUNTEERING']).toLowerCase() === 'true';
+        const frequencyPerMonth = parseInt(getValue(['Frequency of Volunteering in a month', 'frequency_per_month', 'FREQUENCY_PER_MONTH'])) || 0;
+        const interestedArea = getValue(['Interested Area', 'interested_area', 'INTERESTED_AREA']);
+        const interestedTopic = getValue(['Interested Topic', 'interested_topic', 'INTERESTED_TOPIC']);
+        const preferredDay = getValue(['Preferred day', 'preferred_day', 'PREFERRED_DAY', 'Preferred Day']);
+        const preferredClass = getValue(['Preferred class', 'preferred_class', 'PREFERRED_CLASS', 'Preferred Class']);
+        const remarks = getValue(['Any remark', 'remarks', 'REMARKS', 'Remark']);
+        const volunteerStatus = getValue(['Status', 'volunteer_status', 'VOLUNTEER_STATUS']) || 'active';
+
+        // Skip completely empty rows
+        if (!name && !workEmail && !phone && !personalEmail) {
+          return;
         }
 
         const validOrgTypes = ['company', 'individual', 'institute'];
         const normalizedOrgType = validOrgTypes.includes(orgType) ? orgType : 'individual';
 
         parsedData.push({
-          name: name,
+          name: name || undefined,
           organization_type: normalizedOrgType,
           organization_name: normalizedOrgType === 'individual' ? undefined : orgName || undefined,
-          work_email: workEmail,
+          work_email: workEmail || undefined,
           personal_email: personalEmail || undefined,
-          phone_number: phone,
+          phone_number: phone || undefined,
           country: country || undefined,
           city: city || undefined,
           linkedin_profile: linkedin || undefined,
+          regular_volunteering: regularVolunteering,
+          frequency_per_month: frequencyPerMonth,
+          interested_area: interestedArea || undefined,
+          interested_topic: interestedTopic || undefined,
+          preferred_day: preferredDay || undefined,
+          preferred_class: preferredClass || undefined,
+          remarks: remarks || undefined,
+          volunteer_status: volunteerStatus,
         });
       });
 
+      console.log('Parsed volunteers:', parsedData.length);
       setPreviewData(parsedData);
       setErrors(parseErrors);
     } catch (error) {
@@ -143,10 +184,19 @@ export function BulkUploadDialog({ open, onOpenChange, onSuccess }: BulkUploadDi
         });
       }
 
-      // Filter out duplicates
-      const newVolunteers = previewData.filter(v => 
-        !existingEmails.has(v.work_email.toLowerCase())
-      );
+      // Filter out duplicates - check both work_email and personal_email
+      const newVolunteers = previewData.filter(v => {
+        // If has work_email, check if it exists
+        if (v.work_email && existingEmails.has(v.work_email.toLowerCase())) {
+          return false;
+        }
+        // If has personal_email, check if it exists
+        if (v.personal_email && existingEmails.has(v.personal_email.toLowerCase())) {
+          return false;
+        }
+        // Include if neither email exists in the system
+        return true;
+      });
 
       if (newVolunteers.length === 0) {
         toast.error('All volunteers already exist in the system');
@@ -169,7 +219,7 @@ export function BulkUploadDialog({ open, onOpenChange, onSuccess }: BulkUploadDi
           for (const volunteer of newVolunteers) {
             const { error: insertError } = await supabase.from('volunteers').insert([volunteer]);
             if (insertError) {
-              failedVolunteers.push(volunteer.work_email);
+              failedVolunteers.push(volunteer.work_email || volunteer.name || 'Unknown');
             } else {
               successCount++;
             }
@@ -219,6 +269,14 @@ export function BulkUploadDialog({ open, onOpenChange, onSuccess }: BulkUploadDi
         'Country': 'USA',
         'City': 'New York',
         'LinkedIn Profile': 'https://linkedin.com/in/johndoe',
+        'Regular Volunteering': 'true',
+        'Frequency of Volunteering in a month': '2',
+        'Interested Area': 'Technology',
+        'Interested Topic': 'AI & Machine Learning',
+        'Preferred day': 'Saturday',
+        'Preferred class': 'Class 8',
+        'Any remark': 'Available on weekends',
+        'Status': 'active',
       },
     ];
 

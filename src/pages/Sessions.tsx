@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Upload, MoreVertical, GraduationCap, FileText } from 'lucide-react';
+import { Plus, Trash2, Upload, MoreVertical, GraduationCap, FileText, Edit } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -28,7 +28,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
@@ -36,6 +43,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { SessionTypeDialog } from '@/components/sessions/SessionTypeDialog';
@@ -77,9 +85,11 @@ export default function Sessions() {
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [selectedSessionType, setSelectedSessionType] = useState<'guest_teacher' | 'guest_speaker' | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
+  const [newStatus, setNewStatus] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [timeFilter, setTimeFilter] = useState<string | null>(null);
   const [volunteerFilter, setVolunteerFilter] = useState<string | null>(null);
@@ -142,6 +152,38 @@ export default function Sessions() {
     } catch (error) {
       console.error('Error deleting session:', error);
       toast.error('Failed to delete session');
+    }
+  };
+
+  const handleEditStatus = (session: Session) => {
+    setSelectedSession(session);
+    setNewStatus(session.status);
+    setStatusDialogOpen(true);
+  };
+
+  const handleSaveStatus = async () => {
+    if (!selectedSession || !newStatus) return;
+
+    try {
+      const { error } = await supabase
+        .from('sessions')
+        .update({ status: newStatus })
+        .eq('id', selectedSession.id);
+
+      if (error) throw error;
+      
+      // Update local state
+      setSessions(sessions.map(s => 
+        s.id === selectedSession.id ? { ...s, status: newStatus } : s
+      ));
+      
+      toast.success('Session status updated successfully');
+      setStatusDialogOpen(false);
+      setSelectedSession(null);
+      setNewStatus('');
+    } catch (error) {
+      console.error('Error updating session status:', error);
+      toast.error('Failed to update session status');
     }
   };
 
@@ -444,6 +486,12 @@ export default function Sessions() {
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="bg-popover">
                                 <DropdownMenuItem 
+                                  onClick={() => handleEditStatus(session)}
+                                >
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  Edit Status
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
                                   onClick={() => navigate(`/sessions/${session.id}/recording`)}
                                 >
                                   <FileText className="h-4 w-4 mr-2" />
@@ -573,6 +621,15 @@ export default function Sessions() {
                         <Button 
                           size="sm" 
                           variant="outline"
+                          onClick={() => handleEditStatus(session)}
+                          className="flex-1"
+                        >
+                          <Edit className="h-4 w-4 mr-1" />
+                          Status
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
                           onClick={() => navigate(`/sessions/${session.id}/recording`)}
                           className="flex-1"
                         >
@@ -646,6 +703,44 @@ export default function Sessions() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit Status Dialog */}
+      <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Session Status</DialogTitle>
+            <DialogDescription>
+              Update the status for "{selectedSession?.topics_covered}"
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium text-foreground mb-2 block">
+                Status
+              </label>
+              <Select value={newStatus} onValueChange={setNewStatus}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="committed">Committed</SelectItem>
+                  <SelectItem value="available">Available</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStatusDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveStatus}>
+              Save Status
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

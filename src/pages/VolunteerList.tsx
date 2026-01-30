@@ -28,9 +28,28 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Plus, Users, MoreVertical, Pencil, Calendar, Trash2, UserCheck, UserX, Upload, BookOpen } from 'lucide-react';
+import { Plus, Users, MoreVertical, Pencil, Calendar, Trash2, UserCheck, UserX, Upload, BookOpen, Settings } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { BulkUploadDialog } from '@/components/volunteers/BulkUploadDialog';
 import { SessionTypeDialog } from '@/components/sessions/SessionTypeDialog';
@@ -48,6 +67,14 @@ interface Volunteer {
   phone_number: string;
   linkedin_profile: string | null;
   is_active: boolean;
+  regular_volunteering: boolean | null;
+  frequency_per_month: number | null;
+  interested_area: string | null;
+  interested_topic: string | null;
+  preferred_day: string | null;
+  preferred_class: string | null;
+  remarks: string | null;
+  volunteer_status: string | null;
   created_at: string;
 }
 
@@ -56,10 +83,21 @@ export default function VolunteerList() {
   const [loading, setLoading] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
+  const [preferencesDialogOpen, setPreferencesDialogOpen] = useState(false);
   const [selectedVolunteer, setSelectedVolunteer] = useState<Volunteer | null>(null);
   const [isTypeDialogOpen, setIsTypeDialogOpen] = useState(false);
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
   const [selectedSessionType, setSelectedSessionType] = useState<'guest_teacher' | 'guest_speaker' | null>(null);
+  const [preferencesData, setPreferencesData] = useState({
+    regular_volunteering: false,
+    frequency_per_month: 0,
+    interested_area: '',
+    interested_topic: '',
+    preferred_day: '',
+    preferred_class: '',
+    remarks: '',
+    volunteer_status: 'active',
+  });
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -148,6 +186,46 @@ export default function VolunteerList() {
     setIsFormDialogOpen(true);
   };
 
+  const handleEditPreferences = (volunteer: Volunteer) => {
+    setSelectedVolunteer(volunteer);
+    setPreferencesData({
+      regular_volunteering: volunteer.regular_volunteering || false,
+      frequency_per_month: volunteer.frequency_per_month || 0,
+      interested_area: volunteer.interested_area || '',
+      interested_topic: volunteer.interested_topic || '',
+      preferred_day: volunteer.preferred_day || '',
+      preferred_class: volunteer.preferred_class || '',
+      remarks: volunteer.remarks || '',
+      volunteer_status: volunteer.volunteer_status || 'active',
+    });
+    setPreferencesDialogOpen(true);
+  };
+
+  const handleSavePreferences = async () => {
+    if (!selectedVolunteer) return;
+
+    try {
+      const { error } = await supabase
+        .from('volunteers')
+        .update(preferencesData)
+        .eq('id', selectedVolunteer.id);
+
+      if (error) throw error;
+
+      // Update local state
+      setVolunteers(volunteers.map(v =>
+        v.id === selectedVolunteer.id ? { ...v, ...preferencesData } : v
+      ));
+
+      toast.success('Volunteer preferences updated successfully');
+      setPreferencesDialogOpen(false);
+      setSelectedVolunteer(null);
+    } catch (error) {
+      console.error('Error updating preferences:', error);
+      toast.error('Failed to update preferences');
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -216,6 +294,12 @@ export default function VolunteerList() {
                         <TableHead>Country</TableHead>
                         <TableHead>City</TableHead>
                         <TableHead>LinkedIn</TableHead>
+                        <TableHead>Regular Vol.</TableHead>
+                        <TableHead>Frequency</TableHead>
+                        <TableHead>Interested Area</TableHead>
+                        <TableHead>Interested Topic</TableHead>
+                        <TableHead>Preferred Day</TableHead>
+                        <TableHead>Preferred Class</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="w-[60px]">Actions</TableHead>
                       </TableRow>
@@ -252,6 +336,16 @@ export default function VolunteerList() {
                             ) : '-'}
                           </TableCell>
                           <TableCell>
+                            <Badge variant={volunteer.regular_volunteering ? 'default' : 'secondary'}>
+                              {volunteer.regular_volunteering ? 'Yes' : 'No'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{volunteer.frequency_per_month || '-'}</TableCell>
+                          <TableCell className="max-w-[120px] truncate">{volunteer.interested_area || '-'}</TableCell>
+                          <TableCell className="max-w-[120px] truncate">{volunteer.interested_topic || '-'}</TableCell>
+                          <TableCell>{volunteer.preferred_day || '-'}</TableCell>
+                          <TableCell>{volunteer.preferred_class || '-'}</TableCell>
+                          <TableCell>
                             <Badge variant={volunteer.is_active ? 'default' : 'secondary'}>
                               {volunteer.is_active ? 'Active' : 'Inactive'}
                             </Badge>
@@ -269,6 +363,12 @@ export default function VolunteerList() {
                                 >
                                   <Pencil className="h-4 w-4 mr-2" />
                                   Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  onClick={() => handleEditPreferences(volunteer)}
+                                >
+                                  <Settings className="h-4 w-4 mr-2" />
+                                  Edit Preferences
                                 </DropdownMenuItem>
                                 <DropdownMenuItem 
                                   onClick={() => navigate(`/calendar?assign=${volunteer.id}`)}
@@ -513,6 +613,164 @@ export default function VolunteerList() {
         onOpenChange={setBulkUploadOpen}
         onSuccess={fetchVolunteers}
       />
+
+      {/* Edit Preferences Dialog */}
+      <Dialog open={preferencesDialogOpen} onOpenChange={setPreferencesDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Volunteer Preferences</DialogTitle>
+            <DialogDescription>
+              Update volunteering preferences for {selectedVolunteer?.name}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Regular Volunteering */}
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="regular_volunteering"
+                checked={preferencesData.regular_volunteering}
+                onCheckedChange={(checked) =>
+                  setPreferencesData({ ...preferencesData, regular_volunteering: checked as boolean })
+                }
+              />
+              <Label htmlFor="regular_volunteering" className="text-sm font-medium cursor-pointer">
+                Regular Volunteering
+              </Label>
+            </div>
+
+            {/* Frequency per Month */}
+            <div>
+              <Label htmlFor="frequency" className="text-sm font-medium mb-2 block">
+                Frequency of Volunteering in a Month
+              </Label>
+              <Input
+                id="frequency"
+                type="number"
+                min="0"
+                value={preferencesData.frequency_per_month}
+                onChange={(e) =>
+                  setPreferencesData({ ...preferencesData, frequency_per_month: parseInt(e.target.value) || 0 })
+                }
+                placeholder="e.g., 2"
+              />
+            </div>
+
+            {/* Interested Area */}
+            <div>
+              <Label htmlFor="interested_area" className="text-sm font-medium mb-2 block">
+                Interested Area
+              </Label>
+              <Input
+                id="interested_area"
+                value={preferencesData.interested_area}
+                onChange={(e) =>
+                  setPreferencesData({ ...preferencesData, interested_area: e.target.value })
+                }
+                placeholder="e.g., Technology, Education"
+              />
+            </div>
+
+            {/* Interested Topic */}
+            <div>
+              <Label htmlFor="interested_topic" className="text-sm font-medium mb-2 block">
+                Interested Topic
+              </Label>
+              <Input
+                id="interested_topic"
+                value={preferencesData.interested_topic}
+                onChange={(e) =>
+                  setPreferencesData({ ...preferencesData, interested_topic: e.target.value })
+                }
+                placeholder="e.g., AI, Web Development"
+              />
+            </div>
+
+            {/* Preferred Day */}
+            <div>
+              <Label htmlFor="preferred_day" className="text-sm font-medium mb-2 block">
+                Preferred Day
+              </Label>
+              <Select value={preferencesData.preferred_day} onValueChange={(value) =>
+                setPreferencesData({ ...preferencesData, preferred_day: value })
+              }>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select day" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">None</SelectItem>
+                  <SelectItem value="Monday">Monday</SelectItem>
+                  <SelectItem value="Tuesday">Tuesday</SelectItem>
+                  <SelectItem value="Wednesday">Wednesday</SelectItem>
+                  <SelectItem value="Thursday">Thursday</SelectItem>
+                  <SelectItem value="Friday">Friday</SelectItem>
+                  <SelectItem value="Saturday">Saturday</SelectItem>
+                  <SelectItem value="Sunday">Sunday</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Preferred Class */}
+            <div>
+              <Label htmlFor="preferred_class" className="text-sm font-medium mb-2 block">
+                Preferred Class
+              </Label>
+              <Input
+                id="preferred_class"
+                value={preferencesData.preferred_class}
+                onChange={(e) =>
+                  setPreferencesData({ ...preferencesData, preferred_class: e.target.value })
+                }
+                placeholder="e.g., Class 7, Class 8"
+              />
+            </div>
+
+            {/* Remarks */}
+            <div>
+              <Label htmlFor="remarks" className="text-sm font-medium mb-2 block">
+                Any Remark
+              </Label>
+              <Textarea
+                id="remarks"
+                value={preferencesData.remarks}
+                onChange={(e) =>
+                  setPreferencesData({ ...preferencesData, remarks: e.target.value })
+                }
+                placeholder="Add any remarks or notes"
+                className="min-h-[80px]"
+              />
+            </div>
+
+            {/* Status */}
+            <div>
+              <Label htmlFor="status" className="text-sm font-medium mb-2 block">
+                Status
+              </Label>
+              <Select value={preferencesData.volunteer_status} onValueChange={(value) =>
+                setPreferencesData({ ...preferencesData, volunteer_status: value })
+              }>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                  <SelectItem value="on_leave">On Leave</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPreferencesDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSavePreferences}>
+              Save Preferences
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

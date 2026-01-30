@@ -1,9 +1,16 @@
 import { useState, useEffect } from 'react';
-import { FileText, MoreVertical } from 'lucide-react';
+import { FileText, MoreVertical, Eye, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -19,20 +26,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -65,101 +64,122 @@ interface FeedbackSession {
 export default function FeedbackSelection() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [allSessions, setAllSessions] = useState<FeedbackSession[]>([]);
-  const [allCreatedSessions, setAllCreatedSessions] = useState<FeedbackSession[]>([]);
-  const [dateFilter, setDateFilter] = useState<string | null>(null);
-  const [sessionFilter, setSessionFilter] = useState<string | null>(null);
-  const [isSessionSelectOpen, setIsSessionSelectOpen] = useState(false);
+  const [feedbackSessions, setFeedbackSessions] = useState<FeedbackSession[]>([]);
+  const [filteredSessions, setFilteredSessions] = useState<FeedbackSession[]>([]);
+  const [selectedSession, setSelectedSession] = useState<string>('all');
+  const [selectedDate, setSelectedDate] = useState<string>('all');
+  const [isAddFeedbackDialogOpen, setIsAddFeedbackDialogOpen] = useState(false);
+  const [committedSessions, setCommittedSessions] = useState<FeedbackSession[]>([]);
+  const [loadingCommitted, setLoadingCommitted] = useState(false);
 
   useEffect(() => {
-    fetchSessions();
+    fetchFeedbackSessions();
   }, []);
 
-  const fetchSessions = async () => {
+  useEffect(() => {
+    applyFilters();
+  }, [feedbackSessions, selectedSession, selectedDate]);
+
+  const fetchFeedbackSessions = async () => {
     try {
       setLoading(true);
       
-      // Fetch sessions with feedback
-      const { data: feedbackData, error: feedbackError } = await supabase
+      // Fetch all sessions with recorded feedback (recorded_at is not null)
+      const { data: sessionsData, error: sessionsError } = await supabase
         .from('sessions')
         .select(`
           *,
           coordinators:coordinator_id(name)
         `)
-        .not('session_objective', 'is', null)
-        .order('recorded_at', { ascending: false });
-
-      if (feedbackError) throw feedbackError;
-
-      // Fetch all created sessions
-      const { data: allSessionsData, error: allSessionsError } = await supabase
-        .from('sessions')
-        .select(`
-          *,
-          coordinators:coordinator_id(name)
-        `)
+        .not('recorded_at', 'is', null)
         .order('session_date', { ascending: false });
 
-      if (allSessionsError) throw allSessionsError;
+      if (sessionsError) throw sessionsError;
 
-      // Transform feedback data
-      const transformedFeedbackData = (feedbackData || []).map((session: any) => ({
+      // Transform sessions data
+      const transformedSessions = (sessionsData || []).map((session: any) => ({
         ...session,
         coordinator_name: session.coordinators?.name || null,
       }));
 
-      // Transform all sessions data
-      const transformedAllSessions = (allSessionsData || []).map((session: any) => ({
-        ...session,
-        coordinator_name: session.coordinators?.name || null,
-      }));
-
-      setAllSessions(transformedFeedbackData as FeedbackSession[]);
-      setAllCreatedSessions(transformedAllSessions as FeedbackSession[]);
+      setFeedbackSessions(transformedSessions as FeedbackSession[]);
     } catch (error) {
-      console.error('Error fetching sessions:', error);
-      toast.error('Failed to load sessions');
+      console.error('Error fetching feedback sessions:', error);
+      toast.error('Failed to load feedback sessions');
     } finally {
       setLoading(false);
     }
   };
 
-  const getFilteredSessions = () => {
-    let filtered = allSessions;
+  const applyFilters = () => {
+    let filtered = [...feedbackSessions];
 
-    // Apply session filter
-    if (sessionFilter) {
-      filtered = filtered.filter(s => s.id === sessionFilter);
+    // Filter by session
+    if (selectedSession !== 'all') {
+      filtered = filtered.filter(s => s.id === selectedSession);
     }
 
-    // Apply date filter
-    if (dateFilter) {
+    // Filter by date
+    if (selectedDate !== 'all') {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      if (dateFilter === 'today') {
-        filtered = filtered.filter(s => {
-          const recordedDate = s.recorded_at ? new Date(s.recorded_at) : new Date(s.session_date);
-          recordedDate.setHours(0, 0, 0, 0);
-          return recordedDate.getTime() === today.getTime();
-        });
-      } else if (dateFilter === 'past') {
-        filtered = filtered.filter(s => {
-          const recordedDate = s.recorded_at ? new Date(s.recorded_at) : new Date(s.session_date);
-          return recordedDate < today;
-        });
-      }
+      filtered = filtered.filter(session => {
+        const sessionDate = new Date(session.session_date);
+        sessionDate.setHours(0, 0, 0, 0);
+
+        if (selectedDate === 'today') {
+          return sessionDate.getTime() === today.getTime();
+        } else if (selectedDate === 'past') {
+          return sessionDate.getTime() < today.getTime();
+        }
+        return true;
+      });
     }
 
-    return filtered;
+    setFilteredSessions(filtered);
+  };
+
+  const handleViewDetails = (sessionId: string) => {
+    navigate(`/sessions/${sessionId}/feedback-details`);
   };
 
   const handleAddFeedback = (sessionId: string) => {
     navigate(`/sessions/${sessionId}/recording`);
-    setIsSessionSelectOpen(false);
   };
 
-  const filteredSessions = getFilteredSessions();
+  const handleOpenAddFeedbackDialog = async () => {
+    try {
+      setLoadingCommitted(true);
+      
+      // Fetch all committed/created sessions without feedback
+      const { data: sessionsData, error: sessionsError } = await supabase
+        .from('sessions')
+        .select(`
+          *,
+          coordinators:coordinator_id(name)
+        `)
+        .in('status', ['committed', 'created'])
+        .is('recorded_at', null)
+        .order('session_date', { ascending: false });
+
+      if (sessionsError) throw sessionsError;
+
+      // Transform sessions data
+      const transformedSessions = (sessionsData || []).map((session: any) => ({
+        ...session,
+        coordinator_name: session.coordinators?.name || null,
+      }));
+
+      setCommittedSessions(transformedSessions as FeedbackSession[]);
+      setIsAddFeedbackDialogOpen(true);
+    } catch (error) {
+      console.error('Error fetching committed sessions:', error);
+      toast.error('Failed to load sessions');
+    } finally {
+      setLoadingCommitted(false);
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -177,276 +197,193 @@ export default function FeedbackSelection() {
           </div>
         </div>
 
-        {/* Feedback Table */}
+        {/* Filters and Add Button */}
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle>Recorded Feedback</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="text-sm font-medium text-muted-foreground mb-2 block">
+                  Filter by Session
+                </label>
+                <Select value={selectedSession} onValueChange={setSelectedSession}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Sessions</SelectItem>
+                    {feedbackSessions.map((session) => (
+                      <SelectItem key={session.id} value={session.id}>
+                        {session.topics_covered || session.title || 'Untitled'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-muted-foreground mb-2 block">
+                  Filter by Date
+                </label>
+                <Select value={selectedDate} onValueChange={setSelectedDate}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Feedback</SelectItem>
+                    <SelectItem value="today">Today</SelectItem>
+                    <SelectItem value="past">Past Sessions</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-end">
+                <Button
+                  onClick={handleOpenAddFeedbackDialog}
+                  className="w-full"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Feedback to Session
+                </Button>
+              </div>
+            </div>
+
+            {/* Feedback Table */}
             {loading ? (
               <div className="flex justify-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
               </div>
+            ) : filteredSessions.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground mb-4">No feedback recorded yet</p>
+              </div>
             ) : (
-              <>
-                {/* Filters - Always Show */}
-                <div className="mb-6 space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Session Filter */}
-                    <div>
-                      <label className="text-sm font-medium text-foreground mb-2 block">
-                        Filter by Session
-                      </label>
-                      <Select value={sessionFilter || 'all'} onValueChange={(value) => setSessionFilter(value === 'all' ? null : value)}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select session" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Sessions</SelectItem>
-                          {allCreatedSessions.map((session) => (
-                            <SelectItem key={session.id} value={session.id}>
-                              {session.topics_covered || session.title || 'Untitled'} - {new Date(session.session_date).toLocaleDateString()}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Date Filter */}
-                    <div>
-                      <label className="text-sm font-medium text-foreground mb-2 block">
-                        Filter by Date
-                      </label>
-                      <Select value={dateFilter || 'all'} onValueChange={(value) => setDateFilter(value === 'all' ? null : value)}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select date" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Feedback</SelectItem>
-                          <SelectItem value="today">Today</SelectItem>
-                          <SelectItem value="past">Past Feedback</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  {/* Add Feedback Button - Opens Session Selection */}
-                  <div>
-                    <Button onClick={() => setIsSessionSelectOpen(true)} className="w-full sm:w-auto">
-                      Add Feedback to Session
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Content - Show based on data */}
-                {allSessions.length === 0 ? (
-                  <div className="text-center py-12">
-                    <p className="text-sm md:text-base text-muted-foreground mb-4">
-                      No feedback recorded yet
-                    </p>
-                  </div>
-                ) : filteredSessions.length === 0 ? (
-                  <div className="text-center py-8">
-                    <p className="text-muted-foreground">No feedback matches the selected filter</p>
-                  </div>
-                ) : (
-                  <>
-                    {/* Desktop Table View */}
-                    <div className="hidden md:block overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Topic</TableHead>
-                            <TableHead>Facilitator</TableHead>
-                            <TableHead>Volunteer</TableHead>
-                            <TableHead>Coordinator</TableHead>
-                            <TableHead>Session Date</TableHead>
-                            <TableHead>Recorded Date</TableHead>
-                            <TableHead>Highlights</TableHead>
-                            <TableHead>Ratings</TableHead>
-                            <TableHead className="w-[60px]">Actions</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {filteredSessions.map((session) => (
-                            <TableRow key={session.id}>
-                              <TableCell className="font-medium">{session.topics_covered || '-'}</TableCell>
-                              <TableCell>{session.facilitator_name || '-'}</TableCell>
-                              <TableCell>{session.volunteer_name || '-'}</TableCell>
-                              <TableCell>{session.coordinator_name || '-'}</TableCell>
-                              <TableCell>{new Date(session.session_date).toLocaleDateString()}</TableCell>
-                              <TableCell>
-                                {session.recorded_at 
-                                  ? new Date(session.recorded_at).toLocaleDateString() 
-                                  : '-'}
-                              </TableCell>
-                              <TableCell className="max-w-[200px] truncate text-sm">
-                                {session.session_highlights || '-'}
-                              </TableCell>
-                              <TableCell className="text-sm">
-                                <div className="flex gap-1">
-                                  {session.mic_sound_rating && (
-                                    <Badge variant="outline" className="text-xs">
-                                      Mic: {session.mic_sound_rating}
-                                    </Badge>
-                                  )}
-                                  {session.session_strength && (
-                                    <Badge variant="outline" className="text-xs">
-                                      Strength: {session.session_strength}
-                                    </Badge>
-                                  )}
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                                      <MoreVertical className="h-4 w-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end" className="bg-popover">
-                                    <DropdownMenuItem
-                                      onClick={() => navigate(`/sessions/${session.id}/recording`)}
-                                    >
-                                      Record Session
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                      onClick={() => navigate(`/sessions/${session.id}/feedback-details`)}
-                                    >
-                                      View Details
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-
-                    {/* Mobile Card View */}
-                    <div className="md:hidden space-y-4">
-                      {filteredSessions.map((session) => (
-                        <div key={session.id} className="bg-muted/50 rounded-lg p-4 space-y-3 border border-border">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0 flex-1">
-                              <h3 className="font-semibold text-foreground break-words">{session.topics_covered || '-'}</h3>
-                              <p className="text-xs text-muted-foreground mt-1">ID: {session.id.substring(0, 8)}</p>
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-2 text-xs">
-                            <div>
-                              <span className="text-muted-foreground block">Session Date</span>
-                              <span className="font-medium text-sm">{new Date(session.session_date).toLocaleDateString()}</span>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground block">Recorded Date</span>
-                              <span className="font-medium text-sm">
-                                {session.recorded_at 
-                                  ? new Date(session.recorded_at).toLocaleDateString() 
-                                  : '-'}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-2 text-xs">
-                            <div>
-                              <span className="text-muted-foreground block">Facilitator</span>
-                              <span className="font-medium text-sm">{session.facilitator_name || '-'}</span>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground block">Volunteer</span>
-                              <span className="font-medium text-sm">{session.volunteer_name || '-'}</span>
-                            </div>
-                          </div>
-
-                          <div className="text-xs">
-                            <span className="text-muted-foreground block">Coordinator</span>
-                            <span className="font-medium text-sm">{session.coordinator_name || '-'}</span>
-                          </div>
-
-                          <div className="text-xs">
-                            <span className="text-muted-foreground block">Highlights</span>
-                            <span className="font-medium text-sm">{session.session_highlights || '-'}</span>
-                          </div>
-
-                          <div className="text-xs">
-                            <span className="text-muted-foreground block">Ratings</span>
-                            <div className="flex gap-1 mt-1">
-                              {session.mic_sound_rating && (
-                                <Badge variant="outline" className="text-xs">
-                                  Mic: {session.mic_sound_rating}
-                                </Badge>
-                              )}
-                              {session.session_strength && (
-                                <Badge variant="outline" className="text-xs">
-                                  Strength: {session.session_strength}
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="flex gap-2 pt-2 border-t border-border">
-                            <Button
-                              size="sm"
-                              onClick={() => navigate(`/sessions/${session.id}/recording`)}
-                              className="flex-1"
-                            >
-                              Record Session
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => navigate(`/sessions/${session.id}/feedback-details`)}
-                              className="flex-1"
-                            >
-                              View Details
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Topic</TableHead>
+                      <TableHead>Facilitator</TableHead>
+                      <TableHead>Volunteer</TableHead>
+                      <TableHead>Coordinator</TableHead>
+                      <TableHead>Session Date</TableHead>
+                      <TableHead>Recorded Date</TableHead>
+                      <TableHead>Highlights</TableHead>
+                      <TableHead>Ratings</TableHead>
+                      <TableHead className="w-[60px]">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredSessions.map((session) => (
+                      <TableRow key={session.id}>
+                        <TableCell className="font-medium">
+                          {session.topics_covered || session.title || '-'}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {session.facilitator_name || '-'}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {session.volunteer_name || '-'}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {session.coordinator_name || '-'}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {new Date(session.session_date).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {session.recorded_at
+                            ? new Date(session.recorded_at).toLocaleDateString()
+                            : '-'}
+                        </TableCell>
+                        <TableCell className="text-sm max-w-[150px] truncate">
+                          {session.session_highlights || '-'}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {session.mic_sound_rating && (
+                            <span>Mic: {session.mic_sound_rating}</span>
+                          )}
+                          {session.session_strength && (
+                            <span className="block">Strength: {session.session_strength}</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="bg-popover">
+                              <DropdownMenuItem
+                                onClick={() => handleViewDetails(session.id)}
+                              >
+                                <Eye className="h-4 w-4 mr-2" />
+                                View Details
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleAddFeedback(session.id)}
+                              >
+                                Edit Feedback
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Session Selection Dialog */}
-      <Dialog open={isSessionSelectOpen} onOpenChange={setIsSessionSelectOpen}>
-        <DialogContent className="max-w-md">
+      {/* Add Feedback Dialog - Select Session */}
+      <Dialog open={isAddFeedbackDialogOpen} onOpenChange={setIsAddFeedbackDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Select Session for Feedback</DialogTitle>
+            <DialogTitle>Select Session to Add Feedback</DialogTitle>
             <DialogDescription>
-              Choose a session to add feedback
+              Choose a committed session to add feedback and record session details
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 max-h-[400px] overflow-y-auto">
-            {allCreatedSessions.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                No sessions available
-              </p>
-            ) : (
-              allCreatedSessions.map((session) => (
+
+          {loadingCommitted ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+          ) : committedSessions.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">No sessions available for feedback</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {committedSessions.map((session) => (
                 <Button
                   key={session.id}
                   variant="outline"
-                  className="w-full justify-start text-left h-auto py-3"
-                  onClick={() => handleAddFeedback(session.id)}
+                  className="w-full justify-start text-left h-auto py-3 hover:bg-accent"
+                  onClick={() => {
+                    setIsAddFeedbackDialogOpen(false);
+                    handleAddFeedback(session.id);
+                  }}
                 >
-                  <div className="flex flex-col gap-1">
-                    <span className="font-medium">{session.topics_covered || session.title || 'Untitled'}</span>
+                  <div className="flex flex-col gap-1 w-full">
+                    <span className="font-semibold">{session.topics_covered || session.title || 'Untitled'}</span>
+                    <span className="text-sm text-muted-foreground">
+                      {new Date(session.session_date).toLocaleDateString()} at {session.session_time}
+                    </span>
                     <span className="text-xs text-muted-foreground">
-                      {new Date(session.session_date).toLocaleDateString()} - {session.facilitator_name || '-'}
+                      Facilitator: {session.facilitator_name || '-'} | Volunteer: {session.volunteer_name || '-'} | Coordinator: {session.coordinator_name || '-'}
                     </span>
                   </div>
                 </Button>
-              ))
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </DashboardLayout>

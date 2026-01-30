@@ -16,6 +16,8 @@ import Curriculum from "./pages/Curriculum";
 import Facilitators from "./pages/Facilitators";
 import { Coordinators } from "./pages/Coordinators";
 import Centres from "./pages/Centres";
+import Classes from "./pages/Classes";
+import ClassStudents from "./pages/ClassStudents";
 import AddVolunteer from "./pages/AddVolunteer";
 import VolunteerList from "./pages/VolunteerList";
 import NotFound from "./pages/NotFound";
@@ -43,6 +45,8 @@ const App = () => (
             <Route path="/facilitators" element={<Facilitators />} />
             <Route path="/coordinators" element={<Coordinators />} />
             <Route path="/centres" element={<Centres />} />
+            <Route path="/classes" element={<Classes />} />
+            <Route path="/classes/:classId/students" element={<ClassStudents />} />
             <Route path="/volunteers" element={<VolunteerList />} />
             <Route path="/volunteers/add" element={<AddVolunteer />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
