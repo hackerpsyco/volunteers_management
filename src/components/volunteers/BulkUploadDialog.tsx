@@ -208,11 +208,14 @@ export function BulkUploadDialog({ open, onOpenChange, onSuccess }: BulkUploadDi
       }
 
       // Insert with error handling for conflicts
+      console.log(`Attempting to insert ${newVolunteers.length} volunteers...`);
       const { error } = await supabase.from('volunteers').insert(newVolunteers);
 
       if (error) {
+        console.log('Bulk insert error:', error.code, error.message);
         if (error.code === '23505') {
           // Unique constraint violation - try inserting one by one to identify which ones fail
+          console.log('Falling back to one-by-one insertion...');
           let successCount = 0;
           const failedVolunteers: string[] = [];
 
@@ -225,10 +228,11 @@ export function BulkUploadDialog({ open, onOpenChange, onSuccess }: BulkUploadDi
             }
           }
 
+          console.log(`One-by-one insertion complete: ${successCount} succeeded, ${failedVolunteers.length} failed`);
           if (successCount > 0) {
             toast.success(`Successfully uploaded ${successCount} volunteer(s)`);
             if (failedVolunteers.length > 0) {
-              toast.warning(`${failedVolunteers.length} volunteer(s) already exist: ${failedVolunteers.join(', ')}`);
+              toast.warning(`${failedVolunteers.length} volunteer(s) already exist`);
             }
           } else {
             toast.error('All volunteers already exist in the system');
@@ -237,6 +241,7 @@ export function BulkUploadDialog({ open, onOpenChange, onSuccess }: BulkUploadDi
           throw error;
         }
       } else {
+        console.log(`Successfully inserted ${newVolunteers.length} volunteers`);
         toast.success(`Successfully uploaded ${newVolunteers.length} volunteers`);
       }
 
