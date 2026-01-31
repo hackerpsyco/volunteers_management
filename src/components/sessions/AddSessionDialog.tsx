@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { GraduationCap } from 'lucide-react';
+import { GraduationCap, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -76,18 +76,17 @@ interface CentreTimeSlot {
 interface AddSessionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  selectedDate: Date | null;
-  sessionType: 'guest_teacher' | 'guest_speaker' | null;
+  selectedDate?: Date | null;
   onSuccess: () => void;
 }
 
 export function AddSessionDialog({ 
   open, 
   onOpenChange, 
-  selectedDate,
-  sessionType,
+  selectedDate: propSelectedDate,
   onSuccess 
 }: AddSessionDialogProps) {
+  const [selectedDate, setSelectedDate] = useState<Date | null>(propSelectedDate || null);
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
   const [facilitators, setFacilitators] = useState<Facilitator[]>([]);
   const [coordinators, setCoordinators] = useState<Coordinator[]>([]);
@@ -97,12 +96,13 @@ export function AddSessionDialog({
   const [centres, setCentres] = useState<Centre[]>([]);
   const [centreSlots, setCentreSlots] = useState<CentreTimeSlot[]>([]);
   const [selectedVolunteer, setSelectedVolunteer] = useState<string>('');
+  const [selectedFacilitator, setSelectedFacilitator] = useState<string>('');
+  const [selectedCoordinator, setSelectedCoordinator] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedModule, setSelectedModule] = useState<string>('');
   const [selectedTopic, setSelectedTopic] = useState<CurriculumItem | null>(null);
   const [selectedCentre, setSelectedCentre] = useState<string>('');
   const [selectedSlot, setSelectedSlot] = useState<string>('');
-  const [selectedCoordinator, setSelectedCoordinator] = useState<string>('');
   const [formData, setFormData] = useState({
     title: '',
     content_category: '',
@@ -110,16 +110,22 @@ export function AddSessionDialog({
     topics_covered: '',
     videos: '',
     quiz_content_ppt: '',
-    status: 'pending',
+    volunteer_name: '',
     facilitator_name: '',
     coordinator_name: '',
-    volunteer_name: '',
-    meeting_link: '',
+    session_type_option: 'fresh',
   });
   const { user } = useAuth();
   const { toast } = useToast();
 
-  // Load volunteers and categories on open
+  // Update selected date when prop changes
+  useEffect(() => {
+    if (propSelectedDate) {
+      setSelectedDate(propSelectedDate);
+    }
+  }, [propSelectedDate, open]);
+
+  // Load data on open
   useEffect(() => {
     if (open) {
       fetchVolunteers();
@@ -156,24 +162,14 @@ export function AddSessionDialog({
 
   const fetchVolunteers = async () => {
     try {
-      console.log('Fetching volunteers...');
       const { data, error } = await supabase
         .from('volunteers')
         .select('id, name, personal_email, work_email, phone_number, organization_name')
         .eq('is_active', true)
         .order('name', { ascending: true });
 
-      if (error) {
-        console.error('Supabase error:', error);
-        throw error;
-      }
-      
-      console.log('Volunteers loaded successfully:', data);
+      if (error) throw error;
       setVolunteers(data || []);
-      
-      if (!data || data.length === 0) {
-        console.warn('No active volunteers found in database');
-      }
     } catch (error) {
       console.error('Error fetching volunteers:', error);
       setVolunteers([]);
@@ -220,7 +216,6 @@ export function AddSessionDialog({
         .not('content_category', 'is', null);
 
       if (error) throw error;
-      
       const uniqueCategories = [...new Set(data?.map(item => item.content_category) || [])];
       setCategories(uniqueCategories as string[]);
     } catch (error) {
@@ -237,7 +232,6 @@ export function AddSessionDialog({
         .not('module_name', 'is', null);
 
       if (error) throw error;
-      
       const uniqueModules = [...new Set(data?.map(item => item.module_name) || [])];
       setModules(uniqueModules as string[]);
     } catch (error) {
@@ -333,14 +327,39 @@ export function AddSessionDialog({
     }
   };
 
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const dateString = e.target.value;
+    if (dateString) {
+      setSelectedDate(new Date(dateString));
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedDate || !user || !sessionType) return;
+    if (!selectedDate || !user) return;
 
     if (!selectedVolunteer) {
       toast({
         title: 'Error',
         description: 'Please select a volunteer',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!selectedFacilitator) {
+      toast({
+        title: 'Error',
+        description: 'Please select a facilitator',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!selectedCoordinator) {
+      toast({
+        title: 'Error',
+        description: 'Please select a coordinator',
         variant: 'destructive',
       });
       return;
@@ -364,51 +383,36 @@ export function AddSessionDialog({
       return;
     }
 
-    if (!formData.facilitator_name) {
-      toast({
-        title: 'Error',
-        description: 'Please select a facilitator',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (!selectedCoordinator) {
-      toast({
-        title: 'Error',
-        description: 'Please select a coordinator',
-        variant: 'destructive',
-      });
-      return;
-    }
-
     const slot = centreSlots.find(s => s.id === selectedSlot);
     const selectedVolunteerData = volunteers.find(v => v.id === selectedVolunteer);
-    const selectedFacilitatorData = facilitators.find(f => f.name === formData.facilitator_name);
+    const selectedFacilitatorData = facilitators.find(f => f.id === selectedFacilitator);
     const selectedCoordinatorData = coordinators.find(c => c.id === selectedCoordinator);
+
+    // Generate meeting link
+    const meetingLink = `https://meet.google.com/${selectedDate.getTime()}-${selectedVolunteer}`;
 
     const sessionData = {
       title: formData.title,
       session_date: format(selectedDate, 'yyyy-MM-dd'),
       session_time: slot?.start_time || '09:00',
-      session_type: sessionType,
-      status: formData.status,
+      session_type_option: formData.session_type_option,
       content_category: formData.content_category,
       module_name: formData.module_name,
       topics_covered: formData.topics_covered,
       videos: formData.videos,
       quiz_content_ppt: formData.quiz_content_ppt,
-      facilitator_name: formData.facilitator_name,
+      facilitator_name: selectedFacilitatorData?.name || '',
       coordinator_id: selectedCoordinator,
       volunteer_name: formData.volunteer_name,
-      meeting_link: formData.meeting_link,
+      meeting_link: meetingLink,
       centre_id: selectedCentre,
       centre_time_slot_id: selectedSlot,
     };
 
     const { data: insertedSession, error } = await supabase
       .from('sessions')
-      .insert([sessionData]);
+      .insert([sessionData])
+      .select();
 
     if (error) {
       console.error('Session insert error:', error);
@@ -418,7 +422,7 @@ export function AddSessionDialog({
         variant: 'destructive',
       });
     } else {
-      const sessionId = insertedSession?.[0]?.id || selectedDate?.getTime().toString();
+      const sessionId = insertedSession?.[0]?.id;
 
       // Add to Google Calendar for volunteer and facilitator
       if (sessionId) {
@@ -433,16 +437,34 @@ export function AddSessionDialog({
             sessionId,
             title: formData.title,
             description: `
-Session Details:
-- Category: ${formData.content_category}
-- Module: ${formData.module_name}
-- Topic: ${formData.topics_covered}
-- Type: ${sessionType === 'guest_teacher' ? 'Guest Teacher' : 'Guest Speaker'}
-- Facilitator: ${formData.facilitator_name}
-- Coordinator: ${selectedCoordinatorData?.name || 'N/A'}
-- Volunteer: ${formData.volunteer_name}
-${formData.videos ? `- Videos: ${formData.videos}` : ''}
-${formData.quiz_content_ppt ? `- PPT: ${formData.quiz_content_ppt}` : ''}
+
+                   SESSION DETAILS                           
+
+
+📚 CONTENT INFORMATION
+
+Category:    ${formData.content_category}
+Module:      ${formData.module_name}
+Topic:       ${formData.topics_covered}
+Session Type: ${formData.session_type_option === 'fresh' ? '🆕 Fresh Session' : '🔄 Revision Session'}
+
+👥 Volunter ,Facilitator & Coordinator 
+
+Volunteer:   ${formData.volunteer_name}
+Facilitator: ${selectedFacilitatorData?.name || 'N/A'}
+Coordinator: ${selectedCoordinatorData?.name || 'N/A'}
+
+📎 RESOURCES
+
+${formData.videos ? `📹 Videos: ${formData.videos}` : ''}
+${formData.quiz_content_ppt ? `📊 PPT/Quiz: ${formData.quiz_content_ppt}` : ''}
+
+🔗 MEETING LINK
+
+Google Meet link will be added to the calendar event.
+
+Please accept this invitation to confirm your participation.
+For any questions, contact the coordinator.
             `.trim(),
             startDateTime: startDateTime.toISOString(),
             endDateTime: endDateTime.toISOString(),
@@ -452,7 +474,7 @@ ${formData.quiz_content_ppt ? `- PPT: ${formData.quiz_content_ppt}` : ''}
             facilitatorName: selectedFacilitatorData?.name || '',
             coordinatorEmail: selectedCoordinatorData?.email || '',
             coordinatorName: selectedCoordinatorData?.name || '',
-            meetingLink: formData.meeting_link || '',
+            meetingLink: meetingLink,
           };
 
           // Try to sync with Google Calendar
@@ -480,13 +502,13 @@ ${formData.quiz_content_ppt ? `- PPT: ${formData.quiz_content_ppt}` : ''}
           }
           
           toast({
-            title: 'Session Created',
-            description: `Session "${formData.title}" has been scheduled. Calendar invites sent to volunteer, facilitator, and coordinator.`,
+            title: 'Session Scheduled',
+            description: `Session "${formData.title}" has been scheduled successfully.`,
           });
         } catch (notificationError) {
           console.error('Error with calendar sync:', notificationError);
           toast({
-            title: 'Session Created',
+            title: 'Session Scheduled',
             description: `Session created successfully`,
           });
         }
@@ -498,13 +520,15 @@ ${formData.quiz_content_ppt ? `- PPT: ${formData.quiz_content_ppt}` : ''}
   };
 
   const handleClose = () => {
+    setSelectedDate(null);
     setSelectedVolunteer('');
+    setSelectedFacilitator('');
+    setSelectedCoordinator('');
     setSelectedCategory('');
     setSelectedModule('');
     setSelectedTopic(null);
     setSelectedCentre('');
     setSelectedSlot('');
-    setSelectedCoordinator('');
     setFormData({
       title: '',
       content_category: '',
@@ -512,26 +536,41 @@ ${formData.quiz_content_ppt ? `- PPT: ${formData.quiz_content_ppt}` : ''}
       topics_covered: '',
       videos: '',
       quiz_content_ppt: '',
-      status: 'pending',
+      volunteer_name: '',
       facilitator_name: '',
       coordinator_name: '',
-      volunteer_name: '',
-      meeting_link: '',
+      session_type_option: 'fresh',
     });
     onOpenChange(false);
   };
 
-  // Main Session Form
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="w-full max-w-[95vw] sm:max-w-[600px] md:max-w-[700px] max-h-[90vh] overflow-y-auto p-4 sm:p-6">
-      <DialogHeader className="mb-4">
+        <DialogHeader className="mb-4">
           <DialogTitle className="flex flex-col sm:flex-row items-start sm:items-center gap-2 text-lg sm:text-xl">
             <GraduationCap className="h-5 w-5 text-green-500 flex-shrink-0" />
-            <span className="break-words">New {sessionType === 'guest_teacher' ? 'Guest Teacher' : 'Guest Speaker'} Session - {selectedDate && format(selectedDate, 'MMM d, yyyy')}</span>
+            <span className="break-words">Schedule New Session</span>
           </DialogTitle>
         </DialogHeader>
+
         <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
+          {/* Date Selection */}
+          <div className="space-y-2">
+            <Label htmlFor="session_date" className="text-sm sm:text-base">Session Date *</Label>
+            <div className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-gray-400" />
+              <Input
+                id="session_date"
+                type="date"
+                value={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : ''}
+                onChange={handleDateChange}
+                className="text-sm sm:text-base"
+                required
+              />
+            </div>
+          </div>
+
           {/* Volunteer Selection */}
           <div className="space-y-2">
             <Label htmlFor="volunteer" className="text-sm sm:text-base">Select Volunteer *</Label>
@@ -561,70 +600,50 @@ ${formData.quiz_content_ppt ? `- PPT: ${formData.quiz_content_ppt}` : ''}
             )}
           </div>
 
-          {/* Guest Speaker & Guest Teacher */}
-          <div className="border-t border-border pt-4">
-            <h4 className="font-medium text-sm sm:text-base text-foreground mb-3">
-              Facilitator Information
-            </h4>
-            
-            <div className="space-y-2 mb-4">
-              <Label htmlFor="facilitator" className="text-sm sm:text-base">
-                Select Facilitator *
-              </Label>
-              <Select value={formData.facilitator_name} onValueChange={(value) => setFormData({ ...formData, facilitator_name: value })}>
-                <SelectTrigger className="text-sm sm:text-base">
-                  <SelectValue placeholder="Choose a facilitator" />
-                </SelectTrigger>
-                <SelectContent>
-                  {facilitators.map((facilitator) => (
-                    <SelectItem key={facilitator.id} value={facilitator.name}>
-                      {facilitator.name} ({facilitator.location})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="coordinator" className="text-sm sm:text-base">
-                Select Coordinator *
-              </Label>
-              <Select value={selectedCoordinator} onValueChange={(value) => setSelectedCoordinator(value)}>
-                <SelectTrigger className="text-sm sm:text-base">
-                  <SelectValue placeholder="Choose a coordinator" />
-                </SelectTrigger>
-                <SelectContent>
-                  {coordinators.map((coordinator) => (
-                    <SelectItem key={coordinator.id} value={coordinator.id}>
-                      {coordinator.name} ({coordinator.location})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          {/* Facilitator Selection */}
+          <div className="space-y-2">
+            <Label htmlFor="facilitator" className="text-sm sm:text-base">Select Facilitator *</Label>
+            <Select value={selectedFacilitator} onValueChange={(value) => {
+              setSelectedFacilitator(value);
+              const facilitator = facilitators.find(f => f.id === value);
+              if (facilitator) {
+                setFormData(prev => ({ ...prev, facilitator_name: facilitator.name }));
+              }
+            }}>
+              <SelectTrigger className="text-sm sm:text-base">
+                <SelectValue placeholder="Choose a facilitator" />
+              </SelectTrigger>
+              <SelectContent>
+                {facilitators.map((facilitator) => (
+                  <SelectItem key={facilitator.id} value={facilitator.id}>
+                    {facilitator.name} ({facilitator.location})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          {/* Meeting Link */}
-          <div className="border-t border-border pt-4">
-            <h4 className="font-medium text-sm sm:text-base text-foreground mb-3">
-              Meeting Details
-            </h4>
-            
-            <div className="space-y-2">
-              <Label htmlFor="meeting_link" className="text-sm sm:text-base">
-                Google Meet Link
-              </Label>
-              <Input
-                id="meeting_link"
-                placeholder="https://meet.google.com/..."
-                value={formData.meeting_link}
-                onChange={(e) => setFormData({ ...formData, meeting_link: e.target.value })}
-                className="text-sm sm:text-base"
-              />
-              <p className="text-xs text-muted-foreground">
-                Paste the Google Meet link here. This will be shared with participants.
-              </p>
-            </div>
+          {/* Coordinator Selection */}
+          <div className="space-y-2">
+            <Label htmlFor="coordinator" className="text-sm sm:text-base">Select Coordinator *</Label>
+            <Select value={selectedCoordinator} onValueChange={(value) => {
+              setSelectedCoordinator(value);
+              const coordinator = coordinators.find(c => c.id === value);
+              if (coordinator) {
+                setFormData(prev => ({ ...prev, coordinator_name: coordinator.name }));
+              }
+            }}>
+              <SelectTrigger className="text-sm sm:text-base">
+                <SelectValue placeholder="Choose a coordinator" />
+              </SelectTrigger>
+              <SelectContent>
+                {coordinators.map((coordinator) => (
+                  <SelectItem key={coordinator.id} value={coordinator.id}>
+                    {coordinator.name} ({coordinator.location})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Content Selection */}
@@ -689,21 +708,19 @@ ${formData.quiz_content_ppt ? `- PPT: ${formData.quiz_content_ppt}` : ''}
             <h4 className="font-medium text-sm sm:text-base text-foreground mb-3">Content Details {selectedTopic && '(Auto-filled)'}</h4>
             
             <div className="space-y-2 mb-4">
-              <Label htmlFor="status" className="text-sm sm:text-base">Status *</Label>
-              <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
+              <Label htmlFor="session_type_option" className="text-sm sm:text-base">Session Type Option *</Label>
+              <Select value={formData.session_type_option} onValueChange={(value) => setFormData({ ...formData, session_type_option: value })}>
                 <SelectTrigger className="text-sm sm:text-base">
-                  <SelectValue placeholder="Select status" />
+                  <SelectValue placeholder="Select session type option" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="committed">Committed</SelectItem>
-                  <SelectItem value="available">Available</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="fresh">Fresh</SelectItem>
+                  <SelectItem value="revision">Revision</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-
-            <div className="space-y-2 mt-4">
+            
+            <div className="space-y-2 mb-4">
               <Label htmlFor="videos" className="text-sm sm:text-base">Videos</Label>
               <Input
                 id="videos"
@@ -715,7 +732,7 @@ ${formData.quiz_content_ppt ? `- PPT: ${formData.quiz_content_ppt}` : ''}
               />
             </div>
 
-            <div className="space-y-2 mt-4">
+            <div className="space-y-2">
               <Label htmlFor="quiz_content_ppt" className="text-sm sm:text-base">Quiz/Content PPT</Label>
               <Input
                 id="quiz_content_ppt"
@@ -802,7 +819,7 @@ ${formData.quiz_content_ppt ? `- PPT: ${formData.quiz_content_ppt}` : ''}
             <Button type="button" variant="outline" onClick={handleClose} className="w-full sm:w-auto text-sm sm:text-base">
               Cancel
             </Button>
-            <Button type="submit" className="w-full sm:w-auto text-sm sm:text-base">Create Session</Button>
+            <Button type="submit" className="w-full sm:w-auto text-sm sm:text-base">Schedule Session</Button>
           </DialogFooter>
         </form>
       </DialogContent>

@@ -68,6 +68,8 @@ export default function Calendar() {
   const [isSessionTypeOpen, setIsSessionTypeOpen] = useState(false);
   const [isAddSessionOpen, setIsAddSessionOpen] = useState(false);
   const [selectedSessionType, setSelectedSessionType] = useState<'guest_teacher' | 'guest_speaker' | null>(null);
+  const [selectedDateForNewSession, setSelectedDateForNewSession] = useState<Date | null>(null);
+  const [expandedDateKey, setExpandedDateKey] = useState<string | null>(null);
 
   useEffect(() => {
     fetchVolunteers();
@@ -203,6 +205,11 @@ export default function Calendar() {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1));
   };
 
+  const handleDateClick = (date: Date) => {
+    setSelectedDateForNewSession(date);
+    setIsAddSessionOpen(true);
+  };
+
   const monthName = currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
 
   if (loading) {
@@ -284,9 +291,10 @@ export default function Calendar() {
               {calendarDays.map((day, idx) => (
                 <div
                   key={idx}
-                  className={`min-h-24 p-2 border rounded-lg ${
+                  onClick={() => day.isCurrentMonth && handleDateClick(day.date)}
+                  className={`min-h-24 p-2 border rounded-lg cursor-pointer transition-colors hover:bg-accent ${
                     day.isCurrentMonth
-                      ? 'bg-background border-border'
+                      ? 'bg-background border-border hover:border-primary'
                       : 'bg-muted border-muted-foreground/20'
                   }`}
                 >
@@ -296,21 +304,40 @@ export default function Calendar() {
                     {day.date.getDate()}
                   </div>
                   <div className="space-y-1">
-                    {day.sessions.slice(0, 2).map((session, i) => (
-                      <button
-                        key={i}
-                        onClick={() => setSelectedSession(session)}
-                        className={`text-xs px-2 py-1 rounded truncate w-full text-left hover:opacity-80 ${getStatusColor(session.status)}`}
-                        title={session.title}
-                      >
-                        {session.session_time} - {session.title}
-                      </button>
-                    ))}
-                    {day.sessions.length > 2 && (
-                      <div className="text-xs text-muted-foreground px-2">
-                        +{day.sessions.length - 2} more
-                      </div>
-                    )}
+                    {(() => {
+                      const dateKey = day.date.toISOString().split('T')[0];
+                      const isExpanded = expandedDateKey === dateKey;
+                      const sessionsToShow = isExpanded ? day.sessions : day.sessions.slice(0, 2);
+                      
+                      return (
+                        <>
+                          {sessionsToShow.map((session, i) => (
+                            <button
+                              key={i}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedSession(session);
+                              }}
+                              className={`text-xs px-2 py-1 rounded truncate w-full text-left hover:opacity-80 ${getStatusColor(session.status)}`}
+                              title={session.title}
+                            >
+                              {session.session_time} - {session.title}
+                            </button>
+                          ))}
+                          {day.sessions.length > 2 && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedDateKey(isExpanded ? null : dateKey);
+                              }}
+                              className="text-xs text-primary hover:text-primary/80 px-2 font-medium cursor-pointer transition-colors"
+                            >
+                              {isExpanded ? '−' : '+'}{day.sessions.length - 2} more
+                            </button>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
               ))}
@@ -485,9 +512,11 @@ export default function Calendar() {
         <AddSessionDialog
           open={isAddSessionOpen}
           onOpenChange={setIsAddSessionOpen}
-          selectedDate={null}
-          sessionType={selectedSessionType}
-          onSuccess={fetchSessions}
+          selectedDate={selectedDateForNewSession}
+          onSuccess={() => {
+            fetchSessions();
+            setSelectedDateForNewSession(null);
+          }}
         />
 
         {/* Session Type Dialog */}

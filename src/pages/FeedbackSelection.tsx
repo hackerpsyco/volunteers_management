@@ -123,15 +123,15 @@ export default function FeedbackSelection() {
     if (selectedDate !== 'all') {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
+      const todayString = today.toISOString().split('T')[0]; // YYYY-MM-DD format
 
       filtered = filtered.filter(session => {
-        const sessionDate = new Date(session.session_date);
-        sessionDate.setHours(0, 0, 0, 0);
+        const sessionDateString = session.session_date; // Already in YYYY-MM-DD format
 
         if (selectedDate === 'today') {
-          return sessionDate.getTime() === today.getTime();
+          return sessionDateString === todayString;
         } else if (selectedDate === 'past') {
-          return sessionDate.getTime() < today.getTime();
+          return sessionDateString < todayString;
         }
         return true;
       });
@@ -152,24 +152,37 @@ export default function FeedbackSelection() {
     try {
       setLoadingCommitted(true);
       
-      // Fetch all committed/created sessions without feedback
+      // Get today's date at midnight in local timezone
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      // Convert to ISO string and get just the date part (YYYY-MM-DD)
+      const todayString = today.toISOString().split('T')[0];
+      
+      // Fetch only upcoming/scheduled sessions without feedback (session_date >= today)
       const { data: sessionsData, error: sessionsError } = await supabase
         .from('sessions')
         .select(`
           *,
           coordinators:coordinator_id(name)
         `)
-        .in('status', ['committed', 'created'])
+        .in('status', ['pending', 'committed', 'created', 'available'])
         .is('recorded_at', null)
-        .order('session_date', { ascending: false });
+        .gte('session_date', todayString)
+        .order('session_date', { ascending: true });
 
       if (sessionsError) throw sessionsError;
 
-      // Transform sessions data
-      const transformedSessions = (sessionsData || []).map((session: any) => ({
-        ...session,
-        coordinator_name: session.coordinators?.name || null,
-      }));
+      // Transform sessions data and filter out any past sessions (double-check)
+      const transformedSessions = (sessionsData || [])
+        .map((session: any) => ({
+          ...session,
+          coordinator_name: session.coordinators?.name || null,
+        }))
+        .filter((session: FeedbackSession) => {
+          const sessionDate = new Date(session.session_date);
+          return sessionDate >= today;
+        });
 
       setCommittedSessions(transformedSessions as FeedbackSession[]);
       setIsAddFeedbackDialogOpen(true);
@@ -345,9 +358,9 @@ export default function FeedbackSelection() {
       <Dialog open={isAddFeedbackDialogOpen} onOpenChange={setIsAddFeedbackDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Select Session to Add Feedback</DialogTitle>
+            <DialogTitle>Select Upcoming Session to Add Feedback</DialogTitle>
             <DialogDescription>
-              Choose a committed session to add feedback and record session details
+              Choose an upcoming scheduled session to add feedback and record session details. Only sessions from today onwards are shown.
             </DialogDescription>
           </DialogHeader>
 
@@ -357,31 +370,49 @@ export default function FeedbackSelection() {
             </div>
           ) : committedSessions.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-muted-foreground">No sessions available for feedback</p>
+              <p className="text-muted-foreground">No upcoming sessions available for feedback</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {committedSessions.map((session) => (
-                <Button
-                  key={session.id}
-                  variant="outline"
-                  className="w-full justify-start text-left h-auto py-3 hover:bg-accent"
-                  onClick={() => {
-                    setIsAddFeedbackDialogOpen(false);
-                    handleAddFeedback(session.id);
-                  }}
-                >
-                  <div className="flex flex-col gap-1 w-full">
-                    <span className="font-semibold">{session.topics_covered || session.title || 'Untitled'}</span>
-                    <span className="text-sm text-muted-foreground">
-                      {new Date(session.session_date).toLocaleDateString()} at {session.session_time}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      Facilitator: {session.facilitator_name || '-'} | Volunteer: {session.volunteer_name || '-'} | Coordinator: {session.coordinator_name || '-'}
-                    </span>
-                  </div>
-                </Button>
-              ))}
+              {committedSessions.map((session) => {
+                const sessionDate = new Date(session.session_date);
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                
+                const tomorrow = new Date(today);
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                
+                let dateLabel = '';
+                if (sessionDate.toDateString() === today.toDateString()) {
+                  dateLabel = 'Today';
+                } else if (sessionDate.toDateString() === tomorrow.toDateString()) {
+                  dateLabel = 'Tomorrow';
+                } else {
+                  dateLabel = sessionDate.toLocaleDateString();
+                }
+                
+                return (
+                  <Button
+                    key={session.id}
+                    variant="outline"
+                    className="w-full justify-start text-left h-auto py-3 hover:bg-accent"
+                    onClick={() => {
+                      setIsAddFeedbackDialogOpen(false);
+                      handleAddFeedback(session.id);
+                    }}
+                  >
+                    <div className="flex flex-col gap-1 w-full">
+                      <span className="font-semibold">{session.topics_covered || session.title || 'Untitled'}</span>
+                      <span className="text-sm text-muted-foreground">
+                        📅 {dateLabel} at ⏰ {session.session_time}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        👨‍🏫 Facilitator: {session.facilitator_name || '-'} | 🤝 Volunteer: {session.volunteer_name || '-'} | 📋 Coordinator: {session.coordinator_name || '-'}
+                      </span>
+                    </div>
+                  </Button>
+                );
+              })}
             </div>
           )}
         </DialogContent>
