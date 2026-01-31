@@ -68,6 +68,7 @@ interface Session {
   meeting_link: string | null;
   centre_id: string | null;
   centre_time_slot_id: string | null;
+  class_batch: string | null;
   centre_name?: string | null;
   centre_location?: string | null;
   slot_day?: string | null;
@@ -421,6 +422,7 @@ export default function Sessions() {
                         <TableHead>Facilitator</TableHead>
                         <TableHead>Volunteer</TableHead>
                         <TableHead>Coordinator</TableHead>
+                        <TableHead>Class</TableHead>
                         <TableHead>Centre</TableHead>
                         <TableHead>Time Slot</TableHead>
                         <TableHead>Date</TableHead>
@@ -441,6 +443,7 @@ export default function Sessions() {
                           <TableCell>{session.facilitator_name || '-'}</TableCell>
                           <TableCell>{session.volunteer_name || '-'}</TableCell>
                           <TableCell>{session.coordinator_name || '-'}</TableCell>
+                          <TableCell>{session.class_batch || '-'}</TableCell>
                           <TableCell>{session.centre_name || '-'}</TableCell>
                           <TableCell className="text-sm">
                             {session.slot_start_time && session.slot_end_time 
@@ -565,6 +568,12 @@ export default function Sessions() {
                         <span className="font-medium text-sm">{session.coordinator_name || '-'}</span>
                       </div>
 
+                      {/* Class */}
+                      <div className="text-xs">
+                        <span className="text-muted-foreground block">Class</span>
+                        <span className="font-medium text-sm">{session.class_batch || '-'}</span>
+                      </div>
+
                       {/* Centre and Time Slot */}
                       <div className="grid grid-cols-2 gap-2 text-xs">
                         <div>
@@ -672,7 +681,6 @@ export default function Sessions() {
         open={isFormDialogOpen}
         onOpenChange={setIsFormDialogOpen}
         selectedDate={selectedDate}
-        sessionType={selectedSessionType}
         onSuccess={fetchSessions}
       />
 

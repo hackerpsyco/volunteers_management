@@ -113,6 +113,30 @@ export type Database = {
         }
         Relationships: []
       }
+      classes: {
+        Row: {
+          id: string
+          name: string
+          description: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          description?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          description?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       centre_time_slots: {
         Row: {
           id: string
@@ -277,6 +301,14 @@ export type Database = {
           phone_number: string
           updated_at: string
           work_email: string
+          regular_volunteering: boolean | null
+          frequency_per_month: number | null
+          interested_area: string | null
+          interested_topic: string | null
+          preferred_day: string | null
+          preferred_class: string | null
+          remarks: string | null
+          volunteer_status: string | null
         }
         Insert: {
           city?: string | null
@@ -292,6 +324,14 @@ export type Database = {
           phone_number: string
           updated_at?: string
           work_email: string
+          regular_volunteering?: boolean | null
+          frequency_per_month?: number | null
+          interested_area?: string | null
+          interested_topic?: string | null
+          preferred_day?: string | null
+          preferred_class?: string | null
+          remarks?: string | null
+          volunteer_status?: string | null
         }
         Update: {
           city?: string | null
@@ -307,6 +347,14 @@ export type Database = {
           phone_number?: string
           updated_at?: string
           work_email?: string
+          regular_volunteering?: boolean | null
+          frequency_per_month?: number | null
+          interested_area?: string | null
+          interested_topic?: string | null
+          preferred_day?: string | null
+          preferred_class?: string | null
+          remarks?: string | null
+          volunteer_status?: string | null
         }
         Relationships: []
       }

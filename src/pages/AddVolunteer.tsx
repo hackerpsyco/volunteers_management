@@ -25,6 +25,7 @@ const volunteerSchema = z.object({
   work_email: z.string().trim().email('Please enter a valid work email').max(255, 'Email must be less than 255 characters').optional().or(z.literal('')),
   country: z.string().trim().max(100, 'Country must be less than 100 characters').optional(),
   city: z.string().trim().max(100, 'City must be less than 100 characters').optional(),
+  country_code: z.string().min(2, 'Country code is required').max(2, 'Invalid country code'),
   phone_number: z.string().trim().min(10, 'Phone number must be at least 10 digits').max(15, 'Phone number is too long'),
   linkedin_profile: z.string().trim().url('Please enter a valid LinkedIn URL').max(255, 'LinkedIn URL is too long').optional().or(z.literal('')),
 }).refine((data) => data.personal_email || data.work_email, {
@@ -40,10 +41,35 @@ export default function AddVolunteer() {
   const [workEmail, setWorkEmail] = useState('');
   const [country, setCountry] = useState('');
   const [city, setCity] = useState('');
+  const [countryCode, setCountryCode] = useState('IN'); // Default to India
   const [phoneNumber, setPhoneNumber] = useState('');
   const [linkedinProfile, setLinkedinProfile] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+
+  // Country code data
+  const countryCodes = [
+    { code: 'IN', name: 'India', dialCode: '+91' },
+    { code: 'US', name: 'United States', dialCode: '+1' },
+    { code: 'GB', name: 'United Kingdom', dialCode: '+44' },
+    { code: 'CA', name: 'Canada', dialCode: '+1' },
+    { code: 'AU', name: 'Australia', dialCode: '+61' },
+    { code: 'DE', name: 'Germany', dialCode: '+49' },
+    { code: 'FR', name: 'France', dialCode: '+33' },
+    { code: 'JP', name: 'Japan', dialCode: '+81' },
+    { code: 'CN', name: 'China', dialCode: '+86' },
+    { code: 'BR', name: 'Brazil', dialCode: '+55' },
+    { code: 'MX', name: 'Mexico', dialCode: '+52' },
+    { code: 'SG', name: 'Singapore', dialCode: '+65' },
+    { code: 'NZ', name: 'New Zealand', dialCode: '+64' },
+    { code: 'ZA', name: 'South Africa', dialCode: '+27' },
+    { code: 'AE', name: 'United Arab Emirates', dialCode: '+971' },
+    { code: 'PK', name: 'Pakistan', dialCode: '+92' },
+    { code: 'BD', name: 'Bangladesh', dialCode: '+880' },
+    { code: 'LK', name: 'Sri Lanka', dialCode: '+94' },
+    { code: 'NG', name: 'Nigeria', dialCode: '+234' },
+    { code: 'KE', name: 'Kenya', dialCode: '+254' },
+  ];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,7 +83,8 @@ export default function AddVolunteer() {
       personal_email: personalEmail || undefined,
       work_email: workEmail || undefined,
       country: country || undefined,
-      city: city || undefined, 
+      city: city || undefined,
+      country_code: countryCode,
       phone_number: phoneNumber,
       linkedin_profile: linkedinProfile || undefined
     });
@@ -77,6 +104,7 @@ export default function AddVolunteer() {
         work_email: validation.data.work_email || null,
         country: validation.data.country || null,
         city: validation.data.city || null,
+        country_code: validation.data.country_code,
         phone_number: validation.data.phone_number,
         linkedin_profile: validation.data.linkedin_profile || null,
         is_active: true,
@@ -242,15 +270,37 @@ export default function AddVolunteer() {
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="countryCode">Country Code *</Label>
+                <Select value={countryCode} onValueChange={setCountryCode}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select country" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {countryCodes.map((country) => (
+                      <SelectItem key={country.code} value={country.code}>
+                        {country.name} ({country.dialCode})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="phoneNumber">Phone Number *</Label>
-                <Input
-                  id="phoneNumber"
-                  type="tel"
-                  placeholder="Enter phone number"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
-                  required
-                />
+                <div className="flex gap-2">
+                  <div className="w-24 px-3 py-2 bg-muted rounded-md text-sm font-medium flex items-center">
+                    {countryCodes.find(c => c.code === countryCode)?.dialCode}
+                  </div>
+                  <Input
+                    id="phoneNumber"
+                    type="tel"
+                    placeholder="Enter phone number"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    required
+                    className="flex-1"
+                  />
+                </div>
               </div>
 
               <div className="space-y-2">

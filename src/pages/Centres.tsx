@@ -35,7 +35,8 @@ interface Centre {
   id: string;
   name: string;
   location: string;
-  address: string;
+  address?: string | null;
+  email?: string | null;
   status: string;
   created_at: string;
   updated_at: string;
@@ -60,7 +61,6 @@ export default function Centres() {
   const [centreSlots, setCentreSlots] = useState<Record<string, CentreTimeSlot[]>>({});
   const [showSlotForm, setShowSlotForm] = useState<string | null>(null);
   const [slotFormData, setSlotFormData] = useState({
-    day: 'Monday',
     start_time: '09:00',
     end_time: '10:00',
   });
@@ -68,6 +68,7 @@ export default function Centres() {
     name: '',
     location: '',
     address: '',
+    email: '',
     status: 'active',
   });
   const [timeSlots, setTimeSlots] = useState<Array<{ day: string; start_time: string; end_time: string }>>([
@@ -201,6 +202,7 @@ export default function Centres() {
       name: centre.name,
       location: centre.location,
       address: centre.address,
+      email: centre.email || '',
       status: centre.status,
     });
     setEditingId(centre.id);
@@ -214,6 +216,7 @@ export default function Centres() {
       name: '',
       location: '',
       address: '',
+      email: '',
       status: 'active',
     });
     setTimeSlots([{ day: 'Monday', start_time: '09:00', end_time: '10:00' }]);
@@ -230,7 +233,7 @@ export default function Centres() {
         .from('centre_time_slots')
         .insert([{
           centre_id: centreId,
-          day: slotFormData.day,
+          day: 'Monday',
           start_time: slotFormData.start_time,
           end_time: slotFormData.end_time,
         }]);
@@ -238,7 +241,7 @@ export default function Centres() {
       if (error) throw error;
       toast.success('Time slot added successfully');
       setShowSlotForm(null);
-      setSlotFormData({ day: 'Monday', start_time: '09:00', end_time: '10:00' });
+      setSlotFormData({ start_time: '09:00', end_time: '10:00' });
       await fetchCentreSlots(centreId);
     } catch (error) {
       console.error('Error adding time slot:', error);
@@ -322,6 +325,16 @@ export default function Centres() {
                       placeholder="Full address"
                     />
                   </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium mb-1">Email</label>
+                    <input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                      placeholder="Centre email address"
+                    />
+                  </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Status</label>
                     <select
@@ -354,22 +367,6 @@ export default function Centres() {
                     <div className="space-y-3">
                       {timeSlots.map((slot, index) => (
                         <div key={index} className="flex gap-2 items-end">
-                          <div className="flex-1">
-                            <label className="block text-xs font-medium mb-1">Day</label>
-                            <select
-                              value={slot.day}
-                              onChange={(e) => {
-                                const newSlots = [...timeSlots];
-                                newSlots[index].day = e.target.value;
-                                setTimeSlots(newSlots);
-                              }}
-                              className="w-full px-2 py-2 border border-input rounded-md text-sm"
-                            >
-                              {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => (
-                                <option key={day} value={day}>{day}</option>
-                              ))}
-                            </select>
-                          </div>
                           <div className="flex-1">
                             <label className="block text-xs font-medium mb-1">Start Time</label>
                             <input
@@ -454,6 +451,7 @@ export default function Centres() {
                         <TableHead>Name</TableHead>
                         <TableHead>Location</TableHead>
                         <TableHead>Address</TableHead>
+                        <TableHead>Email</TableHead>
                         <TableHead>Time Slots</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="w-[60px]">Actions</TableHead>
@@ -465,12 +463,13 @@ export default function Centres() {
                           <TableCell className="font-medium">{centre.name}</TableCell>
                           <TableCell>{centre.location}</TableCell>
                           <TableCell className="max-w-[200px] truncate">{centre.address || '-'}</TableCell>
+                          <TableCell className="max-w-[200px] truncate">{centre.email || '-'}</TableCell>
                           <TableCell className="text-sm">
                             {centreSlots[centre.id] && centreSlots[centre.id].length > 0 ? (
                               <div className="space-y-1">
                                 {centreSlots[centre.id].slice(0, 2).map((slot, idx) => (
                                   <div key={idx} className="text-xs">
-                                    {slot.day}: {slot.start_time} - {slot.end_time}
+                                    {slot.start_time} - {slot.end_time}
                                   </div>
                                 ))}
                                 {centreSlots[centre.id].length > 2 && (
@@ -594,15 +593,6 @@ export default function Centres() {
 
                         {showSlotForm === centre.id && (
                           <div className="bg-muted p-3 rounded mb-3 space-y-2">
-                            <select
-                              value={slotFormData.day}
-                              onChange={(e) => setSlotFormData({ ...slotFormData, day: e.target.value })}
-                              className="w-full px-2 py-1 text-sm border border-input rounded"
-                            >
-                              {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => (
-                                <option key={day} value={day}>{day}</option>
-                              ))}
-                            </select>
                             <div className="flex gap-2">
                               <input
                                 type="time"
@@ -641,7 +631,7 @@ export default function Centres() {
                           <div className="space-y-2">
                             {centreSlots[centre.id].map(slot => (
                               <div key={slot.id} className="flex items-center justify-between bg-background p-2 rounded text-xs border border-border">
-                                <span className="font-medium">{slot.day} {slot.start_time}-{slot.end_time}</span>
+                                <span className="font-medium">{slot.start_time}-{slot.end_time}</span>
                                 <Button
                                   size="sm"
                                   variant="ghost"

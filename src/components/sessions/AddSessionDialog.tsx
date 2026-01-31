@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { VolunteerSelector } from './VolunteerSelector';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -95,6 +96,7 @@ export function AddSessionDialog({
   const [topics, setTopics] = useState<CurriculumItem[]>([]);
   const [centres, setCentres] = useState<Centre[]>([]);
   const [centreSlots, setCentreSlots] = useState<CentreTimeSlot[]>([]);
+  const [classes, setClasses] = useState<string[]>([]);
   const [selectedVolunteer, setSelectedVolunteer] = useState<string>('');
   const [selectedFacilitator, setSelectedFacilitator] = useState<string>('');
   const [selectedCoordinator, setSelectedCoordinator] = useState<string>('');
@@ -103,6 +105,7 @@ export function AddSessionDialog({
   const [selectedTopic, setSelectedTopic] = useState<CurriculumItem | null>(null);
   const [selectedCentre, setSelectedCentre] = useState<string>('');
   const [selectedSlot, setSelectedSlot] = useState<string>('');
+  const [selectedClass, setSelectedClass] = useState<string>('');
   const [formData, setFormData] = useState({
     title: '',
     content_category: '',
@@ -114,6 +117,7 @@ export function AddSessionDialog({
     facilitator_name: '',
     coordinator_name: '',
     session_type_option: 'fresh',
+    class_batch: '',
   });
   const { user } = useAuth();
   const { toast } = useToast();
@@ -132,6 +136,7 @@ export function AddSessionDialog({
       fetchFacilitators();
       fetchCoordinators();
       fetchCategories();
+      fetchClasses();
       fetchCentres();
     }
   }, [open]);
@@ -220,6 +225,22 @@ export function AddSessionDialog({
       setCategories(uniqueCategories as string[]);
     } catch (error) {
       console.error('Error fetching categories:', error);
+    }
+  };
+
+  const fetchClasses = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('classes')
+        .select('name')
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      const classNames = data?.map(item => item.name) || [];
+      setClasses(classNames);
+    } catch (error) {
+      console.error('Error fetching classes:', error);
+      setClasses([]);
     }
   };
 
@@ -407,6 +428,7 @@ export function AddSessionDialog({
       meeting_link: meetingLink,
       centre_id: selectedCentre,
       centre_time_slot_id: selectedSlot,
+      class_batch: formData.class_batch,
     };
 
     const { data: insertedSession, error } = await supabase
@@ -529,6 +551,7 @@ For any questions, contact the coordinator.
     setSelectedTopic(null);
     setSelectedCentre('');
     setSelectedSlot('');
+    setSelectedClass('');
     setFormData({
       title: '',
       content_category: '',
@@ -540,6 +563,7 @@ For any questions, contact the coordinator.
       facilitator_name: '',
       coordinator_name: '',
       session_type_option: 'fresh',
+      class_batch: '',
     });
     onOpenChange(false);
   };
@@ -579,24 +603,15 @@ For any questions, contact the coordinator.
                 No active volunteers available. Please add volunteers first.
               </div>
             ) : (
-              <Select value={selectedVolunteer} onValueChange={(value) => {
-                setSelectedVolunteer(value);
-                const volunteer = volunteers.find(v => v.id === value);
-                if (volunteer) {
-                  setFormData(prev => ({ ...prev, volunteer_name: volunteer.name }));
-                }
-              }}>
-                <SelectTrigger className="text-sm sm:text-base">
-                  <SelectValue placeholder="Choose a volunteer" />
-                </SelectTrigger>
-                <SelectContent>
-                  {volunteers.map((volunteer) => (
-                    <SelectItem key={volunteer.id} value={volunteer.id}>
-                      {volunteer.name} ({volunteer.organization_name || 'N/A'})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <VolunteerSelector
+                volunteers={volunteers}
+                selectedVolunteer={selectedVolunteer}
+                onSelectVolunteer={(volunteerId, volunteerName) => {
+                  setSelectedVolunteer(volunteerId);
+                  setFormData(prev => ({ ...prev, volunteer_name: volunteerName }));
+                }}
+                placeholder="Choose a volunteer..."
+              />
             )}
           </div>
 
@@ -706,6 +721,25 @@ For any questions, contact the coordinator.
           {/* Content Details */}
           <div className="border-t border-border pt-4">
             <h4 className="font-medium text-sm sm:text-base text-foreground mb-3">Content Details {selectedTopic && '(Auto-filled)'}</h4>
+            
+            <div className="space-y-2 mb-4">
+              <Label htmlFor="class_batch" className="text-sm sm:text-base">Class *</Label>
+              <Select value={selectedClass} onValueChange={(value) => {
+                setSelectedClass(value);
+                setFormData({ ...formData, class_batch: value });
+              }}>
+                <SelectTrigger className="text-sm sm:text-base">
+                  <SelectValue placeholder="Select a class" />
+                </SelectTrigger>
+                <SelectContent>
+                  {classes.map((className) => (
+                    <SelectItem key={className} value={className}>
+                      {className}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             
             <div className="space-y-2 mb-4">
               <Label htmlFor="session_type_option" className="text-sm sm:text-base">Session Type Option *</Label>

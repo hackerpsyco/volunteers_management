@@ -281,6 +281,7 @@ export default function FeedbackSelection() {
                       <TableHead>Facilitator</TableHead>
                       <TableHead>Volunteer</TableHead>
                       <TableHead>Coordinator</TableHead>
+                      <TableHead>Class</TableHead>
                       <TableHead>Session Date</TableHead>
                       <TableHead>Recorded Date</TableHead>
                       <TableHead>Highlights</TableHead>
@@ -302,6 +303,9 @@ export default function FeedbackSelection() {
                         </TableCell>
                         <TableCell className="text-sm">
                           {session.coordinator_name || '-'}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {session.class_batch || '-'}
                         </TableCell>
                         <TableCell className="text-sm">
                           {new Date(session.session_date).toLocaleDateString()}
