@@ -25,6 +25,8 @@ interface SessionRecording {
   session_time: string;
   facilitator_name: string;
   volunteer_name: string;
+  coordinator_name?: string;
+  preferred_class?: string;
   session_objective: string | null;
   practical_activities: string | null;
   session_highlights: string | null;
@@ -89,14 +91,34 @@ export default function SessionRecording() {
       setLoading(true);
       const { data, error } = await supabase
         .from('sessions')
-        .select('*')
+        .select(`
+          *,
+          coordinators:coordinator_id(name)
+        `)
         .eq('id', sessionId)
         .single();
 
       if (error) throw error;
 
       const sessionData = data as any;
-      setSession(sessionData as SessionRecording);
+      
+      // Fetch volunteer's preferred class separately
+      let preferredClass = null;
+      if (sessionData.volunteer_name) {
+        const { data: volunteerData } = await supabase
+          .from('volunteers')
+          .select('preferred_class')
+          .eq('name', sessionData.volunteer_name)
+          .single();
+        
+        preferredClass = volunteerData?.preferred_class || null;
+      }
+
+      setSession({
+        ...sessionData,
+        coordinator_name: sessionData.coordinators?.name || null,
+        preferred_class: preferredClass,
+      } as SessionRecording);
       setFormData({
         session_objective: (sessionData as any).session_objective || '',
         practical_activities: (sessionData as any).practical_activities || '',
@@ -283,7 +305,7 @@ export default function SessionRecording() {
         {/* Session Info */}
         <Card className="bg-muted/50">
           <CardContent className="pt-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-3 text-sm">
               <div>
                 <span className="text-muted-foreground">Date</span>
                 <p className="font-medium">{new Date(session.session_date).toLocaleDateString()}</p>
@@ -299,6 +321,14 @@ export default function SessionRecording() {
               <div>
                 <span className="text-muted-foreground">Volunteer</span>
                 <p className="font-medium">{session.volunteer_name || '-'}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Coordinator</span>
+                <p className="font-medium">{session.coordinator_name || '-'}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Class</span>
+                <p className="font-medium">{session.preferred_class || formData.class_batch || '-'}</p>
               </div>
             </div>
           </CardContent>
@@ -343,19 +373,6 @@ export default function SessionRecording() {
           <div className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Class/Batch</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Input
-                  value={formData.class_batch}
-                  onChange={(e) => setFormData({ ...formData, class_batch: e.target.value })}
-                  placeholder="e.g., Class A, Batch 1"
-                />
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
                 <CardTitle className="text-base">Session Objective</CardTitle>
               </CardHeader>
               <CardContent>
@@ -367,7 +384,12 @@ export default function SessionRecording() {
                 />
               </CardContent>
             </Card>
+          </div>
+        )}
 
+        {/* Page 2: Performance Record */}
+        {currentPage === 2 && (
+          <div className="space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Practical Activities</CardTitle>
@@ -409,115 +431,7 @@ export default function SessionRecording() {
                 />
               </CardContent>
             </Card>
-          </div>
-        )}
 
-        {/* Page 3: Feedback & Closure */}
-        {currentPage === 3 && (
-          <div className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Facilitator Reflection</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Textarea
-                  value={formData.facilitator_reflection}
-                  onChange={(e) => setFormData({ ...formData, facilitator_reflection: e.target.value })}
-                  placeholder="Facilitator's reflection and remarks"
-                  className="min-h-[80px]"
-                />
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Best Performer</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Textarea
-                  value={formData.best_performer}
-                  onChange={(e) => setFormData({ ...formData, best_performer: e.target.value })}
-                  placeholder="Name and details of best performer"
-                  className="min-h-[60px]"
-                />
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Guest Teacher Feedback</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Textarea
-                  value={formData.guest_teacher_feedback}
-                  onChange={(e) => setFormData({ ...formData, guest_teacher_feedback: e.target.value })}
-                  placeholder="Feedback from guest teacher"
-                  className="min-h-[80px]"
-                />
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Incharge/Reviewer Feedback</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Textarea
-                  value={formData.incharge_reviewer_feedback}
-                  onChange={(e) => setFormData({ ...formData, incharge_reviewer_feedback: e.target.value })}
-                  placeholder="Feedback from incharge or reviewer"
-                  className="min-h-[80px]"
-                />
-              </CardContent>
-            </Card>
-
-            {/* Ratings */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Quality Ratings</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <Label className="text-xs">Mic/Sound</Label>
-                    <Input
-                      type="number"
-                      min="1"
-                      max="10"
-                      value={formData.mic_sound_rating}
-                      onChange={(e) => setFormData({ ...formData, mic_sound_rating: parseInt(e.target.value) })}
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Seating/View</Label>
-                    <Input
-                      type="number"
-                      min="1"
-                      max="10"
-                      value={formData.seating_view_rating}
-                      onChange={(e) => setFormData({ ...formData, seating_view_rating: parseInt(e.target.value) })}
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Strength</Label>
-                    <Input
-                      type="number"
-                      min="1"
-                      max="10"
-                      value={formData.session_strength}
-                      onChange={(e) => setFormData({ ...formData, session_strength: parseInt(e.target.value) })}
-                      className="mt-1"
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-        {currentPage === 2 && (
-          <div className="space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Add Student Performance</CardTitle>
@@ -629,6 +543,111 @@ export default function SessionRecording() {
                     <p>No students added yet. Add student performance records above.</p>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Facilitator Reflection</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Textarea
+                  value={formData.facilitator_reflection}
+                  onChange={(e) => setFormData({ ...formData, facilitator_reflection: e.target.value })}
+                  placeholder="Facilitator's reflection and remarks"
+                  className="min-h-[80px]"
+                />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Best Performer</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Textarea
+                  value={formData.best_performer}
+                  onChange={(e) => setFormData({ ...formData, best_performer: e.target.value })}
+                  placeholder="Name and details of best performer"
+                  className="min-h-[60px]"
+                />
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Page 3: Feedback & Closure */}
+        {currentPage === 3 && (
+          <div className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Guest Teacher Feedback</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Textarea
+                  value={formData.guest_teacher_feedback}
+                  onChange={(e) => setFormData({ ...formData, guest_teacher_feedback: e.target.value })}
+                  placeholder="Feedback from guest teacher"
+                  className="min-h-[80px]"
+                />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Incharge/Reviewer Feedback</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Textarea
+                  value={formData.incharge_reviewer_feedback}
+                  onChange={(e) => setFormData({ ...formData, incharge_reviewer_feedback: e.target.value })}
+                  placeholder="Feedback from incharge or reviewer"
+                  className="min-h-[80px]"
+                />
+              </CardContent>
+            </Card>
+
+            {/* Ratings */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Quality Ratings</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <Label className="text-xs">Mic/Sound</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={formData.mic_sound_rating}
+                      onChange={(e) => setFormData({ ...formData, mic_sound_rating: parseInt(e.target.value) })}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Seating/View</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={formData.seating_view_rating}
+                      onChange={(e) => setFormData({ ...formData, seating_view_rating: parseInt(e.target.value) })}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Strength</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={formData.session_strength}
+                      onChange={(e) => setFormData({ ...formData, session_strength: parseInt(e.target.value) })}
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
