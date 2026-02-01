@@ -424,6 +424,7 @@ export function AddSessionDialog({
       quiz_content_ppt: formData.quiz_content_ppt,
       facilitator_name: selectedFacilitatorData?.name || '',
       coordinator_id: selectedCoordinator,
+      volunteer_id: selectedVolunteer,
       volunteer_name: formData.volunteer_name,
       meeting_link: meetingLink,
       centre_id: selectedCentre,
@@ -815,7 +816,7 @@ For any questions, contact the coordinator.
                   <SelectContent>
                     {centreSlots.map((slot) => (
                       <SelectItem key={slot.id} value={slot.id}>
-                        {slot.day} - {slot.start_time} to {slot.end_time}
+                        {slot.start_time} to {slot.end_time}
                       </SelectItem>
                     ))}
                   </SelectContent>

@@ -9,20 +9,30 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Methods": "POST, DELETE, PATCH, OPTIONS",
 };
 
 /* -------------------- TYPES -------------------- */
 
 interface CalendarSyncRequest {
   sessionId: string;
-  title: string;
-  description: string;
-  startDateTime: string;
-  endDateTime: string;
-  volunteerEmail: string;
-  facilitatorEmail: string;
+  title?: string;
+  description?: string;
+  startDateTime?: string;
+  endDateTime?: string;
+  volunteerEmail?: string;
+  facilitatorEmail?: string;
   coordinatorEmail?: string;
+  googleEventId?: string;
+  volunteerName?: string;
+  facilitatorName?: string;
+  coordinatorName?: string;
+  contentCategory?: string;
+  moduleName?: string;
+  topicsCovered?: string;
+  videos?: string;
+  quizContentPpt?: string;
+  meetingLink?: string;
 }
 
 /* -------------------- HELPERS -------------------- */
@@ -140,6 +150,57 @@ async function createCalendarEvent(
   return data.id;
 }
 
+// Delete calendar event
+async function deleteCalendarEvent(
+  eventId: string,
+  serviceAccountEmail: string,
+  privateKey: string
+): Promise<void> {
+  const token = await getAccessToken(serviceAccountEmail, privateKey);
+
+  const res = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}?sendNotifications=true`,
+    {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  if (!res.ok && res.status !== 404) {
+    const err = await res.text();
+    throw new Error(err);
+  }
+}
+
+// Update calendar event
+async function updateCalendarEvent(
+  eventId: string,
+  event: any,
+  serviceAccountEmail: string,
+  privateKey: string
+): Promise<void> {
+  const token = await getAccessToken(serviceAccountEmail, privateKey);
+
+  const res = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}?conferenceDataVersion=1&sendNotifications=true`,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(event),
+    }
+  );
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(err);
+  }
+}
+
 /* -------------------- SERVER -------------------- */
 
 serve(async (req) => {
@@ -147,7 +208,7 @@ serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  if (req.method !== "POST") {
+  if (req.method !== "POST" && req.method !== "DELETE" && req.method !== "PATCH") {
     return new Response("Method not allowed", { status: 405 });
   }
 
@@ -166,6 +227,86 @@ serve(async (req) => {
       throw new Error("Service Account ENV missing");
     }
 
+    // Handle DELETE request
+    if (req.method === "DELETE") {
+      // Get the Google event ID from the database
+      const supabaseUrl = Deno.env.get("SUPABASE_URL");
+      const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      
+      if (supabaseUrl && supabaseKey) {
+        const supabase = createClient(supabaseUrl, supabaseKey);
+        const { data: syncData } = await supabase
+          .from("calendar_syncs")
+          .select("google_event_id")
+          .eq("session_id", body.sessionId)
+          .single();
+
+        if (syncData?.google_event_id) {
+          await deleteCalendarEvent(
+            syncData.google_event_id,
+            serviceAccountEmail,
+            privateKey
+          );
+
+          // Delete from sync table
+          await supabase
+            .from("calendar_syncs")
+            .delete()
+            .eq("session_id", body.sessionId);
+        }
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, message: "Event deleted" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Handle PATCH request (update event)
+    if (req.method === "PATCH") {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL");
+      const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      
+      if (supabaseUrl && supabaseKey) {
+        const supabase = createClient(supabaseUrl, supabaseKey);
+        const { data: syncData } = await supabase
+          .from("calendar_syncs")
+          .select("google_event_id")
+          .eq("session_id", body.sessionId)
+          .single();
+
+        if (syncData?.google_event_id) {
+          const event = {
+            summary: body.title,
+            description: body.description,
+            start: { dateTime: body.startDateTime, timeZone: "UTC" },
+            end: { dateTime: body.endDateTime, timeZone: "UTC" },
+            attendees: [
+              { email: body.volunteerEmail, responseStatus: "needsAction" },
+              { email: body.facilitatorEmail, responseStatus: "needsAction" },
+              ...(body.coordinatorEmail
+                ? [{ email: body.coordinatorEmail, responseStatus: "needsAction" }]
+                : []),
+            ],
+            sendNotifications: true,
+          };
+
+          await updateCalendarEvent(
+            syncData.google_event_id,
+            event,
+            serviceAccountEmail,
+            privateKey
+          );
+        }
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, message: "Event updated" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Handle POST request (create event)
     const event = {
       summary: body.title,
       description: body.description,

@@ -19,6 +19,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { AddSessionDialog } from '@/components/sessions/AddSessionDialog';
+import { EditSessionDialog } from '@/components/sessions/EditSessionDialog';
 import { SessionTypeDialog } from '@/components/sessions/SessionTypeDialog';
 
 interface Volunteer {
@@ -67,6 +68,7 @@ export default function Calendar() {
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [isSessionTypeOpen, setIsSessionTypeOpen] = useState(false);
   const [isAddSessionOpen, setIsAddSessionOpen] = useState(false);
+  const [isEditSessionOpen, setIsEditSessionOpen] = useState(false);
   const [selectedSessionType, setSelectedSessionType] = useState<'guest_teacher' | 'guest_speaker' | null>(null);
   const [selectedDateForNewSession, setSelectedDateForNewSession] = useState<Date | null>(null);
   const [expandedDateKey, setExpandedDateKey] = useState<string | null>(null);
@@ -182,6 +184,56 @@ export default function Calendar() {
     }
 
     setCalendarDays(days);
+  };
+
+  const handleCancelSession = async (sessionId: string) => {
+    if (!confirm('Are you sure you want to cancel this session? This will also remove it from Google Calendar.')) {
+      return;
+    }
+
+    try {
+      // Try to remove from Google Calendar first
+      try {
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        
+        const response = await fetch(`${supabaseUrl}/functions/v1/sync-google-calendar`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseAnonKey}`,
+          },
+          body: JSON.stringify({ sessionId }),
+        });
+
+        if (!response.ok) {
+          console.warn('Could not remove from Google Calendar:', await response.text());
+        }
+      } catch (calendarError) {
+        console.warn('Could not remove from Google Calendar:', calendarError);
+      }
+
+      // Delete from database
+      const { error } = await supabase
+        .from('sessions')
+        .delete()
+        .eq('id', sessionId);
+
+      if (error) throw error;
+
+      toast.success('Session cancelled successfully');
+      setSelectedSession(null);
+      fetchSessions();
+    } catch (error) {
+      console.error('Error cancelling session:', error);
+      toast.error('Failed to cancel session');
+    }
+  };
+
+  const handleModifySession = (session: Session) => {
+    // Open the edit dialog
+    setSelectedSession(session);
+    setIsEditSessionOpen(true);
   };
 
   const getStatusColor = (status: string) => {
@@ -499,9 +551,24 @@ export default function Calendar() {
 
             {/* Action Buttons */}
             {selectedSession && (
-              <div className="border-t border-border pt-4 mt-4 space-y-2">
+              <div className="border-t border-border pt-4 mt-4 space-y-3">
                 <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-800">
                   ℹ️ Calendar invitations have been sent to the volunteer and facilitator. They will receive email notifications from Google Calendar.
+                </div>
+                
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleCancelSession(selectedSession.id)}
+                    className="flex-1 px-4 py-2 bg-red-50 border border-red-200 text-red-700 rounded hover:bg-red-100 transition-colors text-sm font-medium"
+                  >
+                    Cancel Session
+                  </button>
+                  <button
+                    onClick={() => handleModifySession(selectedSession)}
+                    className="flex-1 px-4 py-2 bg-blue-50 border border-blue-200 text-blue-700 rounded hover:bg-blue-100 transition-colors text-sm font-medium"
+                  >
+                    Modify Session
+                  </button>
                 </div>
               </div>
             )}
@@ -516,6 +583,17 @@ export default function Calendar() {
           onSuccess={() => {
             fetchSessions();
             setSelectedDateForNewSession(null);
+          }}
+        />
+
+        {/* Edit Session Dialog */}
+        <EditSessionDialog
+          open={isEditSessionOpen}
+          onOpenChange={setIsEditSessionOpen}
+          session={selectedSession}
+          onSuccess={() => {
+            fetchSessions();
+            setSelectedSession(null);
           }}
         />
 
