@@ -42,11 +42,13 @@ export function AddStudentDialog({
     dob: '',
     email: '',
     phone_number: '',
+    roll_number: '',
+    subject: '',
   });
 
   const handleAddStudent = async () => {
-    if (!newStudent.student_id.trim() || !newStudent.name.trim()) {
-      toast.error('Student ID and Name are required');
+    if (!newStudent.name.trim()) {
+      toast.error('Student Name is required');
       return;
     }
 
@@ -55,12 +57,14 @@ export function AddStudentDialog({
       const { error } = await supabase.from('students').insert([
         {
           class_id: classId,
-          student_id: newStudent.student_id.trim(),
+          student_id: newStudent.student_id.trim() || `STU-${Date.now()}`,
           name: newStudent.name.trim(),
           gender: newStudent.gender || null,
           dob: newStudent.dob || null,
           email: newStudent.email || null,
           phone_number: newStudent.phone_number || null,
+          roll_number: newStudent.roll_number || null,
+          subject: newStudent.subject || null,
         },
       ]);
 
@@ -74,6 +78,8 @@ export function AddStudentDialog({
         dob: '',
         email: '',
         phone_number: '',
+        roll_number: '',
+        subject: '',
       });
       onOpenChange(false);
       onSuccess();
@@ -97,6 +103,8 @@ export function AddStudentDialog({
       dob: '',
       email: '',
       phone_number: '',
+      roll_number: '',
+      subject: '',
     });
     onOpenChange(false);
   };
@@ -118,7 +126,7 @@ export function AddStudentDialog({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="student_id" className="text-sm">
-                Student ID *
+                Student ID
               </Label>
               <Input
                 id="student_id"
@@ -207,6 +215,40 @@ export function AddStudentDialog({
                 className="mt-1"
               />
             </div>
+            <div>
+              <Label htmlFor="roll_number" className="text-sm">
+                Roll Number
+              </Label>
+              <Input
+                id="roll_number"
+                placeholder="e.g., 1, 2, 3"
+                value={newStudent.roll_number}
+                onChange={(e) =>
+                  setNewStudent({ ...newStudent, roll_number: e.target.value })
+                }
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="subject" className="text-sm">
+                Subject
+              </Label>
+              <Select
+                value={newStudent.subject}
+                onValueChange={(value) =>
+                  setNewStudent({ ...newStudent, subject: value })
+                }
+              >
+                <SelectTrigger id="subject" className="mt-1">
+                  <SelectValue placeholder="Select subject" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Commerce">Commerce</SelectItem>
+                  <SelectItem value="Computer Science">Computer Science</SelectItem>
+                  <SelectItem value="Arts">Arts</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
 
@@ -218,7 +260,6 @@ export function AddStudentDialog({
             onClick={handleAddStudent}
             disabled={
               saving ||
-              !newStudent.student_id.trim() ||
               !newStudent.name.trim()
             }
           >

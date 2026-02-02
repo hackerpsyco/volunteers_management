@@ -46,6 +46,8 @@ interface Student {
   dob: string | null;
   email: string | null;
   phone_number: string | null;
+  roll_number: string | null;
+  subject: string | null;
 }
 
 export default function ClassStudents() {
@@ -203,6 +205,8 @@ export default function ClassStudents() {
                         <TableHead className="w-[100px]">DOB</TableHead>
                         <TableHead>Email</TableHead>
                         <TableHead>Phone</TableHead>
+                        <TableHead className="w-[100px]">Roll Number</TableHead>
+                        <TableHead className="w-[120px]">Subject</TableHead>
                         <TableHead className="w-[60px]">Action</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -219,6 +223,8 @@ export default function ClassStudents() {
                           </TableCell>
                           <TableCell className="text-sm">{student.email || '-'}</TableCell>
                           <TableCell className="text-sm">{student.phone_number || '-'}</TableCell>
+                          <TableCell className="text-sm">{student.roll_number || '-'}</TableCell>
+                          <TableCell className="text-sm">{student.subject || '-'}</TableCell>
                           <TableCell>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -275,6 +281,14 @@ export default function ClassStudents() {
                               ? new Date(student.dob).toLocaleDateString()
                               : '-'}
                           </span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground block">Roll Number</span>
+                          <span className="font-medium">{student.roll_number || '-'}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground block">Subject</span>
+                          <span className="font-medium">{student.subject || '-'}</span>
                         </div>
                         {student.email && (
                           <div className="col-span-2">

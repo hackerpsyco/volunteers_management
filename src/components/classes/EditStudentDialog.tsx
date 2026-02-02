@@ -29,6 +29,8 @@ interface Student {
   dob: string | null;
   email: string | null;
   phone_number: string | null;
+  roll_number: string | null;
+  subject: string | null;
 }
 
 interface EditStudentDialogProps {
@@ -69,6 +71,8 @@ export function EditStudentDialog({
           dob: editedStudent.dob || null,
           email: editedStudent.email || null,
           phone_number: editedStudent.phone_number || null,
+          roll_number: editedStudent.roll_number || null,
+          subject: editedStudent.subject || null,
         })
         .eq('id', editedStudent.id);
 
@@ -196,6 +200,41 @@ export function EditStudentDialog({
                 }
                 className="mt-1"
               />
+            </div>
+            <div>
+              <Label htmlFor="roll_number" className="text-sm">
+                Roll Number
+              </Label>
+              <Input
+                id="roll_number"
+                placeholder="e.g., 1, 2, 3"
+                value={editedStudent.roll_number || ''}
+                onChange={(e) =>
+                  setEditedStudent({ ...editedStudent, roll_number: e.target.value || null })
+                }
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="subject" className="text-sm">
+                Subject
+              </Label>
+              <Select
+                value={editedStudent.subject || 'none'}
+                onValueChange={(value) =>
+                  setEditedStudent({ ...editedStudent, subject: value === 'none' ? null : value })
+                }
+              >
+                <SelectTrigger id="subject" className="mt-1">
+                  <SelectValue placeholder="Select subject" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  <SelectItem value="Commerce">Commerce</SelectItem>
+                  <SelectItem value="Computer Science">Computer Science</SelectItem>
+                  <SelectItem value="Arts">Arts</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </div>

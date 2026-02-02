@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -108,6 +109,7 @@ export function AddSessionDialog({
   const [selectedClass, setSelectedClass] = useState<string>('');
   const [formData, setFormData] = useState({
     title: '',
+    custom_title: '',
     content_category: '',
     module_name: '',
     topics_covered: '',
@@ -318,6 +320,7 @@ export function AddSessionDialog({
       topics_covered: '',
       videos: '',
       quiz_content_ppt: '',
+      custom_title: '',
     }));
   };
 
@@ -330,6 +333,7 @@ export function AddSessionDialog({
       topics_covered: '',
       videos: '',
       quiz_content_ppt: '',
+      custom_title: '',
     }));
   };
 
@@ -344,6 +348,7 @@ export function AddSessionDialog({
         videos: topic.videos || '',
         quiz_content_ppt: topic.quiz_content_ppt || '',
         title: topic.topics_covered || '',
+        custom_title: '',
       }));
     }
   };
@@ -404,6 +409,15 @@ export function AddSessionDialog({
       return;
     }
 
+    if (!formData.custom_title.trim()) {
+      toast({
+        title: 'Error',
+        description: 'Please enter a custom meeting title',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     const slot = centreSlots.find(s => s.id === selectedSlot);
     const selectedVolunteerData = volunteers.find(v => v.id === selectedVolunteer);
     const selectedFacilitatorData = facilitators.find(f => f.id === selectedFacilitator);
@@ -458,7 +472,7 @@ export function AddSessionDialog({
           
           const calendarEventData = {
             sessionId,
-            title: formData.title,
+            title: formData.custom_title,
             description: `
 
                    SESSION DETAILS                           
@@ -555,6 +569,7 @@ For any questions, contact the coordinator.
     setSelectedClass('');
     setFormData({
       title: '',
+      custom_title: '',
       content_category: '',
       module_name: '',
       topics_covered: '',
@@ -577,6 +592,9 @@ For any questions, contact the coordinator.
             <GraduationCap className="h-5 w-5 text-green-500 flex-shrink-0" />
             <span className="break-words">Schedule New Session</span>
           </DialogTitle>
+          <DialogDescription>
+            Create a new volunteer training session with curriculum details and participant information
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
@@ -777,6 +795,20 @@ For any questions, contact the coordinator.
                 disabled={!!selectedTopic}
                 className="text-sm sm:text-base"
               />
+            </div>
+
+            {/* Custom Meeting Title */}
+            <div className="space-y-2">
+              <Label htmlFor="custom_title" className="text-sm sm:text-base">Meeting Title (Custom) *</Label>
+              <Input
+                id="custom_title"
+                placeholder="Enter custom title for the meeting"
+                value={formData.custom_title}
+                onChange={(e) => setFormData({ ...formData, custom_title: e.target.value })}
+                className="text-sm sm:text-base"
+                required
+              />
+              <p className="text-xs text-muted-foreground">This title will be used for the Google Calendar meeting</p>
             </div>
           </div>
 

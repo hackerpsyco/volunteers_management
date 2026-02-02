@@ -29,11 +29,13 @@ interface BulkStudentImportDialogProps {
 interface StudentRow {
   name: string;
   email?: string;
-  phone?: string;
+  phone_number?: string;
   class_id: string;
   student_id?: string;
+  roll_number?: string;
   gender?: string;
   dob?: string;
+  subject?: string;
 }
 
 interface Class {
@@ -123,8 +125,14 @@ export function BulkStudentImportDialog({ open, onOpenChange, onSuccess }: BulkS
         const email = getValue(['Email', 'email', 'EMAIL', 'Student Email', 'student_email']);
         const phone = getValue(['Phone', 'phone_number', 'PHONE_NUMBER', 'Phone Number', 'Mobile', 'mobile']);
         const studentId = getValue(['Student ID', 'student_id', 'STUDENT_ID', 'Roll Number', 'roll_number']);
+        const rollNumber = getValue(['Roll Number', 'roll_number', 'ROLL_NUMBER', 'Roll No', 'roll_no']);
         const gender = getValue(['Gender', 'gender', 'GENDER']);
         const dob = getValue(['DOB', 'dob', 'DOB', 'Date of Birth', 'date_of_birth']);
+        const subject = getValue(['Subject', 'subject', 'SUBJECT']).toLowerCase();
+
+        // Validate subject if provided
+        const validSubjects = ['commerce', 'computer science', 'arts'];
+        const normalizedSubject = subject && validSubjects.includes(subject) ? subject : undefined;
 
         // Skip completely empty rows
         if (!name) {
@@ -139,10 +147,12 @@ export function BulkStudentImportDialog({ open, onOpenChange, onSuccess }: BulkS
         parsedData.push({
           name: name || undefined,
           email: email || undefined,
-          phone: phone || undefined,
-          student_id: studentId || undefined,
+          phone_number: phone || undefined,
+          student_id: studentId || rollNumber || undefined,
+          roll_number: rollNumber || undefined,
           gender: gender || undefined,
           dob: dob || undefined,
+          subject: normalizedSubject,
           class_id: selectedClass,
         });
       });
@@ -208,10 +218,23 @@ export function BulkStudentImportDialog({ open, onOpenChange, onSuccess }: BulkS
         toast.warning(`${previewData.length - newStudents.length} duplicate(s) skipped`);
       }
 
+      // Map the data to match database schema
+      const studentsToInsert = newStudents.map(s => ({
+        class_id: s.class_id,
+        student_id: s.student_id || `STU-${Date.now()}-${Math.random()}`,
+        name: s.name,
+        email: s.email || null,
+        phone_number: s.phone_number || null,
+        gender: s.gender || null,
+        dob: s.dob || null,
+        roll_number: s.roll_number || null,
+        subject: s.subject || null,
+      }));
+
       // Insert students - use type assertion to bypass schema type checking
       const { error } = await (supabase
         .from('students' as any)
-        .insert(newStudents) as any);
+        .insert(studentsToInsert) as any);
 
       if (error) {
         if (error.code === '23505') {
@@ -219,7 +242,7 @@ export function BulkStudentImportDialog({ open, onOpenChange, onSuccess }: BulkS
           let successCount = 0;
           const failedStudents: string[] = [];
 
-          for (const student of newStudents) {
+          for (const student of studentsToInsert) {
             const { error: insertError } = await (supabase
               .from('students' as any)
               .insert([student]) as any);
@@ -268,18 +291,32 @@ export function BulkStudentImportDialog({ open, onOpenChange, onSuccess }: BulkS
       {
         'Name': 'John Doe',
         'Student ID': 'STU001',
+        'Roll Number': '001',
         'Email': 'john@example.com',
         'Phone': '+1234567890',
         'Gender': 'Male',
         'DOB': '2010-01-15',
+        'Subject': 'Commerce',
       },
       {
         'Name': 'Jane Smith',
         'Student ID': 'STU002',
+        'Roll Number': '002',
         'Email': 'jane@example.com',
         'Phone': '+0987654321',
         'Gender': 'Female',
         'DOB': '2010-03-20',
+        'Subject': 'Computer Science',
+      },
+      {
+        'Name': 'Bob Johnson',
+        'Student ID': 'STU003',
+        'Roll Number': '003',
+        'Email': 'bob@example.com',
+        'Phone': '+1122334455',
+        'Gender': 'Male',
+        'DOB': '2010-05-10',
+        'Subject': 'Arts',
       },
     ];
 

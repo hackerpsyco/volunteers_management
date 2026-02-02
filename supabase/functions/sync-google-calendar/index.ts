@@ -282,12 +282,10 @@ serve(async (req) => {
             start: { dateTime: body.startDateTime, timeZone: "UTC" },
             end: { dateTime: body.endDateTime, timeZone: "UTC" },
             attendees: [
-              { email: body.volunteerEmail, responseStatus: "needsAction" },
-              { email: body.facilitatorEmail, responseStatus: "needsAction" },
-              ...(body.coordinatorEmail
-                ? [{ email: body.coordinatorEmail, responseStatus: "needsAction" }]
-                : []),
-            ],
+              ...(body.volunteerEmail ? [{ email: body.volunteerEmail, responseStatus: "needsAction" }] : []),
+              ...(body.facilitatorEmail ? [{ email: body.facilitatorEmail, responseStatus: "needsAction" }] : []),
+              ...(body.coordinatorEmail ? [{ email: body.coordinatorEmail, responseStatus: "needsAction" }] : []),
+            ].filter(attendee => attendee.email && attendee.email.trim()),
             sendNotifications: true,
           };
 
@@ -313,16 +311,17 @@ serve(async (req) => {
       start: { dateTime: body.startDateTime, timeZone: "UTC" },
       end: { dateTime: body.endDateTime, timeZone: "UTC" },
       attendees: [
-        { email: body.volunteerEmail, responseStatus: "needsAction" },
-        { email: body.facilitatorEmail, responseStatus: "needsAction" },
-        ...(body.coordinatorEmail
-          ? [{ email: body.coordinatorEmail, responseStatus: "needsAction" }]
-          : []),
-      ],
+        ...(body.volunteerEmail ? [{ email: body.volunteerEmail, responseStatus: "needsAction" }] : []),
+        ...(body.facilitatorEmail ? [{ email: body.facilitatorEmail, responseStatus: "needsAction" }] : []),
+        ...(body.coordinatorEmail ? [{ email: body.coordinatorEmail, responseStatus: "needsAction" }] : []),
+      ].filter(attendee => attendee.email && attendee.email.trim()),
       conferenceData: {
         createRequest: {
           requestId: crypto.randomUUID(),
           conferenceSolutionKey: { type: "hangoutsMeet" },
+          conferenceLevelRecordingSettings: {
+            recordingType: "RECORDING_TYPE_UNSPECIFIED",
+          },
         },
       },
       sendNotifications: true,
