@@ -31,6 +31,9 @@ interface StudentRow {
   email?: string;
   phone?: string;
   class_id: string;
+  student_id?: string;
+  gender?: string;
+  dob?: string;
 }
 
 interface Class {
@@ -119,6 +122,9 @@ export function BulkStudentImportDialog({ open, onOpenChange, onSuccess }: BulkS
         const name = getValue(['Name', 'name', 'NAME', 'Student Name', 'student_name']);
         const email = getValue(['Email', 'email', 'EMAIL', 'Student Email', 'student_email']);
         const phone = getValue(['Phone', 'phone_number', 'PHONE_NUMBER', 'Phone Number', 'Mobile', 'mobile']);
+        const studentId = getValue(['Student ID', 'student_id', 'STUDENT_ID', 'Roll Number', 'roll_number']);
+        const gender = getValue(['Gender', 'gender', 'GENDER']);
+        const dob = getValue(['DOB', 'dob', 'DOB', 'Date of Birth', 'date_of_birth']);
 
         // Skip completely empty rows
         if (!name) {
@@ -134,6 +140,9 @@ export function BulkStudentImportDialog({ open, onOpenChange, onSuccess }: BulkS
           name: name || undefined,
           email: email || undefined,
           phone: phone || undefined,
+          student_id: studentId || undefined,
+          gender: gender || undefined,
+          dob: dob || undefined,
           class_id: selectedClass,
         });
       });
@@ -167,10 +176,14 @@ export function BulkStudentImportDialog({ open, onOpenChange, onSuccess }: BulkS
     try {
       // Check for existing students in this class
       const existingEmails = new Set<string>();
-      const { data: existingStudents } = await supabase
-        .from('students')
+      const { data: existingStudents, error: fetchError } = await (supabase
+        .from('students' as any)
         .select('email')
-        .eq('class_id', selectedClass);
+        .eq('class_id', selectedClass) as any);
+
+      if (fetchError) {
+        console.error('Error fetching existing students:', fetchError);
+      }
 
       if (existingStudents) {
         existingStudents.forEach((s: any) => {
@@ -195,8 +208,10 @@ export function BulkStudentImportDialog({ open, onOpenChange, onSuccess }: BulkS
         toast.warning(`${previewData.length - newStudents.length} duplicate(s) skipped`);
       }
 
-      // Insert students
-      const { error } = await supabase.from('students').insert(newStudents);
+      // Insert students - use type assertion to bypass schema type checking
+      const { error } = await (supabase
+        .from('students' as any)
+        .insert(newStudents) as any);
 
       if (error) {
         if (error.code === '23505') {
@@ -205,7 +220,9 @@ export function BulkStudentImportDialog({ open, onOpenChange, onSuccess }: BulkS
           const failedStudents: string[] = [];
 
           for (const student of newStudents) {
-            const { error: insertError } = await supabase.from('students').insert([student]);
+            const { error: insertError } = await (supabase
+              .from('students' as any)
+              .insert([student]) as any);
             if (insertError) {
               failedStudents.push(student.email || student.name || 'Unknown');
             } else {
@@ -250,13 +267,19 @@ export function BulkStudentImportDialog({ open, onOpenChange, onSuccess }: BulkS
     const template = [
       {
         'Name': 'John Doe',
+        'Student ID': 'STU001',
         'Email': 'john@example.com',
         'Phone': '+1234567890',
+        'Gender': 'Male',
+        'DOB': '2010-01-15',
       },
       {
         'Name': 'Jane Smith',
+        'Student ID': 'STU002',
         'Email': 'jane@example.com',
         'Phone': '+0987654321',
+        'Gender': 'Female',
+        'DOB': '2010-03-20',
       },
     ];
 
