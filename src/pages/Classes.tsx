@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, MoreVertical, BookOpen, Users } from 'lucide-react';
+import { Plus, Trash2, MoreVertical, BookOpen, Users, Upload } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { AddClassDialog } from '@/components/classes/AddClassDialog';
+import { BulkStudentImportDialog } from '@/components/classes/BulkStudentImportDialog';
 
 interface Class {
   id: string;
@@ -45,6 +46,7 @@ export default function Classes() {
   const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddClassOpen, setIsAddClassOpen] = useState(false);
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [classToDelete, setClassToDelete] = useState<Class | null>(null);
 
@@ -103,14 +105,25 @@ export default function Classes() {
               Manage classes and students
             </p>
           </div>
-          <Button
-            onClick={() => setIsAddClassOpen(true)}
-            className="w-full sm:w-auto gap-2"
-          >
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">Add Class</span>
-            <span className="sm:hidden">Add</span>
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            <Button
+              variant="outline"
+              onClick={() => setIsBulkImportOpen(true)}
+              className="w-full sm:w-auto gap-2"
+            >
+              <Upload className="h-4 w-4" />
+              <span className="hidden sm:inline">Import Students</span>
+              <span className="sm:hidden">Import</span>
+            </Button>
+            <Button
+              onClick={() => setIsAddClassOpen(true)}
+              className="w-full sm:w-auto gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">Add Class</span>
+              <span className="sm:hidden">Add</span>
+            </Button>
+          </div>
         </div>
 
         {/* Classes Table */}
@@ -240,6 +253,13 @@ export default function Classes() {
       <AddClassDialog
         open={isAddClassOpen}
         onOpenChange={setIsAddClassOpen}
+        onSuccess={fetchClasses}
+      />
+
+      {/* Bulk Import Students Dialog */}
+      <BulkStudentImportDialog
+        open={isBulkImportOpen}
+        onOpenChange={setIsBulkImportOpen}
         onSuccess={fetchClasses}
       />
 
