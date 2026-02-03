@@ -338,18 +338,30 @@ export function AddSessionDialog({
   };
 
   const handleTopicSelect = (topicId: string) => {
-    const topic = topics.find(t => t.id === topicId);
-    if (topic) {
-      setSelectedTopic(topic);
+    if (topicId === 'custom') {
+      // Handle custom topic selection
+      setSelectedTopic({ id: 'custom' } as any);
       setFormData(prev => ({
         ...prev,
-        module_name: topic.module_name || '',
-        topics_covered: topic.topics_covered || '',
-        videos: topic.videos || '',
-        quiz_content_ppt: topic.quiz_content_ppt || '',
-        title: topic.topics_covered || '',
+        topics_covered: '',
+        videos: '',
+        quiz_content_ppt: '',
         custom_title: '',
       }));
+    } else {
+      const topic = topics.find(t => t.id === topicId);
+      if (topic) {
+        setSelectedTopic(topic);
+        setFormData(prev => ({
+          ...prev,
+          module_name: topic.module_name || '',
+          topics_covered: topic.topics_covered || '',
+          videos: topic.videos || '',
+          quiz_content_ppt: topic.quiz_content_ppt || '',
+          title: topic.topics_covered || '',
+          custom_title: '',
+        }));
+      }
     }
   };
 
@@ -395,6 +407,16 @@ export function AddSessionDialog({
       toast({
         title: 'Error',
         description: 'Please select a topic',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validate custom topic if selected
+    if (selectedTopic.id === 'custom' && !formData.topics_covered.trim()) {
+      toast({
+        title: 'Error',
+        description: 'Please enter a custom topic',
         variant: 'destructive',
       });
       return;
@@ -731,8 +753,24 @@ For any questions, contact the coordinator.
                         {topic.topics_covered}
                       </SelectItem>
                     ))}
+                    <SelectItem value="custom">Other (Custom Topic)</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+            )}
+
+            {/* Custom Topic Input */}
+            {selectedTopic?.id === 'custom' && (
+              <div className="space-y-2 mb-4">
+                <Label htmlFor="custom_topic_input" className="text-sm sm:text-base">Enter Custom Topic *</Label>
+                <Input
+                  id="custom_topic_input"
+                  placeholder="Enter your custom topic"
+                  value={formData.topics_covered}
+                  onChange={(e) => setFormData({ ...formData, topics_covered: e.target.value })}
+                  className="text-sm sm:text-base"
+                  required
+                />
               </div>
             )}
           </div>
