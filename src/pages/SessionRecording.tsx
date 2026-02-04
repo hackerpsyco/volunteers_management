@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Save, ChevronRight, ChevronLeft, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Save, ChevronRight, ChevronLeft, Plus, Trash2, Shield } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -49,14 +50,30 @@ interface StudentPerformance {
   performance_comment: string;
 }
 
+interface SessionHoursTracker {
+  id?: string;
+  session_id: string;
+  volunteer_id?: string;
+  plan_coordinate_hours: number;
+  preparation_hours: number;
+  session_hours: number;
+  reflection_feedback_followup_hours: number;
+  total_volunteering_time?: number;
+  logged_hours_in_benevity: boolean;
+  notes: string;
+}
+
 export default function SessionRecording() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { sessionId } = useParams();
+  const [userRole, setUserRole] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingStudents, setSavingStudents] = useState(false);
   const [session, setSession] = useState<SessionRecording | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [currentSubTab, setCurrentSubTab] = useState('a');
   const [studentPerformance, setStudentPerformance] = useState<StudentPerformance[]>([]);
   const [newStudent, setNewStudent] = useState<StudentPerformance>({
     student_name: '',
@@ -78,11 +95,47 @@ export default function SessionRecording() {
     session_strength: 5,
     class_batch: '',
   });
+  const [hoursData, setHoursData] = useState<SessionHoursTracker>({
+    session_id: sessionId || '',
+    plan_coordinate_hours: 0,
+    preparation_hours: 0,
+    session_hours: 0,
+    reflection_feedback_followup_hours: 0,
+    logged_hours_in_benevity: false,
+    notes: '',
+  });
+
+  useEffect(() => {
+    if (user?.id) {
+      loadUserRole();
+    }
+  }, [user?.id]);
+
+  const loadUserRole = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('role_id')
+        .eq('id', user?.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error loading user role:', error);
+      }
+
+      if (data?.role_id) {
+        setUserRole(data.role_id);
+      }
+    } catch (error) {
+      console.error('Error loading user role:', error);
+    }
+  };
 
   useEffect(() => {
     if (sessionId) {
       fetchSession();
       fetchStudentPerformance();
+      fetchHoursTracker();
     }
   }, [sessionId]);
 
@@ -157,6 +210,26 @@ export default function SessionRecording() {
     }
   };
 
+  const fetchHoursTracker = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('session_hours_tracker' as any)
+        .select('*')
+        .eq('session_id', sessionId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        // PGRST116 is "no rows found" which is expected if no hours tracker exists
+        throw error;
+      }
+      if (data) {
+        setHoursData(data as unknown as SessionHoursTracker);
+      }
+    } catch (error) {
+      console.error('Error fetching hours tracker:', error);
+    }
+  };
+
   const handleSaveFeedback = async () => {
     if (!sessionId) return;
 
@@ -203,6 +276,64 @@ export default function SessionRecording() {
       toast.error('Failed to save student performance');
     } finally {
       setSavingStudents(false);
+    }
+  };
+
+  const handleSaveHoursTracker = async () => {
+    if (!sessionId) return;
+
+    try {
+      setSaving(true);
+      
+      // Check if hours tracker already exists
+      const { data: existingData } = await supabase
+        .from('session_hours_tracker' as any)
+        .select('id')
+        .eq('session_id', sessionId)
+        .single();
+
+      if (existingData) {
+        // Update existing record
+        const { error } = await supabase
+          .from('session_hours_tracker' as any)
+          .update({
+            plan_coordinate_hours: hoursData.plan_coordinate_hours,
+            preparation_hours: hoursData.preparation_hours,
+            session_hours: hoursData.session_hours,
+            reflection_feedback_followup_hours: hoursData.reflection_feedback_followup_hours,
+            logged_hours_in_benevity: hoursData.logged_hours_in_benevity,
+            notes: hoursData.notes,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('session_id', sessionId);
+
+        if (error) throw error;
+      } else {
+        // Insert new record
+        const { error } = await supabase
+          .from('session_hours_tracker' as any)
+          .insert([
+            {
+              session_id: sessionId,
+              plan_coordinate_hours: hoursData.plan_coordinate_hours,
+              preparation_hours: hoursData.preparation_hours,
+              session_hours: hoursData.session_hours,
+              reflection_feedback_followup_hours: hoursData.reflection_feedback_followup_hours,
+              logged_hours_in_benevity: hoursData.logged_hours_in_benevity,
+              notes: hoursData.notes,
+            },
+          ]);
+
+        if (error) throw error;
+      }
+
+      toast.success('Hours tracker saved successfully');
+      navigate('/feedback');
+    } catch (error) {
+      console.error('Error saving hours tracker:', error);
+      toast.error('Failed to save hours tracker');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -337,24 +468,20 @@ export default function SessionRecording() {
         {/* Page Indicator - 3 Tabs */}
         <div className="flex justify-center gap-2 flex-wrap">
           <button
-            onClick={() => setCurrentPage(1)}
+            onClick={() => {
+              setCurrentPage(1);
+              setCurrentSubTab('a');
+            }}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               currentPage === 1
                 ? 'bg-primary text-primary-foreground'
                 : 'bg-muted text-muted-foreground hover:bg-muted/80'
             }`}
           >
-            1. Prepare Session
-          </button>
-          <button
-            onClick={() => setCurrentPage(2)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              currentPage === 2
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground hover:bg-muted/80'
-            }`}
-          >
-            2. Performance Record
+            <div className="flex flex-col items-center">
+              <span className="text-sm font-semibold">A. Session Details & Performance</span>
+              <span className="text-xs ">by Facilitator</span>
+            </div>
           </button>
           <button
             onClick={() => setCurrentPage(3)}
@@ -364,219 +491,275 @@ export default function SessionRecording() {
                 : 'bg-muted text-muted-foreground hover:bg-muted/80'
             }`}
           >
-            3. Feedback & Closure
+            <div className="flex flex-col items-center">
+              <span className="text-sm font-semibold">B. Feedback & Closure</span>
+              <span className="text-xs ">by Coordinator</span>
+            </div>
+          </button>
+          <button
+            onClick={() => setCurrentPage(2)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              currentPage === 2
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted text-muted-foreground hover:bg-muted/80'
+            }`}
+          >
+            <div className="flex flex-col items-center">
+              <span className="text-sm font-semibold">C. Session Hours Tracker</span>
+              <span className="text-xs ">by Supervisor</span>
+            </div>
           </button>
         </div>
 
-        {/* Page 1: Prepare Session */}
+        {/* Sub-tabs for Tab A */}
+        {currentPage === 1 && (
+          <div className="flex justify-center gap-2 flex-wrap border-b border-border pb-4">
+            <button
+              onClick={() => setCurrentSubTab('a')}
+              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                currentSubTab === 'a'
+                  ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              a) Session Objective
+            </button>
+            <button
+              onClick={() => setCurrentSubTab('b')}
+              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                currentSubTab === 'b'
+                  ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              b) Performance Details
+            </button>
+          </div>
+        )}
+
+        {/* Page 1: Session Details & Performance by Facilitator */}
         {currentPage === 1 && (
           <div className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Session Objective</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Textarea
-                  value={formData.session_objective}
-                  onChange={(e) => setFormData({ ...formData, session_objective: e.target.value })}
-                  placeholder="What were the main objectives?"
-                  className="min-h-[80px]"
-                />
-              </CardContent>
-            </Card>
+            {/* Sub-tab a: Session Objective Only */}
+            {currentSubTab === 'a' && (
+              <div className="space-y-4">
+                {/* Session Objective */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Session Objective</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Textarea
+                      value={formData.session_objective}
+                      onChange={(e) => setFormData({ ...formData, session_objective: e.target.value })}
+                      placeholder="What were the main objectives?"
+                      className="min-h-[80px]"
+                    />
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Sub-tab b: Performance Details */}
+            {currentSubTab === 'b' && (
+              <div className="space-y-4">
+                {/* Practical Activities */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Practical Activities</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Textarea
+                      value={formData.practical_activities}
+                      onChange={(e) => setFormData({ ...formData, practical_activities: e.target.value })}
+                      placeholder="Describe the practical activities"
+                      className="min-h-[80px]"
+                    />
+                  </CardContent>
+                </Card>
+
+                {/* Session Highlights */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Session Highlights</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Textarea
+                      value={formData.session_highlights}
+                      onChange={(e) => setFormData({ ...formData, session_highlights: e.target.value })}
+                      placeholder="Key highlights and summary"
+                      className="min-h-[80px]"
+                    />
+                  </CardContent>
+                </Card>
+
+                {/* Learning Outcomes */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Learning Outcomes</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Textarea
+                      value={formData.learning_outcomes}
+                      onChange={(e) => setFormData({ ...formData, learning_outcomes: e.target.value })}
+                      placeholder="What did students learn?"
+                      className="min-h-[80px]"
+                    />
+                  </CardContent>
+                </Card>
+
+                {/* Add Student Performance */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Add Student Performance</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="student_name" className="text-sm">Student Name *</Label>
+                        <Input
+                          id="student_name"
+                          value={newStudent.student_name}
+                          onChange={(e) => setNewStudent({ ...newStudent, student_name: e.target.value })}
+                          placeholder="Enter student name"
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="questions_asked" className="text-sm">No. of Questions Asked</Label>
+                        <Input
+                          id="questions_asked"
+                          type="number"
+                          min="0"
+                          value={newStudent.questions_asked}
+                          onChange={(e) => setNewStudent({ ...newStudent, questions_asked: parseInt(e.target.value) || 0 })}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="performance_rating" className="text-sm">Performance Rating (1-10) *</Label>
+                        <Input
+                          id="performance_rating"
+                          type="number"
+                          min="1"
+                          max="10"
+                          value={newStudent.performance_rating}
+                          onChange={(e) => setNewStudent({ ...newStudent, performance_rating: parseInt(e.target.value) || 5 })}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <Button
+                          onClick={handleAddStudent}
+                          className="w-full gap-2"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Add Student
+                        </Button>
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="performance_comment" className="text-sm">Performance Comment</Label>
+                      <Textarea
+                        id="performance_comment"
+                        value={newStudent.performance_comment}
+                        onChange={(e) => setNewStudent({ ...newStudent, performance_comment: e.target.value })}
+                        placeholder="Add any comments about the student's performance"
+                        className="mt-1 min-h-[60px]"
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Students Table */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">
+                      Student Performance Records ({studentPerformance.length})
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {studentPerformance.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="w-[50px]">SN</TableHead>
+                              <TableHead>Student Name</TableHead>
+                              <TableHead className="w-[120px]">Questions</TableHead>
+                              <TableHead className="w-[100px]">Rating</TableHead>
+                              <TableHead>Comment</TableHead>
+                              <TableHead className="w-[60px]">Action</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {studentPerformance.map((student, index) => (
+                              <TableRow key={student.id}>
+                                <TableCell className="font-medium">{index + 1}</TableCell>
+                                <TableCell className="font-medium">{student.student_name}</TableCell>
+                                <TableCell className="text-center">{student.questions_asked}</TableCell>
+                                <TableCell className="text-center font-medium">{student.performance_rating}/10</TableCell>
+                                <TableCell className="max-w-[200px] truncate text-sm">{student.performance_comment || '-'}</TableCell>
+                                <TableCell>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleDeleteStudent(student.id)}
+                                    className="h-8 w-8 text-destructive hover:text-destructive"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <p>No students added yet. Add student performance records above.</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Facilitator Reflection */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Facilitator Reflection</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Textarea
+                      value={formData.facilitator_reflection}
+                      onChange={(e) => setFormData({ ...formData, facilitator_reflection: e.target.value })}
+                      placeholder="Facilitator's reflection and remarks"
+                      className="min-h-[80px]"
+                    />
+                  </CardContent>
+                </Card>
+
+                {/* Best Performer */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Best Performer</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Textarea
+                      value={formData.best_performer}
+                      onChange={(e) => setFormData({ ...formData, best_performer: e.target.value })}
+                      placeholder="Name and details of best performer"
+                      className="min-h-[60px]"
+                    />
+                  </CardContent>
+                </Card>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Page 2: Performance Record */}
-        {currentPage === 2 && (
-          <div className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Practical Activities</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Textarea
-                  value={formData.practical_activities}
-                  onChange={(e) => setFormData({ ...formData, practical_activities: e.target.value })}
-                  placeholder="Describe the practical activities"
-                  className="min-h-[80px]"
-                />
-              </CardContent>
-            </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Session Highlights</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Textarea
-                  value={formData.session_highlights}
-                  onChange={(e) => setFormData({ ...formData, session_highlights: e.target.value })}
-                  placeholder="Key highlights and summary"
-                  className="min-h-[80px]"
-                />
-              </CardContent>
-            </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Learning Outcomes</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Textarea
-                  value={formData.learning_outcomes}
-                  onChange={(e) => setFormData({ ...formData, learning_outcomes: e.target.value })}
-                  placeholder="What did students learn?"
-                  className="min-h-[80px]"
-                />
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Add Student Performance</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="student_name" className="text-sm">Student Name *</Label>
-                    <Input
-                      id="student_name"
-                      value={newStudent.student_name}
-                      onChange={(e) => setNewStudent({ ...newStudent, student_name: e.target.value })}
-                      placeholder="Enter student name"
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="questions_asked" className="text-sm">No. of Questions Asked</Label>
-                    <Input
-                      id="questions_asked"
-                      type="number"
-                      min="0"
-                      value={newStudent.questions_asked}
-                      onChange={(e) => setNewStudent({ ...newStudent, questions_asked: parseInt(e.target.value) || 0 })}
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="performance_rating" className="text-sm">Performance Rating (1-10) *</Label>
-                    <Input
-                      id="performance_rating"
-                      type="number"
-                      min="1"
-                      max="10"
-                      value={newStudent.performance_rating}
-                      onChange={(e) => setNewStudent({ ...newStudent, performance_rating: parseInt(e.target.value) || 5 })}
-                      className="mt-1"
-                    />
-                  </div>
-                  <div className="flex items-end">
-                    <Button
-                      onClick={handleAddStudent}
-                      className="w-full gap-2"
-                    >
-                      <Plus className="h-4 w-4" />
-                      Add Student
-                    </Button>
-                  </div>
-                </div>
-                <div>
-                  <Label htmlFor="performance_comment" className="text-sm">Performance Comment</Label>
-                  <Textarea
-                    id="performance_comment"
-                    value={newStudent.performance_comment}
-                    onChange={(e) => setNewStudent({ ...newStudent, performance_comment: e.target.value })}
-                    placeholder="Add any comments about the student's performance"
-                    className="mt-1 min-h-[60px]"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Students Table */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">
-                  Student Performance Records ({studentPerformance.length})
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {studentPerformance.length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-[50px]">SN</TableHead>
-                          <TableHead>Student Name</TableHead>
-                          <TableHead className="w-[120px]">Questions</TableHead>
-                          <TableHead className="w-[100px]">Rating</TableHead>
-                          <TableHead>Comment</TableHead>
-                          <TableHead className="w-[60px]">Action</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {studentPerformance.map((student, index) => (
-                          <TableRow key={student.id}>
-                            <TableCell className="font-medium">{index + 1}</TableCell>
-                            <TableCell className="font-medium">{student.student_name}</TableCell>
-                            <TableCell className="text-center">{student.questions_asked}</TableCell>
-                            <TableCell className="text-center font-medium">{student.performance_rating}/10</TableCell>
-                            <TableCell className="max-w-[200px] truncate text-sm">{student.performance_comment || '-'}</TableCell>
-                            <TableCell>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleDeleteStudent(student.id)}
-                                className="h-8 w-8 text-destructive hover:text-destructive"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <p>No students added yet. Add student performance records above.</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Facilitator Reflection</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Textarea
-                  value={formData.facilitator_reflection}
-                  onChange={(e) => setFormData({ ...formData, facilitator_reflection: e.target.value })}
-                  placeholder="Facilitator's reflection and remarks"
-                  className="min-h-[80px]"
-                />
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Best Performer</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Textarea
-                  value={formData.best_performer}
-                  onChange={(e) => setFormData({ ...formData, best_performer: e.target.value })}
-                  placeholder="Name and details of best performer"
-                  className="min-h-[60px]"
-                />
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Page 3: Feedback & Closure */}
+        {/* Page 2: Feedback & Closure */}
         {currentPage === 3 && (
           <div className="space-y-4">
             <Card>
@@ -653,6 +836,131 @@ export default function SessionRecording() {
           </div>
         )}
 
+        {/* Page 2: Session Hours Tracker */}
+        {currentPage === 2 && (
+          <>
+            {userRole === 1 ? (
+              <div className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Volunteer Hours Tracking</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="plan_coordinate_hours" className="text-sm">Plan & Coordinate Hours</Label>
+                    <Input
+                      id="plan_coordinate_hours"
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={hoursData.plan_coordinate_hours}
+                      onChange={(e) => setHoursData({ ...hoursData, plan_coordinate_hours: parseFloat(e.target.value) || 0 })}
+                      placeholder="0.0"
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="preparation_hours" className="text-sm">Preparation Hours</Label>
+                    <Input
+                      id="preparation_hours"
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={hoursData.preparation_hours}
+                      onChange={(e) => setHoursData({ ...hoursData, preparation_hours: parseFloat(e.target.value) || 0 })}
+                      placeholder="0.0"
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="session_hours" className="text-sm">Session Hours</Label>
+                    <Input
+                      id="session_hours"
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={hoursData.session_hours}
+                      onChange={(e) => setHoursData({ ...hoursData, session_hours: parseFloat(e.target.value) || 0 })}
+                      placeholder="0.0"
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="reflection_feedback_followup_hours" className="text-sm">Reflection & Feedback & Followup Hours</Label>
+                    <Input
+                      id="reflection_feedback_followup_hours"
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={hoursData.reflection_feedback_followup_hours}
+                      onChange={(e) => setHoursData({ ...hoursData, reflection_feedback_followup_hours: parseFloat(e.target.value) || 0 })}
+                      placeholder="0.0"
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
+
+                {/* Total Volunteering Time Display */}
+                <div className="bg-blue-50 border border-blue-200 rounded p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-sm font-semibold">Total Volunteering Time</Label>
+                      <p className="text-2xl font-bold text-blue-600 mt-2">
+                        {(
+                          (hoursData.plan_coordinate_hours || 0) +
+                          (hoursData.preparation_hours || 0) +
+                          (hoursData.session_hours || 0) +
+                          (hoursData.reflection_feedback_followup_hours || 0)
+                        ).toFixed(2)} hours
+                      </p>
+                    </div>
+                    <div>
+                      <Label htmlFor="logged_hours_in_benevity" className="text-sm">Logged hours in Benevity?</Label>
+                      <div className="flex items-center gap-2 mt-2">
+                        <input
+                          id="logged_hours_in_benevity"
+                          type="checkbox"
+                          checked={hoursData.logged_hours_in_benevity}
+                          onChange={(e) => setHoursData({ ...hoursData, logged_hours_in_benevity: e.target.checked })}
+                          className="w-5 h-5"
+                        />
+                        <span className="text-sm">{hoursData.logged_hours_in_benevity ? 'Yes' : 'No'}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Notes */}
+                <div>
+                  <Label htmlFor="hours_notes" className="text-sm">Notes</Label>
+                  <Textarea
+                    id="hours_notes"
+                    value={hoursData.notes}
+                    onChange={(e) => setHoursData({ ...hoursData, notes: e.target.value })}
+                    placeholder="Add any additional notes about the hours tracked"
+                    className="mt-1 min-h-[80px]"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+              </div>
+            ) : (
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-center space-y-4">
+                    <Shield className="h-12 w-12 text-destructive mx-auto" />
+                    <h2 className="text-xl font-bold">Access Denied</h2>
+                    <p className="text-muted-foreground">
+                      Session Hours Tracker is only accessible to administrators.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </>
+        )}
+
         {/* Navigation Buttons */}
         <div className="flex gap-3 justify-between">
           <Button
@@ -675,7 +983,7 @@ export default function SessionRecording() {
               </Button>
             )}
 
-            {currentPage < 3 && (
+            {currentPage < 4 && (
               <Button
                 onClick={() => setCurrentPage(currentPage + 1)}
                 variant="outline"
@@ -699,12 +1007,12 @@ export default function SessionRecording() {
 
             {currentPage === 2 && (
               <Button
-                onClick={handleSaveStudentPerformance}
-                disabled={savingStudents}
+                onClick={handleSaveHoursTracker}
+                disabled={saving}
                 className="gap-2"
               >
                 <Save className="h-4 w-4" />
-                {savingStudents ? 'Saving...' : 'Save'}
+                {saving ? 'Saving...' : 'Save Hours'}
               </Button>
             )}
 

@@ -432,6 +432,137 @@ export type Database = {
           }
         ]
       }
+      session_hours_tracker: {
+        Row: {
+          id: string
+          session_id: string
+          volunteer_id: string | null
+          plan_coordinate_hours: number
+          preparation_hours: number
+          session_hours: number
+          reflection_feedback_followup_hours: number
+          total_volunteering_time: number
+          logged_hours_in_benevity: boolean
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          session_id: string
+          volunteer_id?: string | null
+          plan_coordinate_hours?: number
+          preparation_hours?: number
+          session_hours?: number
+          reflection_feedback_followup_hours?: number
+          total_volunteering_time?: number
+          logged_hours_in_benevity?: boolean
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          session_id?: string
+          volunteer_id?: string | null
+          plan_coordinate_hours?: number
+          preparation_hours?: number
+          session_hours?: number
+          reflection_feedback_followup_hours?: number
+          total_volunteering_time?: number
+          logged_hours_in_benevity?: boolean
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_hours_tracker_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          }
+          {
+            foreignKeyName: "session_hours_tracker_volunteer_id_fkey"
+            columns: ["volunteer_id"]
+            isOneToOne: false
+            referencedRelation: "volunteers"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      roles: {
+        Row: {
+          id: number
+          name: string
+          description: string | null
+          created_at: string
+        }
+        Insert: {
+          id: number
+          name: string
+          description?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: number
+          name?: string
+          description?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      user_profiles: {
+        Row: {
+          id: string
+          email: string
+          full_name: string | null
+          phone: string | null
+          location: string | null
+          bio: string | null
+          profile_image_url: string | null
+          role_id: number | null
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id: string
+          email: string
+          full_name?: string | null
+          phone?: string | null
+          location?: string | null
+          bio?: string | null
+          profile_image_url?: string | null
+          role_id?: number | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          email?: string
+          full_name?: string | null
+          phone?: string | null
+          location?: string | null
+          bio?: string | null
+          profile_image_url?: string | null
+          role_id?: number | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_profiles_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, MoreVertical } from 'lucide-react';
+import { Plus, Trash2, MoreVertical, Clock } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,6 +27,21 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -57,13 +72,14 @@ export default function Centres() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedCentre, setSelectedCentre] = useState<Centre | null>(null);
-  const [expandedCentreId, setExpandedCentreId] = useState<string | null>(null);
   const [centreSlots, setCentreSlots] = useState<Record<string, CentreTimeSlot[]>>({});
   const [showSlotForm, setShowSlotForm] = useState<string | null>(null);
   const [slotFormData, setSlotFormData] = useState({
     start_time: '09:00',
     end_time: '10:00',
   });
+  const [addSlotDialogOpen, setAddSlotDialogOpen] = useState(false);
+  const [selectedCentreForSlot, setSelectedCentreForSlot] = useState<string>('');
   const [formData, setFormData] = useState({
     name: '',
     location: '',
@@ -71,8 +87,8 @@ export default function Centres() {
     email: '',
     status: 'active',
   });
-  const [timeSlots, setTimeSlots] = useState<Array<{ day: string; start_time: string; end_time: string }>>([
-    { day: 'Monday', start_time: '09:00', end_time: '10:00' }
+  const [timeSlots, setTimeSlots] = useState<Array<{ start_time: string; end_time: string }>>([
+    { start_time: '09:00', end_time: '10:00' }
   ]);
 
   useEffect(() => {
@@ -157,7 +173,7 @@ export default function Centres() {
       if (centreId && !editingId && timeSlots.length > 0) {
         const slotsToInsert = timeSlots.map(slot => ({
           centre_id: centreId,
-          day: slot.day,
+          day: 'Monday',
           start_time: slot.start_time,
           end_time: slot.end_time,
         }));
@@ -219,7 +235,7 @@ export default function Centres() {
       email: '',
       status: 'active',
     });
-    setTimeSlots([{ day: 'Monday', start_time: '09:00', end_time: '10:00' }]);
+    setTimeSlots([{ start_time: '09:00', end_time: '10:00' }]);
   };
 
   const handleAddSlot = async (centreId: string) => {
@@ -241,6 +257,8 @@ export default function Centres() {
       if (error) throw error;
       toast.success('Time slot added successfully');
       setShowSlotForm(null);
+      setAddSlotDialogOpen(false);
+      setSelectedCentreForSlot('');
       setSlotFormData({ start_time: '09:00', end_time: '10:00' });
       await fetchCentreSlots(centreId);
     } catch (error) {
@@ -276,14 +294,98 @@ export default function Centres() {
               Manage volunteer centres and locations
             </p>
           </div>
-          <Button
-            onClick={() => setShowForm(!showForm)}
-            className="gap-2 w-full sm:w-auto"
-          >
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">Add Centre</span>
-            <span className="sm:hidden">Add</span>
-          </Button>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Dialog open={addSlotDialogOpen} onOpenChange={setAddSlotDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="gap-2 flex-1 sm:flex-none">
+                  <Clock className="h-4 w-4" />
+                  <span className="hidden sm:inline">Add Time Slot</span>
+                  <span className="sm:hidden">Slot</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add Time Slot to Centre</DialogTitle>
+                  <DialogDescription>
+                    Select a centre and add a new time slot
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Select Centre</label>
+                    <Select value={selectedCentreForSlot} onValueChange={setSelectedCentreForSlot}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose a centre" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {centres.map(centre => (
+                          <SelectItem key={centre.id} value={centre.id}>
+                            {centre.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Start Time</label>
+                      <input
+                        type="time"
+                        value={slotFormData.start_time}
+                        onChange={(e) => setSlotFormData({ ...slotFormData, start_time: e.target.value })}
+                        className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">End Time</label>
+                      <input
+                        type="time"
+                        value={slotFormData.end_time}
+                        onChange={(e) => setSlotFormData({ ...slotFormData, end_time: e.target.value })}
+                        className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 pt-4">
+                    <Button
+                      onClick={() => {
+                        if (!selectedCentreForSlot) {
+                          toast.error('Please select a centre');
+                          return;
+                        }
+                        handleAddSlot(selectedCentreForSlot);
+                      }}
+                      className="flex-1"
+                    >
+                      Add Slot
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setAddSlotDialogOpen(false);
+                        setSelectedCentreForSlot('');
+                        setSlotFormData({ start_time: '09:00', end_time: '10:00' });
+                      }}
+                      className="flex-1"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            <Button
+              onClick={() => setShowForm(!showForm)}
+              className="gap-2 flex-1 sm:flex-none"
+            >
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">Add Centre</span>
+              <span className="sm:hidden">Add</span>
+            </Button>
+          </div>
         </div>
 
         {/* Form */}
@@ -357,7 +459,7 @@ export default function Centres() {
                         type="button"
                         size="sm"
                         variant="outline"
-                        onClick={() => setTimeSlots([...timeSlots, { day: 'Monday', start_time: '09:00', end_time: '10:00' }])}
+                        onClick={() => setTimeSlots([...timeSlots, { start_time: '09:00', end_time: '10:00' }])}
                       >
                         <Plus className="h-3 w-3 mr-1" />
                         Add Slot
@@ -584,7 +686,7 @@ export default function Centres() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => setShowSlotForm(expandedCentreId === centre.id ? null : centre.id)}
+                            onClick={() => setShowSlotForm(showSlotForm === centre.id ? null : centre.id)}
                           >
                             <Plus className="h-3 w-3 mr-1" />
                             Add Slot

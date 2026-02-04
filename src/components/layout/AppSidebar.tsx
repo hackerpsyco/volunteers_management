@@ -1,27 +1,60 @@
-import { Home, Users, LogOut, CalendarDays, BookOpen, Menu, X, Users2, MapPin, FileText, GraduationCap } from 'lucide-react';
+import { Home, Users, LogOut, CalendarDays, BookOpen, Menu, X, Users2, MapPin, FileText, GraduationCap, Shield } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import wesLogo from '@/assets/wes-logo.jpg';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
 const navItems = [
-  { title: 'Dashboard', url: '/dashboard', icon: Home },
-  { title: 'Calendar', url: '/calendar', icon: CalendarDays },
-  { title: 'Session', url: '/sessions', icon: BookOpen },
-  { title: 'Feedback & Record', url: '/feedback', icon: FileText },
-  { title: 'Curriculum', url: '/curriculum', icon: BookOpen },
-  { title: 'Facilitator', url: '/facilitators', icon: Users2 },
-  { title: 'Coordinators', url: '/coordinators', icon: Users2 },
-  { title: 'Centres & Slots', url: '/centres', icon: MapPin },
-  { title: 'Classes', url: '/classes', icon: GraduationCap },
-  { title: 'Volunteer', url: '/volunteers', icon: Users },
+  { title: 'Dashboard', url: '/dashboard', icon: Home, requiredRole: null },
+  { title: 'Calendar', url: '/calendar', icon: CalendarDays, requiredRole: null },
+  { title: 'Session', url: '/sessions', icon: BookOpen, requiredRole: null },
+  { title: 'Feedback & Record', url: '/feedback', icon: FileText, requiredRole: null },
+  { title: 'Curriculum', url: '/curriculum', icon: BookOpen, requiredRole: null },
+  { title: 'Facilitator', url: '/facilitators', icon: Users2, requiredRole: null },
+  { title: 'Coordinators', url: '/coordinators', icon: Users2, requiredRole: null },
+  { title: 'Centres & Slots', url: '/centres', icon: MapPin, requiredRole: null },
+  { title: 'Classes', url: '/classes', icon: GraduationCap, requiredRole: null },
+  { title: 'Volunteer', url: '/volunteers', icon: Users, requiredRole: null },
+  { title: 'Admin Panel', url: '/admin', icon: Shield, requiredRole: 1 }, // 1 = Admin
 ];
 
 export function AppSidebar() {
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
+  const [userRole, setUserRole] = useState<number | null>(null);
+  const [loadingRole, setLoadingRole] = useState(true);
+
+  useEffect(() => {
+    if (user?.id) {
+      loadUserRole();
+    }
+  }, [user?.id]);
+
+  const loadUserRole = async () => {
+    try {
+      setLoadingRole(true);
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('role_id')
+        .eq('id', user?.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error loading user role:', error);
+      }
+
+      if (data?.role_id) {
+        setUserRole(data.role_id);
+      }
+    } catch (error) {
+      console.error('Error loading user role:', error);
+    } finally {
+      setLoadingRole(false);
+    }
+  };
 
   const handleSignOut = async () => {
     await signOut();
@@ -60,6 +93,11 @@ export function AppSidebar() {
         {/* Navigation */}
         <nav className="flex-1 p-3 md:p-4 space-y-1 md:space-y-2">
           {navItems.map((item) => {
+            // Check if user has required role for this item
+            if (item.requiredRole !== null && userRole !== item.requiredRole) {
+              return null; // Don't show this item
+            }
+
             const isActive = location.pathname === item.url;
             return (
               <NavLink

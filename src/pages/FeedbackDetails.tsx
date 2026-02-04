@@ -12,8 +12,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { Badge } from '@/components/ui/badge';
 
 interface FeedbackData {
   id: string;
@@ -45,17 +47,59 @@ interface StudentPerformance {
   performance_comment: string;
 }
 
+interface SessionHoursTracker {
+  id: string;
+  plan_coordinate_hours: number;
+  preparation_hours: number;
+  session_hours: number;
+  reflection_feedback_followup_hours: number;
+  total_volunteering_time: number;
+  logged_hours_in_benevity: boolean;
+  notes: string;
+}
+
 export default function FeedbackDetails() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { sessionId } = useParams();
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState<FeedbackData | null>(null);
   const [studentPerformance, setStudentPerformance] = useState<StudentPerformance[]>([]);
+  const [hoursTracker, setHoursTracker] = useState<SessionHoursTracker | null>(null);
+  const [userRole, setUserRole] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState<'facilitator' | 'coordinator' | 'supervisor'>('facilitator');
+
+  useEffect(() => {
+    if (user?.id) {
+      loadUserRole();
+    }
+  }, [user?.id]);
+
+  const loadUserRole = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('role_id')
+        .eq('id', user?.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error loading user role:', error);
+      }
+
+      if (data?.role_id) {
+        setUserRole(data.role_id);
+      }
+    } catch (error) {
+      console.error('Error loading user role:', error);
+    }
+  };
 
   useEffect(() => {
     if (sessionId) {
       fetchFeedback();
       fetchStudentPerformance();
+      fetchHoursTracker();
     }
   }, [sessionId]);
 
@@ -68,7 +112,7 @@ export default function FeedbackDetails() {
         .order('created_at', { ascending: true });
 
       if (error) throw error;
-      setStudentPerformance((data || []) as StudentPerformance[]);
+      setStudentPerformance((data || []) as unknown as StudentPerformance[]);
     } catch (error) {
       console.error('Error fetching student performance:', error);
     }
@@ -94,6 +138,25 @@ export default function FeedbackDetails() {
     }
   };
 
+  const fetchHoursTracker = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('session_hours_tracker' as any)
+        .select('*')
+        .eq('session_id', sessionId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
+      if (data) {
+        setHoursTracker(data as unknown as SessionHoursTracker);
+      }
+    } catch (error) {
+      console.error('Error fetching hours tracker:', error);
+    }
+  };
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -116,7 +179,7 @@ export default function FeedbackDetails() {
 
   return (
     <DashboardLayout>
-      <div className="max-w-2xl mx-auto space-y-6">
+      <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center gap-4">
           <Button
@@ -159,184 +222,258 @@ export default function FeedbackDetails() {
           </CardContent>
         </Card>
 
-        {/* Feedback Content */}
-        <div className="space-y-4">
-          {feedback.class_batch && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Class/Batch</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm">{feedback.class_batch}</p>
-              </CardContent>
-            </Card>
-          )}
+        {/* Filter Tabs */}
+        <div className="flex gap-2 flex-wrap border-b border-border pb-4">
+          <button
+            onClick={() => setActiveTab('facilitator')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activeTab === 'facilitator'
+                ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            Facilitator Feedback
+          </button>
+          <button
+            onClick={() => setActiveTab('coordinator')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activeTab === 'coordinator'
+                ? 'bg-green-100 text-green-700 border border-green-300'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            Coordinator Feedback
+          </button>
+          <button
+            onClick={() => setActiveTab('supervisor')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activeTab === 'supervisor'
+                ? 'bg-purple-100 text-purple-700 border border-purple-300'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            Supervisor Feedback (Admin Only)
+          </button>
+        </div>
 
-          {feedback.session_objective && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Session Objective</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm whitespace-pre-wrap">{feedback.session_objective}</p>
-              </CardContent>
-            </Card>
-          )}
+        {/* Facilitator Feedback Tab - Table Format */}
+        {activeTab === 'facilitator' && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Facilitator Feedback</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[200px]">Field</TableHead>
+                      <TableHead>Value</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {feedback.session_objective && (
+                      <TableRow>
+                        <TableCell className="font-semibold">Session Objective</TableCell>
+                        <TableCell className="whitespace-pre-wrap">{feedback.session_objective}</TableCell>
+                      </TableRow>
+                    )}
+                    {feedback.practical_activities && (
+                      <TableRow>
+                        <TableCell className="font-semibold">Practical Activities</TableCell>
+                        <TableCell className="whitespace-pre-wrap">{feedback.practical_activities}</TableCell>
+                      </TableRow>
+                    )}
+                    {feedback.session_highlights && (
+                      <TableRow>
+                        <TableCell className="font-semibold">Session Highlights</TableCell>
+                        <TableCell className="whitespace-pre-wrap">{feedback.session_highlights}</TableCell>
+                      </TableRow>
+                    )}
+                    {feedback.learning_outcomes && (
+                      <TableRow>
+                        <TableCell className="font-semibold">Learning Outcomes</TableCell>
+                        <TableCell className="whitespace-pre-wrap">{feedback.learning_outcomes}</TableCell>
+                      </TableRow>
+                    )}
+                    {feedback.facilitator_reflection && (
+                      <TableRow>
+                        <TableCell className="font-semibold">Facilitator Reflection</TableCell>
+                        <TableCell className="whitespace-pre-wrap">{feedback.facilitator_reflection}</TableCell>
+                      </TableRow>
+                    )}
+                    {feedback.best_performer && (
+                      <TableRow>
+                        <TableCell className="font-semibold">Best Performer</TableCell>
+                        <TableCell className="whitespace-pre-wrap">{feedback.best_performer}</TableCell>
+                      </TableRow>
+                    )}
+                    {!feedback.session_objective && !feedback.practical_activities && !feedback.session_highlights && !feedback.learning_outcomes && !feedback.facilitator_reflection && !feedback.best_performer && (
+                      <TableRow>
+                        <TableCell colSpan={2} className="text-center text-muted-foreground italic py-8">
+                          No facilitator feedback provided
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
 
-          {feedback.practical_activities && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Practical Activities</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm whitespace-pre-wrap">{feedback.practical_activities}</p>
-              </CardContent>
-            </Card>
-          )}
-
-          {feedback.session_highlights && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Session Highlights</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm whitespace-pre-wrap">{feedback.session_highlights}</p>
-              </CardContent>
-            </Card>
-          )}
-
-          {feedback.learning_outcomes && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Learning Outcomes</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm whitespace-pre-wrap">{feedback.learning_outcomes}</p>
-              </CardContent>
-            </Card>
-          )}
-
-          {feedback.facilitator_reflection && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Facilitator Reflection</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm whitespace-pre-wrap">{feedback.facilitator_reflection}</p>
-              </CardContent>
-            </Card>
-          )}
-
-          {feedback.best_performer && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Best Performer</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm whitespace-pre-wrap">{feedback.best_performer}</p>
-              </CardContent>
-            </Card>
-          )}
-
-          {feedback.guest_teacher_feedback && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Guest Teacher Feedback</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm whitespace-pre-wrap">{feedback.guest_teacher_feedback}</p>
-              </CardContent>
-            </Card>
-          )}
-
-          {feedback.incharge_reviewer_feedback && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Incharge/Reviewer Feedback</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm whitespace-pre-wrap">{feedback.incharge_reviewer_feedback}</p>
-              </CardContent>
-            </Card>
-          )}
-
-          {(feedback.mic_sound_rating || feedback.seating_view_rating || feedback.session_strength) && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Quality Ratings</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-3 gap-4 text-sm">
-                  {feedback.mic_sound_rating && (
-                    <div>
-                      <span className="text-muted-foreground block">Mic/Sound</span>
-                      <p className="font-medium text-lg">{feedback.mic_sound_rating}/10</p>
-                    </div>
-                  )}
-                  {feedback.seating_view_rating && (
-                    <div>
-                      <span className="text-muted-foreground block">Seating/View</span>
-                      <p className="font-medium text-lg">{feedback.seating_view_rating}/10</p>
-                    </div>
-                  )}
-                  {feedback.session_strength && (
-                    <div>
-                      <span className="text-muted-foreground block">Strength</span>
-                      <p className="font-medium text-lg">{feedback.session_strength}/10</p>
-                    </div>
-                  )}
+              {studentPerformance.length > 0 && (
+                <div className="mt-6">
+                  <h3 className="font-semibold text-sm mb-3">Student Performance Records</h3>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-[50px]">SN</TableHead>
+                          <TableHead>Student Name</TableHead>
+                          <TableHead className="w-[120px]">Questions</TableHead>
+                          <TableHead className="w-[100px]">Rating</TableHead>
+                          <TableHead>Comment</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {studentPerformance.map((student, index) => (
+                          <TableRow key={student.id}>
+                            <TableCell className="font-medium">{index + 1}</TableCell>
+                            <TableCell className="font-medium">{student.student_name}</TableCell>
+                            <TableCell className="text-center">{student.questions_asked}</TableCell>
+                            <TableCell className="text-center font-medium">{student.performance_rating}/10</TableCell>
+                            <TableCell className="max-w-[300px] truncate text-sm">{student.performance_comment || '-'}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              )}
+            </CardContent>
+          </Card>
+        )}
 
-          {feedback.recorded_at && (
-            <Card className="bg-muted/50">
-              <CardContent className="pt-6">
-                <p className="text-xs text-muted-foreground">
-                  Recorded on {new Date(feedback.recorded_at).toLocaleString()}
-                </p>
-              </CardContent>
-            </Card>
-          )}
+        {/* Coordinator Feedback Tab - Table Format */}
+        {activeTab === 'coordinator' && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Coordinator Feedback</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[200px]">Field</TableHead>
+                      <TableHead>Value</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {feedback.guest_teacher_feedback && (
+                      <TableRow>
+                        <TableCell className="font-semibold">Guest Teacher Feedback</TableCell>
+                        <TableCell className="whitespace-pre-wrap">{feedback.guest_teacher_feedback}</TableCell>
+                      </TableRow>
+                    )}
+                    {feedback.incharge_reviewer_feedback && (
+                      <TableRow>
+                        <TableCell className="font-semibold">Incharge/Reviewer Feedback</TableCell>
+                        <TableCell className="whitespace-pre-wrap">{feedback.incharge_reviewer_feedback}</TableCell>
+                      </TableRow>
+                    )}
+                    {feedback.mic_sound_rating && (
+                      <TableRow>
+                        <TableCell className="font-semibold">Mic/Sound Rating</TableCell>
+                        <TableCell className="font-medium">{feedback.mic_sound_rating}/10</TableCell>
+                      </TableRow>
+                    )}
+                    {feedback.seating_view_rating && (
+                      <TableRow>
+                        <TableCell className="font-semibold">Seating/View Rating</TableCell>
+                        <TableCell className="font-medium">{feedback.seating_view_rating}/10</TableCell>
+                      </TableRow>
+                    )}
+                    {feedback.session_strength && (
+                      <TableRow>
+                        <TableCell className="font-semibold">Session Strength</TableCell>
+                        <TableCell className="font-medium">{feedback.session_strength}/10</TableCell>
+                      </TableRow>
+                    )}
+                    {!feedback.guest_teacher_feedback && !feedback.incharge_reviewer_feedback && !feedback.mic_sound_rating && !feedback.seating_view_rating && !feedback.session_strength && (
+                      <TableRow>
+                        <TableCell colSpan={2} className="text-center text-muted-foreground italic py-8">
+                          No coordinator feedback provided
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-          {/* Student Performance Section */}
-          {studentPerformance.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">
-                  Student Performance Records ({studentPerformance.length})
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
+        {/* Supervisor Feedback Tab - Table Format - Admin Only */}
+        {activeTab === 'supervisor' && userRole === 1 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Supervisor Hours Tracking</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {hoursTracker ? (
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-[50px]">SN</TableHead>
-                        <TableHead>Student Name</TableHead>
-                        <TableHead className="w-[120px]">Questions</TableHead>
-                        <TableHead className="w-[100px]">Rating</TableHead>
-                        <TableHead>Comment</TableHead>
+                        <TableHead className="w-[200px]">Field</TableHead>
+                        <TableHead>Value</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {studentPerformance.map((student, index) => (
-                        <TableRow key={student.id}>
-                          <TableCell className="font-medium">{index + 1}</TableCell>
-                          <TableCell className="font-medium">{student.student_name}</TableCell>
-                          <TableCell className="text-center">{student.questions_asked}</TableCell>
-                          <TableCell className="text-center font-medium">{student.performance_rating}/10</TableCell>
-                          <TableCell className="max-w-[200px] truncate text-sm">{student.performance_comment || '-'}</TableCell>
+                      <TableRow>
+                        <TableCell className="font-semibold">Plan & Coordinate Hours</TableCell>
+                        <TableCell className="font-medium">{hoursTracker.plan_coordinate_hours} hrs</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="font-semibold">Preparation Hours</TableCell>
+                        <TableCell className="font-medium">{hoursTracker.preparation_hours} hrs</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="font-semibold">Session Hours</TableCell>
+                        <TableCell className="font-medium">{hoursTracker.session_hours} hrs</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="font-semibold">Reflection & Feedback Hours</TableCell>
+                        <TableCell className="font-medium">{hoursTracker.reflection_feedback_followup_hours} hrs</TableCell>
+                      </TableRow>
+                      <TableRow className="bg-blue-50">
+                        <TableCell className="font-semibold">Total Volunteering Time</TableCell>
+                        <TableCell className="font-bold text-lg text-blue-700">{hoursTracker.total_volunteering_time} hrs</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="font-semibold">Logged in Benevity</TableCell>
+                        <TableCell>
+                          <Badge variant={hoursTracker.logged_hours_in_benevity ? 'default' : 'secondary'}>
+                            {hoursTracker.logged_hours_in_benevity ? '✓ Yes' : 'No'}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                      {hoursTracker.notes && (
+                        <TableRow>
+                          <TableCell className="font-semibold">Notes</TableCell>
+                          <TableCell className="whitespace-pre-wrap">{hoursTracker.notes}</TableCell>
                         </TableRow>
-                      ))}
+                      )}
                     </TableBody>
                   </Table>
                 </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+              ) : (
+                <div className="text-center text-muted-foreground italic py-8">
+                  No hours tracked
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Back Button */}
         <div className="flex justify-start">
