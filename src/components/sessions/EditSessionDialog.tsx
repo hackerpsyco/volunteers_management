@@ -302,7 +302,10 @@ Session updated with new details.
             `.trim(),
             startDateTime: startDateTime.toISOString(),
             endDateTime: endDateTime.toISOString(),
-            volunteerEmail: volunteerData?.work_email || '',
+            volunteerEmails: [
+              volunteerData?.personal_email,
+              volunteerData?.work_email
+            ].filter(email => email && email.trim()),
             facilitatorEmail: facilitatorData?.email || '',
             coordinatorEmail: coordinatorData?.email || '',
           }),

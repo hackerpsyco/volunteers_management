@@ -21,6 +21,7 @@ interface CalendarSyncRequest {
   startDateTime?: string;
   endDateTime?: string;
   volunteerEmail?: string;
+  volunteerEmails?: string[];
   facilitatorEmail?: string;
   coordinatorEmail?: string;
   googleEventId?: string;
@@ -282,7 +283,10 @@ serve(async (req) => {
             start: { dateTime: body.startDateTime, timeZone: "UTC" },
             end: { dateTime: body.endDateTime, timeZone: "UTC" },
             attendees: [
-              ...(body.volunteerEmail ? [{ email: body.volunteerEmail, responseStatus: "needsAction" }] : []),
+              // Add all volunteer emails (personal and work)
+              ...(body.volunteerEmails && body.volunteerEmails.length > 0
+                ? body.volunteerEmails.map(email => ({ email, responseStatus: "needsAction" }))
+                : body.volunteerEmail ? [{ email: body.volunteerEmail, responseStatus: "needsAction" }] : []),
               ...(body.facilitatorEmail ? [{ email: body.facilitatorEmail, responseStatus: "needsAction" }] : []),
               ...(body.coordinatorEmail ? [{ email: body.coordinatorEmail, responseStatus: "needsAction" }] : []),
             ].filter(attendee => attendee.email && attendee.email.trim()),
@@ -311,7 +315,10 @@ serve(async (req) => {
       start: { dateTime: body.startDateTime, timeZone: "UTC" },
       end: { dateTime: body.endDateTime, timeZone: "UTC" },
       attendees: [
-        ...(body.volunteerEmail ? [{ email: body.volunteerEmail, responseStatus: "needsAction" }] : []),
+        // Add all volunteer emails (personal and work)
+        ...(body.volunteerEmails && body.volunteerEmails.length > 0
+          ? body.volunteerEmails.map(email => ({ email, responseStatus: "needsAction" }))
+          : body.volunteerEmail ? [{ email: body.volunteerEmail, responseStatus: "needsAction" }] : []),
         ...(body.facilitatorEmail ? [{ email: body.facilitatorEmail, responseStatus: "needsAction" }] : []),
         ...(body.coordinatorEmail ? [{ email: body.coordinatorEmail, responseStatus: "needsAction" }] : []),
       ].filter(attendee => attendee.email && attendee.email.trim()),

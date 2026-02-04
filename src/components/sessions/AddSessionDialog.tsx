@@ -527,7 +527,10 @@ For any questions, contact the coordinator.
             `.trim(),
             startDateTime: startDateTime.toISOString(),
             endDateTime: endDateTime.toISOString(),
-            volunteerEmail: selectedVolunteerData?.work_email || '',
+            volunteerEmails: [
+              selectedVolunteerData?.personal_email,
+              selectedVolunteerData?.work_email
+            ].filter(email => email && email.trim()),
             volunteerName: selectedVolunteerData?.name || '',
             facilitatorEmail: selectedFacilitatorData?.email || '',
             facilitatorName: selectedFacilitatorData?.name || '',
