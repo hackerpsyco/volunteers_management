@@ -157,7 +157,7 @@ function mapStatus(status: string): string {
   if (normalized.includes('complet')) return 'completed';
   if (normalized.includes('avail')) return 'available';
   if (normalized.includes('commit')) return 'committed';
-  return 'pending';
+  return 'commited';
 }
 
 // Map row to parsed data

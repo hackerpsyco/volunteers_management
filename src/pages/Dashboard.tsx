@@ -4,6 +4,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
+import { VolunteerSessionStats } from '@/components/dashboard/VolunteerSessionStats';
 
 interface Stats {
   totalVolunteers: number;
@@ -156,8 +157,8 @@ export default function Dashboard() {
           })}
         </div>
 
-        {/* Session Status and Curriculum Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Session Status, Volunteer Stats, and Curriculum Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {/* Session Status */}
           <div className="bg-card border border-border rounded-lg p-4 md:p-6">
             <h2 className="text-lg md:text-xl font-bold text-foreground mb-4">Session</h2>
@@ -170,6 +171,9 @@ export default function Dashboard() {
               ))}
             </div>
           </div>
+
+          {/* Volunteer Session Stats - Middle */}
+          <VolunteerSessionStats />
 
           {/* Curriculum Categories */}
           <div className="bg-card border border-border rounded-lg p-4 md:p-6">

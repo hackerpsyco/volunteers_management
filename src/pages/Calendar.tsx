@@ -187,7 +187,7 @@ export default function Calendar() {
   };
 
   const handleCancelSession = async (sessionId: string) => {
-    if (!confirm('Are you sure you want to cancel this session? This will also remove it from Google Calendar.')) {
+    if (!confirm('Are you sure you want to cancel this session? The status will be changed to pending.')) {
       return;
     }
 
@@ -213,15 +213,15 @@ export default function Calendar() {
         console.warn('Could not remove from Google Calendar:', calendarError);
       }
 
-      // Delete from database
+      // Update status to pending instead of deleting
       const { error } = await supabase
         .from('sessions')
-        .delete()
+        .update({ status: 'pending' })
         .eq('id', sessionId);
 
       if (error) throw error;
 
-      toast.success('Session cancelled successfully');
+      toast.success('Session status changed to pending');
       setSelectedSession(null);
       fetchSessions();
     } catch (error) {
@@ -263,6 +263,13 @@ export default function Calendar() {
   };
 
   const monthName = currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+
+  const isToday = (date: Date) => {
+    const today = new Date();
+    return date.getDate() === today.getDate() &&
+           date.getMonth() === today.getMonth() &&
+           date.getFullYear() === today.getFullYear();
+  };
 
   if (loading) {
     return (
@@ -340,59 +347,66 @@ export default function Calendar() {
 
             {/* Calendar Days */}
             <div className="grid grid-cols-7 gap-2">
-              {calendarDays.map((day, idx) => (
-                <div
-                  key={idx}
-                  onClick={() => day.isCurrentMonth && handleDateClick(day.date)}
-                  className={`min-h-24 p-2 border rounded-lg cursor-pointer transition-colors hover:bg-accent ${
-                    day.isCurrentMonth
-                      ? 'bg-background border-border hover:border-primary'
-                      : 'bg-muted border-muted-foreground/20'
-                  }`}
-                >
-                  <div className={`text-sm font-semibold mb-1 ${
-                    day.isCurrentMonth ? 'text-foreground' : 'text-muted-foreground'
-                  }`}>
-                    {day.date.getDate()}
+              {calendarDays.map((day, idx) => {
+                const todayFlag = isToday(day.date);
+                return (
+                  <div
+                    key={idx}
+                    onClick={() => day.isCurrentMonth && handleDateClick(day.date)}
+                    className={`min-h-24 p-2 border rounded-lg cursor-pointer transition-colors ${
+                      todayFlag
+                        ? 'bg-primary/10 border-primary border-2 hover:bg-primary/20'
+                        : day.isCurrentMonth
+                        ? 'bg-background border-border hover:bg-accent hover:border-primary'
+                        : 'bg-muted border-muted-foreground/20'
+                    }`}
+                  >
+                    <div className={`text-sm font-semibold mb-1 ${
+                      todayFlag
+                        ? 'text-primary'
+                        : day.isCurrentMonth ? 'text-foreground' : 'text-muted-foreground'
+                    }`}>
+                      {day.date.getDate()}
+                    </div>
+                    <div className="space-y-1">
+                      {(() => {
+                        const dateKey = day.date.toISOString().split('T')[0];
+                        const isExpanded = expandedDateKey === dateKey;
+                        const sessionsToShow = isExpanded ? day.sessions : day.sessions.slice(0, 2);
+                        
+                        return (
+                          <>
+                            {sessionsToShow.map((session, i) => (
+                              <button
+                                key={i}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedSession(session);
+                                }}
+                                className={`text-xs px-2 py-1 rounded truncate w-full text-left hover:opacity-80 ${getStatusColor(session.status)}`}
+                                title={session.title}
+                              >
+                                {session.session_time} - {session.title}
+                              </button>
+                            ))}
+                            {day.sessions.length > 2 && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedDateKey(isExpanded ? null : dateKey);
+                                }}
+                                className="text-xs text-primary hover:text-primary/80 px-2 font-medium cursor-pointer transition-colors"
+                              >
+                                {isExpanded ? '−' : '+'}{day.sessions.length - 2} more
+                              </button>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    {(() => {
-                      const dateKey = day.date.toISOString().split('T')[0];
-                      const isExpanded = expandedDateKey === dateKey;
-                      const sessionsToShow = isExpanded ? day.sessions : day.sessions.slice(0, 2);
-                      
-                      return (
-                        <>
-                          {sessionsToShow.map((session, i) => (
-                            <button
-                              key={i}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedSession(session);
-                              }}
-                              className={`text-xs px-2 py-1 rounded truncate w-full text-left hover:opacity-80 ${getStatusColor(session.status)}`}
-                              title={session.title}
-                            >
-                              {session.session_time} - {session.title}
-                            </button>
-                          ))}
-                          {day.sessions.length > 2 && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setExpandedDateKey(isExpanded ? null : dateKey);
-                              }}
-                              className="text-xs text-primary hover:text-primary/80 px-2 font-medium cursor-pointer transition-colors"
-                            >
-                              {isExpanded ? '−' : '+'}{day.sessions.length - 2} more
-                            </button>
-                          )}
-                        </>
-                      );
-                    })()}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
@@ -580,6 +594,7 @@ export default function Calendar() {
           open={isAddSessionOpen}
           onOpenChange={setIsAddSessionOpen}
           selectedDate={selectedDateForNewSession}
+          sessionType={selectedSessionType || 'guest_teacher'}
           onSuccess={() => {
             fetchSessions();
             setSelectedDateForNewSession(null);

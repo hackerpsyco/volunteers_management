@@ -283,11 +283,13 @@ serve(async (req) => {
             start: { dateTime: body.startDateTime, timeZone: "UTC" },
             end: { dateTime: body.endDateTime, timeZone: "UTC" },
             attendees: [
-              // Add all volunteer emails (personal and work)
+              // Add all volunteer emails (personal and work) as regular attendees
               ...(body.volunteerEmails && body.volunteerEmails.length > 0
                 ? body.volunteerEmails.map(email => ({ email, responseStatus: "needsAction" }))
                 : body.volunteerEmail ? [{ email: body.volunteerEmail, responseStatus: "needsAction" }] : []),
+              // Add facilitator as attendee (will have co-host access via email)
               ...(body.facilitatorEmail ? [{ email: body.facilitatorEmail, responseStatus: "needsAction" }] : []),
+              // Add coordinator as attendee (will have co-host access via email)
               ...(body.coordinatorEmail ? [{ email: body.coordinatorEmail, responseStatus: "needsAction" }] : []),
             ].filter(attendee => attendee.email && attendee.email.trim()),
             sendNotifications: true,
@@ -315,11 +317,13 @@ serve(async (req) => {
       start: { dateTime: body.startDateTime, timeZone: "UTC" },
       end: { dateTime: body.endDateTime, timeZone: "UTC" },
       attendees: [
-        // Add all volunteer emails (personal and work)
+        // Add all volunteer emails (personal and work) as regular attendees
         ...(body.volunteerEmails && body.volunteerEmails.length > 0
           ? body.volunteerEmails.map(email => ({ email, responseStatus: "needsAction" }))
           : body.volunteerEmail ? [{ email: body.volunteerEmail, responseStatus: "needsAction" }] : []),
+        // Add facilitator as attendee (will have co-host access via email)
         ...(body.facilitatorEmail ? [{ email: body.facilitatorEmail, responseStatus: "needsAction" }] : []),
+        // Add coordinator as attendee (will have co-host access via email)
         ...(body.coordinatorEmail ? [{ email: body.coordinatorEmail, responseStatus: "needsAction" }] : []),
       ].filter(attendee => attendee.email && attendee.email.trim()),
       conferenceData: {

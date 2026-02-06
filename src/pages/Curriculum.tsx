@@ -37,6 +37,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { UnifiedImportDialog } from '@/components/sessions/UnifiedImportDialog';
+import { EditCurriculumDialog } from '@/components/curriculum/EditCurriculumDialog';
 import { Badge } from '@/components/ui/badge';
 
 interface RawCurriculumData {
@@ -67,19 +68,39 @@ interface CurriculumItem {
   updated_at?: string;
 }
 
+interface SessionInfo {
+  fresh_count: number;
+  revision_count: number;
+  fresh_status?: string;
+  revision_status?: string;
+  session_date?: string;
+  volunteer_name?: string;
+  fresh_sessions?: Array<{ id: string; date: string; volunteer: string; status: string }>;
+  revision_sessions?: Array<{ id: string; date: string; volunteer: string; status: string }>;
+}
+
 export default function Curriculum() {
   const [curriculum, setCurriculum] = useState<CurriculumItem[]>([]);
   const [filteredCurriculum, setFilteredCurriculum] = useState<CurriculumItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<CurriculumItem | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [categories, setCategories] = useState<string[]>([]);
+  const [sessionInfo, setSessionInfo] = useState<Record<string, SessionInfo>>({});
 
   useEffect(() => {
     fetchCurriculum();
   }, []);
+
+  useEffect(() => {
+    // Fetch session info for all curriculum items
+    if (curriculum.length > 0) {
+      fetchSessionInfo();
+    }
+  }, [curriculum]);
 
   useEffect(() => {
     // Filter curriculum based on selected category
@@ -131,6 +152,68 @@ export default function Curriculum() {
       toast.error('Failed to load curriculum');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSessionInfo = async () => {
+    try {
+      // Fetch all sessions with their details
+      // @ts-ignore - Supabase type inference issue
+      const { data: sessions, error } = await supabase
+        .from('sessions')
+        .select('id, topics_covered, session_type_option, status, session_date, volunteer_name, content_category');
+
+      if (error) throw error;
+
+      const sessionMap: Record<string, SessionInfo> = {};
+
+      // Group sessions by topic
+      (sessions as any[])?.forEach((session: any) => {
+        const topic = session.topics_covered;
+        if (!topic) return;
+
+        if (!sessionMap[topic]) {
+          sessionMap[topic] = {
+            fresh_count: 0,
+            revision_count: 0,
+            fresh_sessions: [],
+            revision_sessions: [],
+          };
+        }
+
+        const sessionDetail = {
+          id: session.id,
+          date: session.session_date ? new Date(session.session_date).toLocaleDateString() : 'N/A',
+          volunteer: session.volunteer_name || 'N/A',
+          status: session.status || 'pending',
+        };
+
+        if (session.session_type_option === 'fresh') {
+          sessionMap[topic].fresh_count += 1;
+          sessionMap[topic].fresh_status = session.status;
+          sessionMap[topic].fresh_sessions?.push(sessionDetail);
+          if (!sessionMap[topic].session_date) {
+            sessionMap[topic].session_date = session.session_date;
+          }
+          if (!sessionMap[topic].volunteer_name) {
+            sessionMap[topic].volunteer_name = session.volunteer_name;
+          }
+        } else if (session.session_type_option === 'revision') {
+          sessionMap[topic].revision_count += 1;
+          sessionMap[topic].revision_status = session.status;
+          sessionMap[topic].revision_sessions?.push(sessionDetail);
+          if (!sessionMap[topic].session_date) {
+            sessionMap[topic].session_date = session.session_date;
+          }
+          if (!sessionMap[topic].volunteer_name) {
+            sessionMap[topic].volunteer_name = session.volunteer_name;
+          }
+        }
+      });
+
+      setSessionInfo(sessionMap);
+    } catch (error) {
+      console.error('Error fetching session info:', error);
     }
   };
 
@@ -243,6 +326,9 @@ export default function Curriculum() {
                         <TableHead>PPT/Quiz</TableHead>
                         <TableHead>Fresh Session</TableHead>
                         <TableHead>Revision Session</TableHead>
+                        <TableHead>Session Date</TableHead>
+                        <TableHead>Volunteer Name</TableHead>
+                        <TableHead>Session Status</TableHead>
                         <TableHead className="w-[60px]">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -283,32 +369,94 @@ export default function Curriculum() {
                             )}
                           </TableCell>
                           <TableCell>
-                            {item.fresh_session ? (
-                              <a
-                                href={item.fresh_session}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-primary hover:underline"
-                              >
-                                📅 View
-                              </a>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
+                            {(() => {
+                              const info = sessionInfo[item.topic_title];
+                              if (!info?.fresh_sessions || info.fresh_sessions.length === 0) {
+                                return <span className="text-muted-foreground text-xs">-</span>;
+                              }
+                              return (
+                                <div className="space-y-1">
+                                  {info.fresh_sessions.map((session, idx) => (
+                                    <div key={idx} className="text-xs bg-blue-50 p-1 rounded border border-blue-200">
+                                      <div className="font-medium">📅 {session.date}</div>
+                                      <div className="text-muted-foreground">{session.volunteer}</div>
+                                      <Badge variant="outline" className="text-xs mt-1">
+                                        {session.status}
+                                      </Badge>
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            })()}
                           </TableCell>
                           <TableCell>
-                            {item.revision_session ? (
-                              <a
-                                href={item.revision_session}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-primary hover:underline"
-                              >
-                                🔄 View
-                              </a>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
+                            {(() => {
+                              const info = sessionInfo[item.topic_title];
+                              if (!info?.revision_sessions || info.revision_sessions.length === 0) {
+                                return <span className="text-muted-foreground text-xs">-</span>;
+                              }
+                              return (
+                                <div className="space-y-1">
+                                  {info.revision_sessions.map((session, idx) => (
+                                    <div key={idx} className="text-xs bg-purple-50 p-1 rounded border border-purple-200">
+                                      <div className="font-medium">📅 {session.date}</div>
+                                      <div className="text-muted-foreground">{session.volunteer}</div>
+                                      <Badge variant="outline" className="text-xs mt-1">
+                                        {session.status}
+                                      </Badge>
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            })()}
+                          </TableCell>
+                          <TableCell>
+                            {(() => {
+                              const info = sessionInfo[item.topic_title];
+                              if (!info?.session_date) {
+                                return <span className="text-muted-foreground text-xs">-</span>;
+                              }
+                              return (
+                                <span className="text-sm">
+                                  {new Date(info.session_date).toLocaleDateString()}
+                                </span>
+                              );
+                            })()}
+                          </TableCell>
+                          <TableCell>
+                            {(() => {
+                              const info = sessionInfo[item.topic_title];
+                              if (!info?.volunteer_name) {
+                                return <span className="text-muted-foreground text-xs">-</span>;
+                              }
+                              return <span className="text-sm">{info.volunteer_name}</span>;
+                            })()}
+                          </TableCell>
+                          <TableCell>
+                            {(() => {
+                              const info = sessionInfo[item.topic_title];
+                              if (!info || (info.fresh_count === 0 && info.revision_count === 0)) {
+                                return <span className="text-muted-foreground text-xs">No sessions</span>;
+                              }
+                              return (
+                                <div className="space-y-1">
+                                  {info.fresh_count > 0 && (
+                                    <div className="text-xs">
+                                      <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                                        🆕 Fresh: {info.fresh_count} ({info.fresh_status || 'pending'})
+                                      </Badge>
+                                    </div>
+                                  )}
+                                  {info.revision_count > 0 && (
+                                    <div className="text-xs">
+                                      <Badge variant="secondary" className="bg-purple-100 text-purple-800">
+                                        🔄 Revision: {info.revision_count} ({info.revision_status || 'pending'})
+                                      </Badge>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </TableCell>
                           <TableCell>
                             <DropdownMenu>
@@ -318,6 +466,14 @@ export default function Curriculum() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="bg-popover">
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setSelectedItem(item);
+                                    setIsEditOpen(true);
+                                  }}
+                                >
+                                  ✏️ Edit
+                                </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={() => {
                                     setSelectedItem(item);
@@ -385,36 +541,81 @@ export default function Curriculum() {
                       )}
 
                       {/* Fresh Session */}
-                      {item.fresh_session && (
-                        <div className="text-xs">
-                          <a
-                            href={item.fresh_session}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline font-medium"
-                          >
-                            📅 View Fresh Session →
-                          </a>
-                        </div>
-                      )}
+                      {(() => {
+                        const info = sessionInfo[item.topic_title];
+                        if (!info?.fresh_sessions || info.fresh_sessions.length === 0) {
+                          return null;
+                        }
+                        return (
+                          <div className="text-xs">
+                            <span className="text-muted-foreground block mb-1">🆕 Fresh Sessions</span>
+                            <div className="space-y-1">
+                              {info.fresh_sessions.map((session, idx) => (
+                                <div key={idx} className="bg-blue-50 p-2 rounded border border-blue-200">
+                                  <div className="font-medium">📅 {session.date}</div>
+                                  <div className="text-muted-foreground">{session.volunteer}</div>
+                                  <Badge variant="outline" className="text-xs mt-1">
+                                    {session.status}
+                                  </Badge>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
 
                       {/* Revision Session */}
-                      {item.revision_session && (
-                        <div className="text-xs">
-                          <a
-                            href={item.revision_session}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline font-medium"
-                          >
-                            🔄 View Revision Session →
-                          </a>
-                        </div>
-                      )}
+                      {(() => {
+                        const info = sessionInfo[item.topic_title];
+                        if (!info?.revision_sessions || info.revision_sessions.length === 0) {
+                          return null;
+                        }
+                        return (
+                          <div className="text-xs">
+                            <span className="text-muted-foreground block mb-1">🔄 Revision Sessions</span>
+                            <div className="space-y-1">
+                              {info.revision_sessions.map((session, idx) => (
+                                <div key={idx} className="bg-purple-50 p-2 rounded border border-purple-200">
+                                  <div className="font-medium">📅 {session.date}</div>
+                                  <div className="text-muted-foreground">{session.volunteer}</div>
+                                  <Badge variant="outline" className="text-xs mt-1">
+                                    {session.status}
+                                  </Badge>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Session Status */}
+                      <div className="border-t border-border pt-2">
+                        <p className="text-xs text-muted-foreground mb-2">Session Status</p>
+                        {(() => {
+                          const info = sessionInfo[item.topic_title];
+                          if (!info || (info.fresh_count === 0 && info.revision_count === 0)) {
+                            return <span className="text-xs text-muted-foreground">No sessions created</span>;
+                          }
+                          return (
+                            <div className="space-y-1">
+                              {info.fresh_count > 0 && (
+                                <Badge variant="secondary" className="bg-blue-100 text-blue-800 text-xs">
+                                  🆕 Fresh: {info.fresh_count} ({info.fresh_status || 'pending'})
+                                </Badge>
+                              )}
+                              {info.revision_count > 0 && (
+                                <Badge variant="secondary" className="bg-purple-100 text-purple-800 text-xs">
+                                  🔄 Revision: {info.revision_count} ({info.revision_status || 'pending'})
+                                </Badge>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </div>
 
                       {/* Actions */}
                       <div className="flex gap-2 pt-2 border-t border-border">
-                        <DropdownMenu>
+                          <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="outline" size="sm" className="flex-1">
                               <MoreVertical className="h-4 w-4 mr-2" />
@@ -422,6 +623,14 @@ export default function Curriculum() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="bg-popover">
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setSelectedItem(item);
+                                setIsEditOpen(true);
+                              }}
+                            >
+                              ✏️ Edit
+                            </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() => {
                                 setSelectedItem(item);
@@ -469,6 +678,14 @@ export default function Curriculum() {
       <UnifiedImportDialog
         open={isImportOpen}
         onOpenChange={setIsImportOpen}
+        onSuccess={fetchCurriculum}
+      />
+
+      {/* Edit Dialog */}
+      <EditCurriculumDialog
+        open={isEditOpen}
+        onOpenChange={setIsEditOpen}
+        item={selectedItem}
         onSuccess={fetchCurriculum}
       />
     </DashboardLayout>

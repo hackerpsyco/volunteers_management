@@ -557,12 +557,60 @@ export default function SessionRecording() {
                     />
                   </CardContent>
                 </Card>
+                   {/* Quality Ratings - Before Session Objective */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Quality Ratings</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <Label className="text-sm font-medium">Mic/Sound Quality</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          max="10"
+                          value={formData.mic_sound_rating}
+                          onChange={(e) => setFormData({ ...formData, mic_sound_rating: parseInt(e.target.value) || 5 })}
+                          className="mt-1"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">Rate 1-10</p>
+                      </div>
+                      <div>
+                        <Label className="text-sm font-medium">Seating/View</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          max="10"
+                          value={formData.seating_view_rating}
+                          onChange={(e) => setFormData({ ...formData, seating_view_rating: parseInt(e.target.value) || 5 })}
+                          className="mt-1"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">Rate 1-10</p>
+                      </div>
+                      <div>
+                        <Label className="text-sm font-medium">Session Strength</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          max="10"
+                          value={formData.session_strength}
+                          onChange={(e) => setFormData({ ...formData, session_strength: parseInt(e.target.value) || 5 })}
+                          className="mt-1"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">Rate 1-10</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             )}
 
             {/* Sub-tab b: Performance Details */}
             {currentSubTab === 'b' && (
               <div className="space-y-4">
+             
+
                 {/* Practical Activities */}
                 <Card>
                   <CardHeader>
@@ -787,50 +835,6 @@ export default function SessionRecording() {
                   placeholder="Feedback from incharge or reviewer"
                   className="min-h-[80px]"
                 />
-              </CardContent>
-            </Card>
-
-            {/* Ratings */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Quality Ratings</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <Label className="text-xs">Mic/Sound</Label>
-                    <Input
-                      type="number"
-                      min="1"
-                      max="10"
-                      value={formData.mic_sound_rating}
-                      onChange={(e) => setFormData({ ...formData, mic_sound_rating: parseInt(e.target.value) })}
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Seating/View</Label>
-                    <Input
-                      type="number"
-                      min="1"
-                      max="10"
-                      value={formData.seating_view_rating}
-                      onChange={(e) => setFormData({ ...formData, seating_view_rating: parseInt(e.target.value) })}
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Strength</Label>
-                    <Input
-                      type="number"
-                      min="1"
-                      max="10"
-                      value={formData.session_strength}
-                      onChange={(e) => setFormData({ ...formData, session_strength: parseInt(e.target.value) })}
-                      className="mt-1"
-                    />
-                  </div>
-                </div>
               </CardContent>
             </Card>
           </div>

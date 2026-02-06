@@ -80,13 +80,15 @@ interface AddSessionDialogProps {
   onOpenChange: (open: boolean) => void;
   selectedDate?: Date | null;
   onSuccess: () => void;
+  sessionType?: 'guest_teacher' | 'guest_speaker';
 }
 
 export function AddSessionDialog({ 
   open, 
   onOpenChange, 
   selectedDate: propSelectedDate,
-  onSuccess 
+  onSuccess,
+  sessionType = 'guest_teacher'
 }: AddSessionDialogProps) {
   const [selectedDate, setSelectedDate] = useState<Date | null>(propSelectedDate || null);
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
@@ -278,6 +280,30 @@ export function AddSessionDialog({
     }
   };
 
+  // Auto-detect session type based on completed sessions for the topic
+  const detectSessionType = async (topicName: string, category: string) => {
+    try {
+      // Check if there are any completed sessions for this topic in this category
+      const { data: completedSessions, error } = await supabase
+        .from('sessions')
+        .select('id, status')
+        .eq('topics_covered', topicName)
+        .eq('content_category', category)
+        .eq('status', 'completed')
+        .limit(1);
+
+      if (error) throw error;
+
+      // If completed sessions exist, suggest revision; otherwise suggest fresh
+      const suggestedType = (completedSessions && completedSessions.length > 0) ? 'revision' : 'fresh';
+      setFormData(prev => ({ ...prev, session_type_option: suggestedType }));
+    } catch (error) {
+      console.error('Error detecting session type:', error);
+      // Default to fresh if detection fails
+      setFormData(prev => ({ ...prev, session_type_option: 'fresh' }));
+    }
+  };
+
   const fetchCentres = async () => {
     try {
       const { data, error } = await supabase
@@ -308,6 +334,46 @@ export function AddSessionDialog({
       console.error('Error fetching centre slots:', error);
     }
   };
+
+  // Auto-generate title based on session type and selected fields
+  const generateAutoTitle = () => {
+    if (sessionType === 'guest_teacher') {
+      // Format: WES GT Session - Class + Volunteer Name + Module + Topic
+      const parts = ['WES GT Session'];
+      if (formData.class_batch) parts.push(formData.class_batch);
+      if (formData.volunteer_name) parts.push(`by ${formData.volunteer_name}`);
+      if (formData.module_name) parts.push(formData.module_name);
+      if (formData.topics_covered) parts.push(formData.topics_covered);
+      return parts.join(' - ');
+    } else if (sessionType === 'guest_speaker') {
+      // Format: SVC WES Academy by Volunteer Name - Topic
+      const parts = ['SVC WES Academy'];
+      if (formData.volunteer_name) parts.push(`by ${formData.volunteer_name}`);
+      if (formData.topics_covered) parts.push(formData.topics_covered);
+      return parts.join(' - ');
+    }
+    return '';
+  };
+
+  // Auto-setup for guest speaker sessions
+  useEffect(() => {
+    if (sessionType === 'guest_speaker' && open) {
+      // Auto-select "Life and Academic Journey" category and topic
+      setSelectedCategory('Life and Academic Journey');
+      setFormData(prev => ({
+        ...prev,
+        content_category: 'Life and Academic Journey',
+      }));
+    }
+  }, [sessionType, open]);
+
+  // Update custom_title whenever relevant fields change
+  useEffect(() => {
+    const autoTitle = generateAutoTitle();
+    if (autoTitle) {
+      setFormData(prev => ({ ...prev, custom_title: autoTitle }));
+    }
+  }, [sessionType, formData.class_batch, formData.volunteer_name, formData.module_name, formData.topics_covered]);
 
   const handleCategoryChange = (category: string) => {
     setSelectedCategory(category);
@@ -347,6 +413,7 @@ export function AddSessionDialog({
         videos: '',
         quiz_content_ppt: '',
         custom_title: '',
+        session_type_option: 'fresh', // Default to fresh for custom topics
       }));
     } else {
       const topic = topics.find(t => t.id === topicId);
@@ -361,6 +428,8 @@ export function AddSessionDialog({
           title: topic.topics_covered || '',
           custom_title: '',
         }));
+        // Auto-detect session type based on completed sessions
+        detectSessionType(topic.topics_covered || '', selectedCategory);
       }
     }
   };
@@ -466,6 +535,7 @@ export function AddSessionDialog({
       centre_id: selectedCentre,
       centre_time_slot_id: selectedSlot,
       class_batch: formData.class_batch,
+      status: 'committed',
     };
 
     const { data: insertedSession, error } = await supabase
@@ -705,140 +775,172 @@ For any questions, contact the coordinator.
             </Select>
           </div>
 
-          {/* Content Selection */}
-          <div className="border-t border-border pt-4">
-            <h4 className="font-medium text-sm sm:text-base text-foreground mb-3">Select Content & Topic</h4>
-            
-            <div className="space-y-2 mb-4">
-              <Label htmlFor="category" className="text-sm sm:text-base">Content Category *</Label>
-              <Select value={selectedCategory} onValueChange={handleCategoryChange}>
-                <SelectTrigger className="text-sm sm:text-base">
-                  <SelectValue placeholder="Select a content category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((category) => (
-                    <SelectItem key={category} value={category}>
-                      {category}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          {/* Content Selection - Only for Guest Teacher */}
+          {sessionType === 'guest_teacher' && (
+            <div className="border-t border-border pt-4">
+              <h4 className="font-medium text-sm sm:text-base text-foreground mb-3">Select Content & Topic</h4>
+              
+              <div className="space-y-2 mb-4">
+                <Label htmlFor="category" className="text-sm sm:text-base">Content Category *</Label>
+                <Select value={selectedCategory} onValueChange={handleCategoryChange}>
+                  <SelectTrigger className="text-sm sm:text-base">
+                    <SelectValue placeholder="Select a content category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((category) => (
+                      <SelectItem key={category} value={category}>
+                        {category}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {selectedCategory && modules.length > 0 && (
+                <div className="space-y-2 mb-4">
+                  <Label htmlFor="module" className="text-sm sm:text-base">Module Name *</Label>
+                  <Select value={selectedModule} onValueChange={handleModuleChange}>
+                    <SelectTrigger className="text-sm sm:text-base">
+                      <SelectValue placeholder="Select a module" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {modules.map((module) => (
+                        <SelectItem key={module} value={module}>
+                          {module}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {selectedModule && topics.length > 0 && (
+                <div className="space-y-2 mb-4">
+                  <Label htmlFor="topic" className="text-sm sm:text-base">Select Topic *</Label>
+                  <Select value={selectedTopic?.id || ''} onValueChange={handleTopicSelect}>
+                    <SelectTrigger className="text-sm sm:text-base">
+                      <SelectValue placeholder="Choose a topic to auto-fill fields" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {topics.map((topic) => (
+                        <SelectItem key={topic.id} value={topic.id}>
+                          {topic.topics_covered}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="custom">Other (Custom Topic)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Custom Topic Input */}
+              {selectedTopic?.id === 'custom' && (
+                <div className="space-y-2 mb-4">
+                  <Label htmlFor="custom_topic_input" className="text-sm sm:text-base">Enter Custom Topic *</Label>
+                  <Input
+                    id="custom_topic_input"
+                    placeholder="Enter your custom topic"
+                    value={formData.topics_covered}
+                    onChange={(e) => setFormData({ ...formData, topics_covered: e.target.value })}
+                    className="text-sm sm:text-base"
+                    required
+                  />
+                </div>
+              )}
             </div>
+          )}
 
-            {selectedCategory && modules.length > 0 && (
+          {/* Content Details - Only for Guest Teacher */}
+          {sessionType === 'guest_teacher' && (
+            <div className="border-t border-border pt-4">
+              <h4 className="font-medium text-sm sm:text-base text-foreground mb-3">Content Details {selectedTopic && '(Auto-filled)'}</h4>
+              
               <div className="space-y-2 mb-4">
-                <Label htmlFor="module" className="text-sm sm:text-base">Module Name *</Label>
-                <Select value={selectedModule} onValueChange={handleModuleChange}>
+                <Label htmlFor="class_batch" className="text-sm sm:text-base">Class *</Label>
+                <Select value={selectedClass} onValueChange={(value) => {
+                  setSelectedClass(value);
+                  setFormData({ ...formData, class_batch: value });
+                }}>
                   <SelectTrigger className="text-sm sm:text-base">
-                    <SelectValue placeholder="Select a module" />
+                    <SelectValue placeholder="Select a class" />
                   </SelectTrigger>
                   <SelectContent>
-                    {modules.map((module) => (
-                      <SelectItem key={module} value={module}>
-                        {module}
+                    {classes.map((className) => (
+                      <SelectItem key={className} value={className}>
+                        {className}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-            )}
-
-            {selectedModule && topics.length > 0 && (
+              
               <div className="space-y-2 mb-4">
-                <Label htmlFor="topic" className="text-sm sm:text-base">Select Topic *</Label>
-                <Select value={selectedTopic?.id || ''} onValueChange={handleTopicSelect}>
-                  <SelectTrigger className="text-sm sm:text-base">
-                    <SelectValue placeholder="Choose a topic to auto-fill fields" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {topics.map((topic) => (
-                      <SelectItem key={topic.id} value={topic.id}>
-                        {topic.topics_covered}
-                      </SelectItem>
-                    ))}
-                    <SelectItem value="custom">Other (Custom Topic)</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="session_type_option" className="text-sm sm:text-base">Session Type Option *</Label>
+                <div className="flex items-center gap-2">
+                  <Select value={formData.session_type_option} onValueChange={(value) => setFormData({ ...formData, session_type_option: value })}>
+                    <SelectTrigger className="text-sm sm:text-base">
+                      <SelectValue placeholder="Select session type option" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="fresh">🆕 Fresh</SelectItem>
+                      <SelectItem value="revision">🔄 Revision</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {selectedTopic && selectedTopic.id !== 'custom' && (
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                      (Auto-detected)
+                    </span>
+                  )}
+                </div>
               </div>
-            )}
-
-            {/* Custom Topic Input */}
-            {selectedTopic?.id === 'custom' && (
+              
               <div className="space-y-2 mb-4">
-                <Label htmlFor="custom_topic_input" className="text-sm sm:text-base">Enter Custom Topic *</Label>
+                <Label htmlFor="videos" className="text-sm sm:text-base">Videos</Label>
                 <Input
-                  id="custom_topic_input"
-                  placeholder="Enter your custom topic"
+                  id="videos"
+                  placeholder="Video links or references"
+                  value={formData.videos}
+                  onChange={(e) => setFormData({ ...formData, videos: e.target.value })}
+                  disabled={!!selectedTopic}
+                  className="text-sm sm:text-base"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="quiz_content_ppt" className="text-sm sm:text-base">Quiz/Content PPT</Label>
+                <Input
+                  id="quiz_content_ppt"
+                  placeholder="Quiz or content PPT link"
+                  value={formData.quiz_content_ppt}
+                  onChange={(e) => setFormData({ ...formData, quiz_content_ppt: e.target.value })}
+                  disabled={!!selectedTopic}
+                  className="text-sm sm:text-base"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Guest Speaker Topic Selection */}
+          {sessionType === 'guest_speaker' && (
+            <div className="border-t border-border pt-4">
+              <h4 className="font-medium text-sm sm:text-base text-foreground mb-3">Select Topic</h4>
+              
+              <div className="space-y-2 mb-4">
+                <Label htmlFor="speaker_topic" className="text-sm sm:text-base">Topic *</Label>
+                <Input
+                  id="speaker_topic"
+                  placeholder="Enter the topic for this speaker session"
                   value={formData.topics_covered}
                   onChange={(e) => setFormData({ ...formData, topics_covered: e.target.value })}
                   className="text-sm sm:text-base"
                   required
                 />
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
-          {/* Content Details */}
+          {/* Custom Meeting Title */}
           <div className="border-t border-border pt-4">
-            <h4 className="font-medium text-sm sm:text-base text-foreground mb-3">Content Details {selectedTopic && '(Auto-filled)'}</h4>
-            
-            <div className="space-y-2 mb-4">
-              <Label htmlFor="class_batch" className="text-sm sm:text-base">Class *</Label>
-              <Select value={selectedClass} onValueChange={(value) => {
-                setSelectedClass(value);
-                setFormData({ ...formData, class_batch: value });
-              }}>
-                <SelectTrigger className="text-sm sm:text-base">
-                  <SelectValue placeholder="Select a class" />
-                </SelectTrigger>
-                <SelectContent>
-                  {classes.map((className) => (
-                    <SelectItem key={className} value={className}>
-                      {className}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2 mb-4">
-              <Label htmlFor="session_type_option" className="text-sm sm:text-base">Session Type Option *</Label>
-              <Select value={formData.session_type_option} onValueChange={(value) => setFormData({ ...formData, session_type_option: value })}>
-                <SelectTrigger className="text-sm sm:text-base">
-                  <SelectValue placeholder="Select session type option" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="fresh">Fresh</SelectItem>
-                  <SelectItem value="revision">Revision</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2 mb-4">
-              <Label htmlFor="videos" className="text-sm sm:text-base">Videos</Label>
-              <Input
-                id="videos"
-                placeholder="Video links or references"
-                value={formData.videos}
-                onChange={(e) => setFormData({ ...formData, videos: e.target.value })}
-                disabled={!!selectedTopic}
-                className="text-sm sm:text-base"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="quiz_content_ppt" className="text-sm sm:text-base">Quiz/Content PPT</Label>
-              <Input
-                id="quiz_content_ppt"
-                placeholder="Quiz or content PPT link"
-                value={formData.quiz_content_ppt}
-                onChange={(e) => setFormData({ ...formData, quiz_content_ppt: e.target.value })}
-                disabled={!!selectedTopic}
-                className="text-sm sm:text-base"
-              />
-            </div>
-
-            {/* Custom Meeting Title */}
             <div className="space-y-2">
               <Label htmlFor="custom_title" className="text-sm sm:text-base">Meeting Title (Custom) *</Label>
               <Input
@@ -853,56 +955,58 @@ For any questions, contact the coordinator.
             </div>
           </div>
 
-          {/* Centre & Time Slot Selection */}
-          <div className="border-t border-border pt-4">
-            <h4 className="font-medium text-sm sm:text-base text-foreground mb-3">Select Centre & Time Slot</h4>
-            
-            <div className="space-y-2 mb-4">
-              <Label htmlFor="centre" className="text-sm sm:text-base">Centre *</Label>
-              {centres.length === 0 ? (
-                <div className="p-3 bg-yellow-50 border border-yellow-200 rounded text-xs sm:text-sm text-yellow-800">
-                  No active centres available. Please add centres first.
+          {/* Centre & Time Slot Selection - Only for Guest Teacher */}
+          {sessionType === 'guest_teacher' && (
+            <div className="border-t border-border pt-4">
+              <h4 className="font-medium text-sm sm:text-base text-foreground mb-3">Select Centre & Time Slot</h4>
+              
+              <div className="space-y-2 mb-4">
+                <Label htmlFor="centre" className="text-sm sm:text-base">Centre *</Label>
+                {centres.length === 0 ? (
+                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded text-xs sm:text-sm text-yellow-800">
+                    No active centres available. Please add centres first.
+                  </div>
+                ) : (
+                  <Select value={selectedCentre} onValueChange={setSelectedCentre}>
+                    <SelectTrigger className="text-sm sm:text-base">
+                      <SelectValue placeholder="Choose a centre" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {centres.map((centre) => (
+                        <SelectItem key={centre.id} value={centre.id}>
+                          {centre.name} ({centre.location})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+
+              {selectedCentre && centreSlots.length > 0 && (
+                <div className="space-y-2">
+                  <Label htmlFor="slot" className="text-sm sm:text-base">Time Slot *</Label>
+                  <Select value={selectedSlot} onValueChange={setSelectedSlot}>
+                    <SelectTrigger className="text-sm sm:text-base">
+                      <SelectValue placeholder="Choose a time slot" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {centreSlots.map((slot) => (
+                        <SelectItem key={slot.id} value={slot.id}>
+                          {slot.start_time} to {slot.end_time}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              ) : (
-                <Select value={selectedCentre} onValueChange={setSelectedCentre}>
-                  <SelectTrigger className="text-sm sm:text-base">
-                    <SelectValue placeholder="Choose a centre" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {centres.map((centre) => (
-                      <SelectItem key={centre.id} value={centre.id}>
-                        {centre.name} ({centre.location})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              )}
+
+              {selectedCentre && centreSlots.length === 0 && (
+                <div className="p-3 bg-yellow-50 border border-yellow-200 rounded text-xs sm:text-sm text-yellow-800">
+                  No time slots available for this centre.
+                </div>
               )}
             </div>
-
-            {selectedCentre && centreSlots.length > 0 && (
-              <div className="space-y-2">
-                <Label htmlFor="slot" className="text-sm sm:text-base">Time Slot *</Label>
-                <Select value={selectedSlot} onValueChange={setSelectedSlot}>
-                  <SelectTrigger className="text-sm sm:text-base">
-                    <SelectValue placeholder="Choose a time slot" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {centreSlots.map((slot) => (
-                      <SelectItem key={slot.id} value={slot.id}>
-                        {slot.start_time} to {slot.end_time}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {selectedCentre && centreSlots.length === 0 && (
-              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded text-xs sm:text-sm text-yellow-800">
-                No time slots available for this centre.
-              </div>
-            )}
-          </div>
+          )}
 
           {/* Session Template */}
           <div className="border-t border-border pt-4">

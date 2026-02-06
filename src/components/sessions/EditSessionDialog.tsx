@@ -256,6 +256,7 @@ export function EditSessionDialog({
           centre_id: formData.centre_id,
           centre_time_slot_id: formData.centre_time_slot_id,
           session_type_option: formData.session_type_option,
+          status: 'pending',
         })
         .eq('id', formData.id);
 
