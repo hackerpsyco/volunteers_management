@@ -27,6 +27,11 @@ interface Volunteer {
   name: string;
 }
 
+interface Class {
+  id: string;
+  name: string;
+}
+
 interface Session {
   id: string;
   title: string;
@@ -50,6 +55,7 @@ interface Session {
   slot_day?: string;
   slot_start_time?: string;
   slot_end_time?: string;
+  class_batch?: string;
 }
 
 interface CalendarDay {
@@ -62,7 +68,9 @@ export default function Calendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [sessions, setSessions] = useState<Session[]>([]);
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
+  const [classes, setClasses] = useState<Class[]>([]);
   const [selectedVolunteer, setSelectedVolunteer] = useState<string>('all');
+  const [selectedClass, setSelectedClass] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [calendarDays, setCalendarDays] = useState<CalendarDay[]>([]);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
@@ -75,12 +83,13 @@ export default function Calendar() {
 
   useEffect(() => {
     fetchVolunteers();
+    fetchClasses();
     fetchSessions();
   }, []);
 
   useEffect(() => {
     generateCalendar();
-  }, [currentDate, sessions, selectedVolunteer]);
+  }, [currentDate, sessions, selectedVolunteer, selectedClass]);
 
   const fetchVolunteers = async () => {
     try {
@@ -95,6 +104,21 @@ export default function Calendar() {
     } catch (error) {
       console.error('Error fetching volunteers:', error);
       toast.error('Failed to load volunteers');
+    }
+  };
+
+  const fetchClasses = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('classes')
+        .select('id, name')
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setClasses(data || []);
+    } catch (error) {
+      console.error('Error fetching classes:', error);
+      toast.error('Failed to load classes');
     }
   };
 
@@ -143,10 +167,16 @@ export default function Calendar() {
 
     const days: CalendarDay[] = [];
 
-    // Filter sessions based on selected volunteer
-    const filteredSessions = selectedVolunteer === 'all' 
-      ? sessions 
-      : sessions.filter(s => s.facilitator_name === selectedVolunteer);
+    // Filter sessions based on selected volunteer and class
+    let filteredSessions = sessions;
+    
+    if (selectedVolunteer !== 'all') {
+      filteredSessions = filteredSessions.filter(s => s.facilitator_name === selectedVolunteer);
+    }
+    
+    if (selectedClass !== 'all') {
+      filteredSessions = filteredSessions.filter(s => s.class_batch === selectedClass);
+    }
 
     // Previous month days
     const prevMonthLastDay = new Date(year, month, 0).getDate();
@@ -162,7 +192,8 @@ export default function Calendar() {
     // Current month days
     for (let i = 1; i <= daysInMonth; i++) {
       const date = new Date(year, month, i);
-      const dateStr = date.toISOString().split('T')[0];
+      // Format date as YYYY-MM-DD without timezone conversion
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
       const daySessions = filteredSessions.filter(s => s.session_date === dateStr);
       
       days.push({
@@ -300,24 +331,49 @@ export default function Calendar() {
           </Button>
         </div>
 
-        {/* Volunteer Filter */}
-        <div className="bg-card border border-border rounded-lg p-4">
-          <label className="text-sm font-medium text-foreground block mb-2">
-            Filter by Volunters
-          </label>
-          <Select value={selectedVolunteer} onValueChange={setSelectedVolunteer}>
-            <SelectTrigger className="w-full md:w-64">
-              <SelectValue placeholder="Select a Volunters" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Volunters</SelectItem>
-              {volunteers.map((volunteer) => (
-                <SelectItem key={volunteer.id} value={volunteer.name}>
-                  {volunteer.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        {/* Volunteer and Class Filters */}
+        <div className="bg-card border border-border rounded-lg p-4 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Volunteer Filter */}
+            <div>
+              <label className="text-sm font-medium text-foreground block mb-2">
+                Filter by Volunteer
+              </label>
+              <Select value={selectedVolunteer} onValueChange={setSelectedVolunteer}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select a Volunteer" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Volunteers</SelectItem>
+                  {volunteers.map((volunteer) => (
+                    <SelectItem key={volunteer.id} value={volunteer.name}>
+                      {volunteer.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Class Filter */}
+            <div>
+              <label className="text-sm font-medium text-foreground block mb-2">
+                Filter by Class
+              </label>
+              <Select value={selectedClass} onValueChange={setSelectedClass}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select a Class" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Classes</SelectItem>
+                  {classes.map((cls) => (
+                    <SelectItem key={cls.id} value={cls.name}>
+                      {cls.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 gap-6">
@@ -370,7 +426,11 @@ export default function Calendar() {
                     </div>
                     <div className="space-y-1">
                       {(() => {
-                        const dateKey = day.date.toISOString().split('T')[0];
+                        // Format date as YYYY-MM-DD without timezone conversion
+                        const year = day.date.getFullYear();
+                        const month = day.date.getMonth();
+                        const date = day.date.getDate();
+                        const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
                         const isExpanded = expandedDateKey === dateKey;
                         const sessionsToShow = isExpanded ? day.sessions : day.sessions.slice(0, 2);
                         
@@ -439,6 +499,12 @@ export default function Calendar() {
                     <div>
                       <p className="text-xs text-muted-foreground">Topic</p>
                       <p className="font-medium">{selectedSession.topics_covered}</p>
+                    </div>
+                  )}
+                  {selectedSession.class_batch && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Class</p>
+                      <p className="font-medium">{selectedSession.class_batch}</p>
                     </div>
                   )}
                   <div>

@@ -67,6 +67,11 @@ interface Centre {
   location: string;
 }
 
+interface Class {
+  id: string;
+  name: string;
+}
+
 interface CentreTimeSlot {
   id: string;
   centre_id: string;
@@ -95,11 +100,11 @@ export function AddSessionDialog({
   const [facilitators, setFacilitators] = useState<Facilitator[]>([]);
   const [coordinators, setCoordinators] = useState<Coordinator[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
-  const [modules, setModules] = useState<string[]>([]);
+  const [modules, setModules] = useState<Array<{ no: number; name: string }>>([]);
   const [topics, setTopics] = useState<CurriculumItem[]>([]);
   const [centres, setCentres] = useState<Centre[]>([]);
   const [centreSlots, setCentreSlots] = useState<CentreTimeSlot[]>([]);
-  const [classes, setClasses] = useState<string[]>([]);
+  const [classes, setClasses] = useState<Class[]>([]);
   const [selectedVolunteer, setSelectedVolunteer] = useState<string>('');
   const [selectedFacilitator, setSelectedFacilitator] = useState<string>('');
   const [selectedCoordinator, setSelectedCoordinator] = useState<string>('');
@@ -139,27 +144,42 @@ export function AddSessionDialog({
       fetchVolunteers();
       fetchFacilitators();
       fetchCoordinators();
-      fetchCategories();
       fetchClasses();
       fetchCentres();
     }
   }, [open]);
 
-  // Load modules when category changes
+  // Load categories when class changes
   useEffect(() => {
-    if (selectedCategory) {
-      fetchModules(selectedCategory);
+    console.log('useEffect: selectedClass changed to:', selectedClass);
+    if (selectedClass) {
+      console.log('Calling fetchCategories with:', selectedClass);
+      fetchCategories(selectedClass);
+      setSelectedCategory('');
       setSelectedModule('');
       setTopics([]);
     }
-  }, [selectedCategory]);
+  }, [selectedClass]);
+
+  // Load modules when category changes
+  useEffect(() => {
+    console.log('useEffect: selectedCategory changed to:', selectedCategory, 'selectedClass:', selectedClass);
+    if (selectedCategory && selectedClass) {
+      console.log('Calling fetchModules with:', selectedCategory, selectedClass);
+      fetchModules(selectedCategory, selectedClass);
+      setSelectedModule('');
+      setTopics([]);
+    }
+  }, [selectedCategory, selectedClass]);
 
   // Load topics when module changes
   useEffect(() => {
-    if (selectedCategory && selectedModule) {
-      fetchTopics(selectedCategory, selectedModule);
+    console.log('useEffect: selectedModule changed to:', selectedModule, 'selectedCategory:', selectedCategory, 'selectedClass:', selectedClass);
+    if (selectedCategory && selectedModule && selectedClass) {
+      console.log('Calling fetchTopics with:', selectedCategory, selectedModule, selectedClass);
+      fetchTopics(selectedCategory, selectedModule, selectedClass);
     }
-  }, [selectedCategory, selectedModule]);
+  }, [selectedCategory, selectedModule, selectedClass]);
 
   // Load centre slots when centre changes
   useEffect(() => {
@@ -217,15 +237,29 @@ export function AddSessionDialog({
     }
   };
 
-  const fetchCategories = async () => {
+  const fetchCategories = async (classId?: string) => {
     try {
-      const { data, error } = await supabase
+      console.log('fetchCategories called with classId:', classId);
+      // Fetch categories for the selected class
+      let query: any = supabase
         .from('curriculum')
         .select('content_category')
         .not('content_category', 'is', null);
 
-      if (error) throw error;
+      // Filter by class if provided
+      if (classId) {
+        query = query.eq('class_id', classId);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('fetchCategories error:', error);
+        throw error;
+      }
+      console.log('fetchCategories data length:', data?.length);
       const uniqueCategories = [...new Set(data?.map(item => item.content_category) || [])];
+      console.log('uniqueCategories:', uniqueCategories);
       setCategories(uniqueCategories as string[]);
     } catch (error) {
       console.error('Error fetching categories:', error);
@@ -236,45 +270,138 @@ export function AddSessionDialog({
     try {
       const { data, error } = await supabase
         .from('classes')
-        .select('name')
+        .select('id, name')
         .order('name', { ascending: true });
 
       if (error) throw error;
-      const classNames = data?.map(item => item.name) || [];
-      setClasses(classNames);
+      setClasses(data || []);
     } catch (error) {
       console.error('Error fetching classes:', error);
       setClasses([]);
     }
   };
 
-  const fetchModules = async (category: string) => {
+  const fetchModules = async (category: string, classId?: string) => {
     try {
-      const { data, error } = await supabase
+      console.log('fetchModules called with category:', category, 'classId:', classId);
+      // Fetch modules for the selected category and class
+      let query: any = supabase
         .from('curriculum')
         .select('module_name')
         .eq('content_category', category)
         .not('module_name', 'is', null);
 
-      if (error) throw error;
-      const uniqueModules = [...new Set(data?.map(item => item.module_name) || [])];
-      setModules(uniqueModules as string[]);
+      // Filter by class if provided AND class_id is not null in database
+      if (classId) {
+        console.log('Adding class_id filter:', classId);
+        query = query.eq('class_id', classId);
+      }
+
+      let { data, error } = await query;
+
+      if (error) {
+        console.error('fetchModules error:', error);
+        throw error;
+      }
+      
+      console.log('fetchModules data length:', data?.length, 'data:', data);
+      
+      // If no data with class_id filter, try without it (fallback for NULL class_id)
+      if ((!data || data.length === 0) && classId) {
+        console.log('No data with class_id filter, trying without class_id filter...');
+        const fallbackQuery = supabase
+          .from('curriculum')
+          .select('module_no, module_name')
+          .eq('content_category', category)
+          .not('module_name', 'is', null);
+        
+        const { data: fallbackData, error: fallbackError } = await fallbackQuery;
+        if (fallbackError) throw fallbackError;
+        data = fallbackData;
+        console.log('Fallback data length:', data?.length);
+      }
+      
+      // Create unique modules with module_no and module_name
+      const uniqueModulesMap = new Map();
+      data?.forEach((item: any) => {
+        // Extract module number from module_name if module_no is NULL
+        // module_name format: "66. Project: Design A Product - Launch Box"
+        let moduleNo = item.module_no;
+        let moduleName = item.module_name;
+        
+        if (!moduleNo && moduleName) {
+          // Extract number from start of module_name
+          const match = moduleName.match(/^(\d+)\./);
+          if (match) {
+            moduleNo = parseInt(match[1]);
+          }
+        }
+        
+        const key = `${moduleNo}`;
+        if (!uniqueModulesMap.has(key)) {
+          uniqueModulesMap.set(key, { no: moduleNo, name: moduleName });
+        }
+      });
+      const uniqueModules = Array.from(uniqueModulesMap.values()).sort((a, b) => (a.no || 0) - (b.no || 0));
+      console.log('uniqueModules:', uniqueModules);
+      setModules(uniqueModules as any);
     } catch (error) {
       console.error('Error fetching modules:', error);
     }
   };
 
-  const fetchTopics = async (category: string, moduleName: string) => {
+  const fetchTopics = async (category: string, moduleName: string, classId?: string) => {
     try {
-      const { data, error } = await supabase
+      console.log('fetchTopics called with category:', category, 'moduleName:', moduleName, 'classId:', classId);
+      // Fetch topics for the selected category, module_name, and class
+      let query: any = supabase
         .from('curriculum')
         .select('*')
         .eq('content_category', category)
         .eq('module_name', moduleName)
         .order('topics_covered', { ascending: true });
 
-      if (error) throw error;
-      setTopics(data || []);
+      // Filter by class if provided
+      if (classId) {
+        query = query.eq('class_id', classId);
+      }
+
+      let { data, error } = await query;
+
+      if (error) {
+        console.error('fetchTopics error:', error);
+        throw error;
+      }
+      
+      console.log('fetchTopics data length:', data?.length);
+      
+      // If no data with class_id filter, try without it (fallback for NULL class_id)
+      if ((!data || data.length === 0) && classId) {
+        console.log('No topics with class_id filter, trying without class_id filter...');
+        const fallbackQuery = supabase
+          .from('curriculum')
+          .select('*')
+          .eq('content_category', category)
+          .eq('module_name', moduleName)
+          .order('topics_covered', { ascending: true });
+        
+        const { data: fallbackData, error: fallbackError } = await fallbackQuery;
+        if (fallbackError) throw fallbackError;
+        data = fallbackData;
+        console.log('Fallback topics data length:', data?.length);
+      }
+      
+      // Remove duplicates by topics_covered
+      const uniqueTopicsMap = new Map();
+      data?.forEach((item: any) => {
+        if (item.topics_covered && !uniqueTopicsMap.has(item.topics_covered)) {
+          uniqueTopicsMap.set(item.topics_covered, item);
+        }
+      });
+      const uniqueTopics = Array.from(uniqueTopicsMap.values());
+      
+      console.log('fetchTopics unique data:', uniqueTopics);
+      setTopics(uniqueTopics);
     } catch (error) {
       console.error('Error fetching topics:', error);
     }
@@ -437,7 +564,10 @@ export function AddSessionDialog({
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const dateString = e.target.value;
     if (dateString) {
-      setSelectedDate(new Date(dateString));
+      // Parse date string as local date to avoid timezone conversion
+      const [year, month, day] = dateString.split('-').map(Number);
+      const date = new Date(year, month - 1, day);
+      setSelectedDate(date);
     }
   };
 
@@ -577,7 +707,7 @@ Module:      ${formData.module_name}
 Topic:       ${formData.topics_covered}
 Session Type: ${formData.session_type_option === 'fresh' ? '🆕 Fresh Session' : '🔄 Revision Session'}
 
-👥 Volunter ,Facilitator & Coordinator 
+👥 Volunteer, Facilitator & Coordinator 
 
 Volunteer:   ${formData.volunteer_name}
 Facilitator: ${selectedFacilitatorData?.name || 'N/A'}
@@ -587,6 +717,11 @@ Coordinator: ${selectedCoordinatorData?.name || 'N/A'}
 
 ${formData.videos ? `📹 Videos: ${formData.videos}` : ''}
 ${formData.quiz_content_ppt ? `📊 PPT/Quiz: ${formData.quiz_content_ppt}` : ''}
+
+� SEESSION TEMPLATE
+
+Use this template to prepare your session:
+https://docs.google.com/presentation/d/1xd5BC2fBf-OM0bCwiyZJwrkn4WBjfRrGz84HNaO-5Yc/edit?usp=sharing
 
 🔗 MEETING LINK
 
@@ -778,8 +913,30 @@ For any questions, contact the coordinator.
           {/* Content Selection - Only for Guest Teacher */}
           {sessionType === 'guest_teacher' && (
             <div className="border-t border-border pt-4">
-              <h4 className="font-medium text-sm sm:text-base text-foreground mb-3">Select Content & Topic</h4>
+              <h4 className="font-medium text-sm sm:text-base text-foreground mb-3">Select Class & Content</h4>
               
+              {/* Class Selection - FIRST */}
+              <div className="space-y-2 mb-4">
+                <Label htmlFor="class_batch" className="text-sm sm:text-base">Class *</Label>
+                <Select value={selectedClass} onValueChange={(value) => {
+                  setSelectedClass(value);
+                  const classObj = classes.find(c => c.id === value);
+                  setFormData({ ...formData, class_batch: classObj?.name || '' });
+                }}>
+                  <SelectTrigger className="text-sm sm:text-base">
+                    <SelectValue placeholder="Select a class" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {classes.map((cls) => (
+                      <SelectItem key={cls.id} value={cls.id}>
+                        {cls.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {/* Category Selection */}
               <div className="space-y-2 mb-4">
                 <Label htmlFor="category" className="text-sm sm:text-base">Content Category *</Label>
                 <Select value={selectedCategory} onValueChange={handleCategoryChange}>
@@ -796,6 +953,7 @@ For any questions, contact the coordinator.
                 </Select>
               </div>
 
+              {/* Module Selection */}
               {selectedCategory && modules.length > 0 && (
                 <div className="space-y-2 mb-4">
                   <Label htmlFor="module" className="text-sm sm:text-base">Module Name *</Label>
@@ -805,8 +963,8 @@ For any questions, contact the coordinator.
                     </SelectTrigger>
                     <SelectContent>
                       {modules.map((module) => (
-                        <SelectItem key={module} value={module}>
-                          {module}
+                        <SelectItem key={`${module.name}`} value={module.name}>
+                           {module.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -814,6 +972,7 @@ For any questions, contact the coordinator.
                 </div>
               )}
 
+              {/* Topic Selection */}
               {selectedModule && topics.length > 0 && (
                 <div className="space-y-2 mb-4">
                   <Label htmlFor="topic" className="text-sm sm:text-base">Select Topic *</Label>
@@ -854,25 +1013,6 @@ For any questions, contact the coordinator.
           {sessionType === 'guest_teacher' && (
             <div className="border-t border-border pt-4">
               <h4 className="font-medium text-sm sm:text-base text-foreground mb-3">Content Details {selectedTopic && '(Auto-filled)'}</h4>
-              
-              <div className="space-y-2 mb-4">
-                <Label htmlFor="class_batch" className="text-sm sm:text-base">Class *</Label>
-                <Select value={selectedClass} onValueChange={(value) => {
-                  setSelectedClass(value);
-                  setFormData({ ...formData, class_batch: value });
-                }}>
-                  <SelectTrigger className="text-sm sm:text-base">
-                    <SelectValue placeholder="Select a class" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {classes.map((className) => (
-                      <SelectItem key={className} value={className}>
-                        {className}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
               
               <div className="space-y-2 mb-4">
                 <Label htmlFor="session_type_option" className="text-sm sm:text-base">Session Type Option *</Label>

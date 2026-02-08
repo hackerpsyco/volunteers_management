@@ -185,6 +185,11 @@ async function parseExcelSheet(file: File, sheetName: string): Promise<{ headers
   }
 }
 
+interface Class {
+  id: string;
+  name: string;
+}
+
 export function UnifiedImportDialog({
   open,
   onOpenChange,
@@ -195,9 +200,11 @@ export function UnifiedImportDialog({
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [columnMapping, setColumnMapping] = useState<ColumnMapping>({});
   const [isLoading, setIsLoading] = useState(false);
-  const [step, setStep] = useState<'upload' | 'sheet-select' | 'mapping'>('upload');
+  const [step, setStep] = useState<'upload' | 'sheet-select' | 'mapping' | 'class-select'>('upload');
   const [availableSheets, setAvailableSheets] = useState<string[]>([]);
   const [selectedSheet, setSelectedSheet] = useState<string>('');
+  const [classes, setClasses] = useState<Class[]>([]);
+  const [selectedClass, setSelectedClass] = useState<string>('');
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -299,7 +306,38 @@ export function UnifiedImportDialog({
     }));
   };
 
+  const fetchClasses = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('classes')
+        .select('id, name')
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setClasses(data || []);
+    } catch (error) {
+      console.error('Error fetching classes:', error);
+      toast.error('Failed to load classes');
+    }
+  };
+
+  const handleProceedToClassSelect = async () => {
+    if (Object.keys(columnMapping).length === 0) {
+      toast.error('Please map at least one column');
+      return;
+    }
+
+    // Fetch classes before proceeding
+    await fetchClasses();
+    setStep('class-select');
+  };
+
   const handleImport = async () => {
+    if (!selectedClass) {
+      toast.error('Please select a class');
+      return;
+    }
+
     if (Object.keys(columnMapping).length === 0) {
       toast.error('Please map at least one column');
       return;
@@ -311,6 +349,7 @@ export function UnifiedImportDialog({
       console.log('Starting import process...');
       console.log('Total CSV rows:', csvData.length);
       console.log('Column mapping:', columnMapping);
+      console.log('Selected class:', selectedClass);
 
       // Track last seen values for grouped columns
       let lastContentCategory = '';
@@ -318,7 +357,9 @@ export function UnifiedImportDialog({
       let lastModuleName = '';
 
       const transformedData = csvData.map((row, index) => {
-        const newRow: any = {};
+        const newRow: any = {
+          class_id: selectedClass, // Add class_id to every row
+        };
         Object.entries(columnMapping).forEach(([csvCol, dbCol]) => {
           if (dbCol && dbCol !== 'skip') {
             let value: any = row[csvCol];
@@ -374,7 +415,7 @@ export function UnifiedImportDialog({
         return;
       }
 
-      console.log(`Importing ${validData.length} curriculum items...`);
+      console.log(`Importing ${validData.length} curriculum items for class ${selectedClass}...`);
       console.log('Sample data:', validData.slice(0, 3));
 
       const batchSize = 50;
@@ -403,7 +444,7 @@ export function UnifiedImportDialog({
       if (failureCount > 0) {
         toast.error(`Import partially failed: ${successCount} imported, ${failureCount} failed`);
       } else {
-        toast.success(`Successfully imported ${successCount} curriculum items`);
+        toast.success(`Successfully imported ${successCount} curriculum items for selected class`);
       }
 
       handleClose();
@@ -529,6 +570,39 @@ export function UnifiedImportDialog({
           </div>
         )}
 
+        {step === 'class-select' && (
+          <div className="space-y-4 py-4">
+            <div>
+              <h3 className="font-medium mb-3">Select Class for Import</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Choose which class this curriculum content should be assigned to.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="class-select">Class *</Label>
+              <Select value={selectedClass} onValueChange={setSelectedClass}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a class" />
+                </SelectTrigger>
+                <SelectContent>
+                  {classes.map((cls) => (
+                    <SelectItem key={cls.id} value={cls.id}>
+                      {cls.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {selectedClass && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded text-sm text-blue-800">
+                ✓ Ready to import {csvData.length} curriculum items to selected class
+              </div>
+            )}
+          </div>
+        )}
+
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={handleClose}>
             Cancel
@@ -551,7 +625,20 @@ export function UnifiedImportDialog({
               >
                 Back
               </Button>
-              <Button onClick={handleImport} disabled={isLoading}>
+              <Button onClick={handleProceedToClassSelect} disabled={isLoading}>
+                Next: Select Class
+              </Button>
+            </>
+          )}
+          {step === 'class-select' && (
+            <>
+              <Button 
+                variant="outline" 
+                onClick={() => setStep('mapping')}
+              >
+                Back
+              </Button>
+              <Button onClick={handleImport} disabled={isLoading || !selectedClass}>
                 {isLoading ? 'Importing...' : `Import ${csvData.length} Items`}
               </Button>
             </>

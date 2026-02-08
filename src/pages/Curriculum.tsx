@@ -66,6 +66,12 @@ interface CurriculumItem {
   revision_session?: string;
   created_at?: string;
   updated_at?: string;
+  class_id?: string;
+}
+
+interface Class {
+  id: string;
+  name: string;
 }
 
 interface SessionInfo {
@@ -88,40 +94,54 @@ export default function Curriculum() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<CurriculumItem | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedClass, setSelectedClass] = useState<string>('');
   const [categories, setCategories] = useState<string[]>([]);
+  const [classes, setClasses] = useState<Class[]>([]);
   const [sessionInfo, setSessionInfo] = useState<Record<string, SessionInfo>>({});
 
   useEffect(() => {
-    fetchCurriculum();
+    fetchClasses();
   }, []);
 
   useEffect(() => {
-    // Fetch session info for all curriculum items
-    if (curriculum.length > 0) {
-      fetchSessionInfo();
+    // Fetch curriculum and session info when class is selected
+    if (selectedClass) {
+      fetchCurriculum(selectedClass);
+      fetchSessionInfo(selectedClass);
+    } else {
+      setCurriculum([]);
+      setFilteredCurriculum([]);
+      setSessionInfo({});
     }
-  }, [curriculum]);
+  }, [selectedClass]);
 
   useEffect(() => {
     // Filter curriculum based on selected category
-    if (selectedCategory === 'all') {
-      setFilteredCurriculum(curriculum);
-    } else {
-      setFilteredCurriculum(
-        curriculum.filter((item) => item.content_category === selectedCategory)
-      );
+    let filtered = curriculum;
+    
+    if (selectedCategory !== 'all') {
+      filtered = filtered.filter((item) => item.content_category === selectedCategory);
     }
+    
+    setFilteredCurriculum(filtered);
   }, [selectedCategory, curriculum]);
 
-  const fetchCurriculum = async () => {
+  const fetchCurriculum = async (classId?: string) => {
     try {
       setLoading(true);
 
-      const { data, error } = await supabase
+      // Filter by class_id if provided
+      let query: any = supabase
         .from('curriculum')
         .select('*')
         .order('content_category', { ascending: true })
         .order('module_no', { ascending: true });
+
+      if (classId) {
+        query = query.eq('class_id', classId);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error('Fetch error:', error);
@@ -140,6 +160,7 @@ export default function Curriculum() {
         revision_session: item.revision_session || '',
         created_at: item.created_at,
         updated_at: item.updated_at,
+        class_id: (item as any).class_id,
       }));
 
       setCurriculum(formattedData);
@@ -155,13 +176,41 @@ export default function Curriculum() {
     }
   };
 
-  const fetchSessionInfo = async () => {
+  const fetchClasses = async () => {
     try {
-      // Fetch all sessions with their details
-      // @ts-ignore - Supabase type inference issue
+      const { data, error } = await supabase
+        .from('classes')
+        .select('id, name')
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setClasses(data || []);
+    } catch (error) {
+      console.error('Error fetching classes:', error);
+      toast.error('Failed to load classes');
+    }
+  };
+
+  const fetchSessionInfo = async (classId?: string) => {
+    try {
+      // Only fetch if a class is selected
+      if (!classId) {
+        setSessionInfo({});
+        return;
+      }
+
+      // Get the class name from the selected class ID
+      const selectedClassObj = classes.find(c => c.id === classId);
+      if (!selectedClassObj) {
+        setSessionInfo({});
+        return;
+      }
+
+      // Fetch sessions filtered by class_batch (class name)
       const { data: sessions, error } = await supabase
         .from('sessions')
-        .select('id, topics_covered, session_type_option, status, session_date, volunteer_name, content_category');
+        .select('id, topics_covered, session_type_option, status, session_date, volunteer_name, content_category, class_batch')
+        .eq('class_batch', selectedClassObj.name);
 
       if (error) throw error;
 
@@ -279,7 +328,26 @@ export default function Curriculum() {
               </SelectContent>
             </Select>
           </div>
-          {selectedCategory !== 'all' && (
+
+          <div className="w-full sm:w-64">
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              Filter by Class
+            </label>
+            <Select value={selectedClass} onValueChange={setSelectedClass}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select a class" />
+              </SelectTrigger>
+              <SelectContent>
+                {classes.map((cls) => (
+                  <SelectItem key={cls.id} value={cls.id}>
+                    {cls.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {(selectedCategory !== 'all' || selectedClass !== '') && (
             <div className="text-sm text-muted-foreground mt-2 sm:mt-0">
               Showing {filteredCurriculum.length} item{filteredCurriculum.length !== 1 ? 's' : ''}
             </div>
@@ -295,6 +363,12 @@ export default function Curriculum() {
             {loading ? (
               <div className="flex justify-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              </div>
+            ) : !selectedClass ? (
+              <div className="text-center py-12">
+                <p className="text-sm md:text-base text-muted-foreground mb-4">
+                  Please select a class to view curriculum and session information.
+                </p>
               </div>
             ) : curriculum.length === 0 ? (
               <div className="text-center py-12">
