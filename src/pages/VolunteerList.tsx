@@ -80,6 +80,8 @@ interface Volunteer {
 
 export default function VolunteerList() {
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
+  const [filteredVolunteers, setFilteredVolunteers] = useState<Volunteer[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
@@ -103,6 +105,25 @@ export default function VolunteerList() {
   useEffect(() => {
     fetchVolunteers();
   }, []);
+
+  useEffect(() => {
+    // Filter volunteers based on search query
+    if (!searchQuery.trim()) {
+      setFilteredVolunteers(volunteers);
+    } else {
+      const query = searchQuery.toLowerCase();
+      const filtered = volunteers.filter(v =>
+        v.name.toLowerCase().includes(query) ||
+        v.personal_email?.toLowerCase().includes(query) ||
+        v.work_email?.toLowerCase().includes(query) ||
+        v.phone_number?.toLowerCase().includes(query) ||
+        v.organization_name?.toLowerCase().includes(query) ||
+        v.city?.toLowerCase().includes(query) ||
+        v.country?.toLowerCase().includes(query)
+      );
+      setFilteredVolunteers(filtered);
+    }
+  }, [searchQuery, volunteers]);
 
   async function fetchVolunteers() {
     try {
@@ -238,6 +259,12 @@ export default function VolunteerList() {
             </p>
           </div>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+            <Input
+              placeholder="Search by name, email, phone..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full sm:w-64"
+            />
             <Button variant="outline" onClick={() => setBulkUploadOpen(true)} className="w-full sm:w-auto">
               <Upload className="h-4 w-4 mr-2" />
               <span className="hidden sm:inline">Bulk Upload</span>
@@ -278,6 +305,16 @@ export default function VolunteerList() {
                   Add Volunteer
                 </Button>
               </div>
+            ) : filteredVolunteers.length === 0 ? (
+              <div className="text-center py-12">
+                <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-foreground mb-2">
+                  No volunteers found
+                </h3>
+                <p className="text-muted-foreground mb-4">
+                  Try adjusting your search criteria
+                </p>
+              </div>
             ) : (
               <>
                 {/* Desktop Table View */}
@@ -305,7 +342,7 @@ export default function VolunteerList() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {volunteers.map((volunteer) => (
+                      {filteredVolunteers.map((volunteer) => (
                         <TableRow key={volunteer.id}>
                           <TableCell>
                             <Badge variant="outline" className="capitalize">
@@ -420,7 +457,7 @@ export default function VolunteerList() {
 
                 {/* Mobile Card View */}
                 <div className="md:hidden space-y-4">
-                  {volunteers.map((volunteer) => (
+                  {filteredVolunteers.map((volunteer) => (
                     <div key={volunteer.id} className="bg-muted/50 rounded-lg p-4 space-y-3 border border-border">
                       {/* Name and Status */}
                       <div className="flex items-start justify-between gap-2">

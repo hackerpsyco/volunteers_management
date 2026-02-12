@@ -19,6 +19,7 @@ import Centres from "./pages/Centres";
 import Classes from "./pages/Classes";
 import ClassStudents from "./pages/ClassStudents";
 import AddVolunteer from "./pages/AddVolunteer";
+import EditVolunteer from "./pages/EditVolunteer";
 import VolunteerList from "./pages/VolunteerList";
 import Settings from "./pages/Settings";
 import EditProfile from "./pages/EditProfile";
@@ -50,6 +51,7 @@ const App = () => (
             <Route path="/centres" element={<Centres />} />
             <Route path="/classes" element={<Classes />} />
             <Route path="/classes/:classId/students" element={<ClassStudents />} />
+            
             <Route path="/volunteers" element={<VolunteerList />} />
             <Route path="/volunteers/add" element={<AddVolunteer />} />
             <Route path="/settings" element={<Settings />} />
