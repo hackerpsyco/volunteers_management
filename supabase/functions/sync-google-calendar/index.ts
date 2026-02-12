@@ -20,23 +20,39 @@ interface CalendarSyncRequest {
   description?: string;
   startDateTime?: string;
   endDateTime?: string;
+
   volunteerEmail?: string;
   volunteerEmails?: string[];
+
   facilitatorEmail?: string;
   coordinatorEmail?: string;
+
+  classEmail?: string;     // ✅ NEW
+  centreEmail?: string;    // ✅ NEW
+
   googleEventId?: string;
-  volunteerName?: string;
-  facilitatorName?: string;
-  coordinatorName?: string;
-  contentCategory?: string;
-  moduleName?: string;
-  topicsCovered?: string;
-  videos?: string;
-  quizContentPpt?: string;
-  meetingLink?: string;
 }
 
 /* -------------------- HELPERS -------------------- */
+
+// ✅ Safe attendee builder
+function buildAttendees(body: CalendarSyncRequest) {
+  const emails = [
+    ...(body.volunteerEmails || []),
+    body.volunteerEmail,
+    body.facilitatorEmail,
+    body.coordinatorEmail,
+    body.classEmail,      // ✅ NEW
+    body.centreEmail,     // ✅ NEW
+  ];
+
+  return emails
+    .filter(email => email && email.trim())   // ✅ Skip NULL / empty
+    .map(email => ({
+      email,
+      responseStatus: "needsAction",
+    }));
+}
 
 // PEM → DER
 function pemToDer(pem: string): ArrayBuffer {
@@ -44,25 +60,25 @@ function pemToDer(pem: string): ArrayBuffer {
     .replace("-----BEGIN PRIVATE KEY-----", "")
     .replace("-----END PRIVATE KEY-----", "")
     .replace(/\n/g, "");
+
   const binary = atob(clean);
   const bytes = new Uint8Array(binary.length);
+
   for (let i = 0; i < binary.length; i++) {
     bytes[i] = binary.charCodeAt(i);
   }
+
   return bytes.buffer;
 }
 
-// Create JWT
-async function createJWT(
-  serviceAccountEmail: string,
-  privateKey: string
-): Promise<string> {
+// JWT
+async function createJWT(serviceAccountEmail: string, privateKey: string) {
   const header = { alg: "RS256", typ: "JWT" };
   const now = Math.floor(Date.now() / 1000);
 
   const payload = {
     iss: serviceAccountEmail,
-    sub: ORGANIZER_EMAIL, // 🔥 ALWAYS impersonate ONE USER
+    sub: ORGANIZER_EMAIL,
     scope: "https://www.googleapis.com/auth/calendar",
     aud: "https://oauth2.googleapis.com/token",
     exp: now + 3600,
@@ -99,11 +115,7 @@ async function createJWT(
   return `${data}.${sig}`;
 }
 
-// Exchange JWT → Access Token
-async function getAccessToken(
-  serviceAccountEmail: string,
-  privateKey: string
-): Promise<string> {
+async function getAccessToken(serviceAccountEmail: string, privateKey: string) {
   const jwt = await createJWT(serviceAccountEmail, privateKey);
 
   const res = await fetch("https://oauth2.googleapis.com/token", {
@@ -116,18 +128,15 @@ async function getAccessToken(
   });
 
   const data = await res.json();
+
   if (!data.access_token) {
-    throw new Error(`Token error: ${JSON.stringify(data)}`);
+    throw new Error(JSON.stringify(data));
   }
+
   return data.access_token;
 }
 
-// Create calendar event
-async function createCalendarEvent(
-  event: any,
-  serviceAccountEmail: string,
-  privateKey: string
-): Promise<string> {
+async function createCalendarEvent(event: any, serviceAccountEmail: string, privateKey: string) {
   const token = await getAccessToken(serviceAccountEmail, privateKey);
 
   const res = await fetch(
@@ -142,64 +151,10 @@ async function createCalendarEvent(
     }
   );
 
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(err);
-  }
+  if (!res.ok) throw new Error(await res.text());
 
   const data = await res.json();
   return data.id;
-}
-
-// Delete calendar event
-async function deleteCalendarEvent(
-  eventId: string,
-  serviceAccountEmail: string,
-  privateKey: string
-): Promise<void> {
-  const token = await getAccessToken(serviceAccountEmail, privateKey);
-
-  const res = await fetch(
-    `https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}?sendNotifications=true`,
-    {
-      method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    }
-  );
-
-  if (!res.ok && res.status !== 404) {
-    const err = await res.text();
-    throw new Error(err);
-  }
-}
-
-// Update calendar event
-async function updateCalendarEvent(
-  eventId: string,
-  event: any,
-  serviceAccountEmail: string,
-  privateKey: string
-): Promise<void> {
-  const token = await getAccessToken(serviceAccountEmail, privateKey);
-
-  const res = await fetch(
-    `https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}?conferenceDataVersion=1&sendNotifications=true`,
-    {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(event),
-    }
-  );
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(err);
-  }
 }
 
 /* -------------------- SERVER -------------------- */
@@ -209,133 +164,32 @@ serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  if (req.method !== "POST" && req.method !== "DELETE" && req.method !== "PATCH") {
-    return new Response("Method not allowed", { status: 405 });
-  }
-
   try {
     const body: CalendarSyncRequest = await req.json();
 
-    const serviceAccountEmail =
-      Deno.env.get("GOOGLE_SERVICE_ACCOUNT_EMAIL");
-    const privateKey =
-      Deno.env.get("GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY")?.replace(
-        /\\n/g,
-        "\n"
-      );
+    const serviceAccountEmail = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_EMAIL");
+    const privateKey = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY")?.replace(/\\n/g, "\n");
 
     if (!serviceAccountEmail || !privateKey) {
-      throw new Error("Service Account ENV missing");
+      throw new Error("Missing ENV");
     }
 
-    // Handle DELETE request
-    if (req.method === "DELETE") {
-      // Get the Google event ID from the database
-      const supabaseUrl = Deno.env.get("SUPABASE_URL");
-      const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-      
-      if (supabaseUrl && supabaseKey) {
-        const supabase = createClient(supabaseUrl, supabaseKey);
-        const { data: syncData } = await supabase
-          .from("calendar_syncs")
-          .select("google_event_id")
-          .eq("session_id", body.sessionId)
-          .single();
+    const attendees = buildAttendees(body);   // ✅ NEW LOGIC
 
-        if (syncData?.google_event_id) {
-          await deleteCalendarEvent(
-            syncData.google_event_id,
-            serviceAccountEmail,
-            privateKey
-          );
-
-          // Delete from sync table
-          await supabase
-            .from("calendar_syncs")
-            .delete()
-            .eq("session_id", body.sessionId);
-        }
-      }
-
-      return new Response(
-        JSON.stringify({ success: true, message: "Event deleted" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Handle PATCH request (update event)
-    if (req.method === "PATCH") {
-      const supabaseUrl = Deno.env.get("SUPABASE_URL");
-      const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-      
-      if (supabaseUrl && supabaseKey) {
-        const supabase = createClient(supabaseUrl, supabaseKey);
-        const { data: syncData } = await supabase
-          .from("calendar_syncs")
-          .select("google_event_id")
-          .eq("session_id", body.sessionId)
-          .single();
-
-        if (syncData?.google_event_id) {
-          const event = {
-            summary: body.title,
-            description: body.description,
-            start: { dateTime: body.startDateTime, timeZone: "UTC" },
-            end: { dateTime: body.endDateTime, timeZone: "UTC" },
-            attendees: [
-              // Add all volunteer emails (personal and work) as regular attendees
-              ...(body.volunteerEmails && body.volunteerEmails.length > 0
-                ? body.volunteerEmails.map(email => ({ email, responseStatus: "needsAction" }))
-                : body.volunteerEmail ? [{ email: body.volunteerEmail, responseStatus: "needsAction" }] : []),
-              // Add facilitator as attendee (will have co-host access via email)
-              ...(body.facilitatorEmail ? [{ email: body.facilitatorEmail, responseStatus: "needsAction" }] : []),
-              // Add coordinator as attendee (will have co-host access via email)
-              ...(body.coordinatorEmail ? [{ email: body.coordinatorEmail, responseStatus: "needsAction" }] : []),
-            ].filter(attendee => attendee.email && attendee.email.trim()),
-            sendNotifications: true,
-          };
-
-          await updateCalendarEvent(
-            syncData.google_event_id,
-            event,
-            serviceAccountEmail,
-            privateKey
-          );
-        }
-      }
-
-      return new Response(
-        JSON.stringify({ success: true, message: "Event updated" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Handle POST request (create event)
     const event = {
       summary: body.title,
       description: body.description,
       start: { dateTime: body.startDateTime, timeZone: "UTC" },
       end: { dateTime: body.endDateTime, timeZone: "UTC" },
-      attendees: [
-        // Add all volunteer emails (personal and work) as regular attendees
-        ...(body.volunteerEmails && body.volunteerEmails.length > 0
-          ? body.volunteerEmails.map(email => ({ email, responseStatus: "needsAction" }))
-          : body.volunteerEmail ? [{ email: body.volunteerEmail, responseStatus: "needsAction" }] : []),
-        // Add facilitator as attendee (will have co-host access via email)
-        ...(body.facilitatorEmail ? [{ email: body.facilitatorEmail, responseStatus: "needsAction" }] : []),
-        // Add coordinator as attendee (will have co-host access via email)
-        ...(body.coordinatorEmail ? [{ email: body.coordinatorEmail, responseStatus: "needsAction" }] : []),
-      ].filter(attendee => attendee.email && attendee.email.trim()),
+
+      attendees,   // ✅ SAFE
+
       conferenceData: {
         createRequest: {
           requestId: crypto.randomUUID(),
           conferenceSolutionKey: { type: "hangoutsMeet" },
-          conferenceLevelRecordingSettings: {
-            recordingType: "RECORDING_TYPE_UNSPECIFIED",
-          },
         },
       },
-      sendNotifications: true,
     };
 
     const eventId = await createCalendarEvent(
@@ -344,22 +198,11 @@ serve(async (req) => {
       privateKey
     );
 
-    // Optional: save to Supabase
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (supabaseUrl && supabaseKey) {
-      const supabase = createClient(supabaseUrl, supabaseKey);
-      await supabase.from("calendar_syncs").insert({
-        session_id: body.sessionId,
-        google_event_id: eventId,
-        synced_at: new Date().toISOString(),
-      });
-    }
-
     return new Response(
       JSON.stringify({ success: true, eventId }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
+
   } catch (err) {
     return new Response(
       JSON.stringify({ error: String(err) }),

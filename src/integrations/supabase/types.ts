@@ -115,28 +115,32 @@ export type Database = {
       }
       classes: {
         Row: {
-          id: string
-          name: string
-          description: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          name: string
-          description?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          name?: string
-          description?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
+    id: string
+    name: string
+    description: string | null
+    email: string | null        // ✅ ADD THIS
+    created_at: string
+    updated_at: string
+  }
+  Insert: {
+    id?: string
+    name: string
+    description?: string | null
+    email?: string | null       // ✅ ADD THIS
+    created_at?: string
+    updated_at?: string
+  }
+  Update: {
+    id?: string
+    name?: string
+    description?: string | null
+    email?: string | null       // ✅ ADD THIS
+    created_at?: string
+    updated_at?: string
+  }
+  Relationships: []
+}
+
       centre_time_slots: {
         Row: {
           id: string
@@ -482,7 +486,7 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "sessions"
             referencedColumns: ["id"]
-          }
+          },
           {
             foreignKeyName: "session_hours_tracker_volunteer_id_fkey"
             columns: ["volunteer_id"]

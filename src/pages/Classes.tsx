@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, MoreVertical, BookOpen, Users, Upload } from 'lucide-react';
+import { Plus, Trash2, MoreVertical, BookOpen, Users, Upload, Pencil } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
 import {
   Table,
   TableBody,
@@ -12,12 +14,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,27 +32,37 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+
 import { AddClassDialog } from '@/components/classes/AddClassDialog';
+import { EditClassDialog } from '@/components/classes/EditClassDialog';
 import { BulkStudentImportDialog } from '@/components/classes/BulkStudentImportDialog';
 
 interface Class {
   id: string;
   name: string;
   description: string | null;
+  email: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export default function Classes() {
   const navigate = useNavigate();
+
   const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
+
   const [isAddClassOpen, setIsAddClassOpen] = useState(false);
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
+
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [classToDelete, setClassToDelete] = useState<Class | null>(null);
+
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [classToEdit, setClassToEdit] = useState<Class | null>(null);
 
   useEffect(() => {
     fetchClasses();
@@ -57,15 +71,17 @@ export default function Classes() {
   const fetchClasses = async () => {
     try {
       setLoading(true);
+
       const { data, error } = await supabase
         .from('classes')
-        .select('*')
+        .select('id, name, description, email, created_at, updated_at')
         .order('name', { ascending: true });
 
       if (error) throw error;
+
       setClasses(data || []);
     } catch (error) {
-      console.error('Error fetching classes:', error);
+      console.error(error);
       toast.error('Failed to load classes');
     } finally {
       setLoading(false);
@@ -74,18 +90,17 @@ export default function Classes() {
 
   const handleDelete = async (id: string) => {
     try {
-      const { error } = await supabase
-        .from('classes')
-        .delete()
-        .eq('id', id);
+      const { error } = await supabase.from('classes').delete().eq('id', id);
 
       if (error) throw error;
-      toast.success('Class deleted successfully');
+
+      toast.success('Class deleted');
       setClasses(classes.filter((c) => c.id !== id));
+
       setDeleteDialogOpen(false);
       setClassToDelete(null);
     } catch (error) {
-      console.error('Error deleting class:', error);
+      console.error(error);
       toast.error('Failed to delete class');
     }
   };
@@ -97,192 +112,175 @@ export default function Classes() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
+
         {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="min-w-0">
-            <h1 className="text-2xl md:text-3xl font-bold text-foreground">Classes</h1>
-            <p className="text-sm md:text-base text-muted-foreground mt-1">
+        <div className="flex flex-col sm:flex-row justify-between gap-4">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold">Classes</h1>
+            <p className="text-muted-foreground">
               Manage classes and students
             </p>
           </div>
-          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+
+          <div className="flex gap-2">
             <Button
               variant="outline"
               onClick={() => setIsBulkImportOpen(true)}
-              className="w-full sm:w-auto gap-2"
+              className="gap-2"
             >
               <Upload className="h-4 w-4" />
-              <span className="hidden sm:inline">Import Students</span>
-              <span className="sm:hidden">Import</span>
+              Import Students
             </Button>
+
             <Button
               onClick={() => setIsAddClassOpen(true)}
-              className="w-full sm:w-auto gap-2"
+              className="gap-2"
             >
               <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Add Class</span>
-              <span className="sm:hidden">Add</span>
+              Add Class
             </Button>
           </div>
         </div>
 
-        {/* Classes Table */}
-        <Card className="shadow-sm">
+        {/* Table */}
+        <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex gap-2">
               <BookOpen className="h-5 w-5 text-primary" />
               All Classes
             </CardTitle>
           </CardHeader>
+
           <CardContent>
             {loading ? (
-              <div className="flex justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              <div className="flex justify-center py-10">
+                <div className="animate-spin h-8 w-8 border-b-2 border-primary rounded-full" />
               </div>
             ) : classes.length === 0 ? (
-              <div className="text-center py-12">
-                <BookOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-foreground mb-2">
-                  No classes yet
-                </h3>
-                <p className="text-muted-foreground mb-4">
-                  Get started by adding your first class
-                </p>
-                <Button onClick={() => setIsAddClassOpen(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Class
-                </Button>
+              <div className="text-center py-10">
+                <p className="text-muted-foreground">No classes yet</p>
               </div>
             ) : (
-              <>
-                {/* Desktop Table View */}
-                <div className="hidden md:block overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Class Name</TableHead>
-                        <TableHead>Created</TableHead>
-                        <TableHead className="w-[60px]">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {classes.map((classItem) => (
-                        <TableRow key={classItem.id}>
-                          <TableCell className="font-medium">{classItem.name}</TableCell>
-                          <TableCell className="text-sm">
-                            {new Date(classItem.created_at).toLocaleDateString()}
-                          </TableCell>
-                          <TableCell>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                  <MoreVertical className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="bg-popover">
-                                <DropdownMenuItem
-                                  onClick={() => handleViewStudents(classItem)}
-                                >
-                                  <Users className="h-4 w-4 mr-2" />
-                                  Students
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() => {
-                                    setClassToDelete(classItem);
-                                    setDeleteDialogOpen(true);
-                                  }}
-                                  className="text-destructive focus:text-destructive"
-                                >
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  Delete
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Class Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead className="w-[60px]">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
 
-                {/* Mobile Card View */}
-                <div className="md:hidden space-y-4">
+                <TableBody>
                   {classes.map((classItem) => (
-                    <div key={classItem.id} className="bg-muted/50 rounded-lg p-4 space-y-3 border border-border">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <h3 className="font-semibold text-foreground break-words">{classItem.name}</h3>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Created: {new Date(classItem.created_at).toLocaleDateString()}
-                          </p>
-                        </div>
-                      </div>
+                    <TableRow key={classItem.id}>
+                      <TableCell className="font-medium">
+                        {classItem.name}
+                      </TableCell>
 
-                      <div className="flex gap-2 pt-2 border-t border-border">
-                        <Button
-                          size="sm"
-                          onClick={() => handleViewStudents(classItem)}
-                          className="flex-1"
-                        >
-                          <Users className="h-4 w-4 mr-1" />
-                          Students
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => {
-                            setClassToDelete(classItem);
-                            setDeleteDialogOpen(true);
-                          }}
-                          className="flex-1"
-                        >
-                          <Trash2 className="h-4 w-4 mr-1" />
-                          Delete
-                        </Button>
-                      </div>
-                    </div>
+                      <TableCell>
+                        {classItem.email || '-'}
+                      </TableCell>
+
+                      <TableCell>
+                        {new Date(classItem.created_at).toLocaleDateString()}
+                      </TableCell>
+
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+
+                          <DropdownMenuContent align="end">
+
+                            {/* EDIT */}
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setClassToEdit(classItem);
+                                setEditDialogOpen(true);
+                              }}
+                            >
+                              <Pencil className="h-4 w-4 mr-2" />
+                              Edit
+                            </DropdownMenuItem>
+
+                            {/* STUDENTS */}
+                            <DropdownMenuItem
+                              onClick={() => handleViewStudents(classItem)}
+                            >
+                              <Users className="h-4 w-4 mr-2" />
+                              Students
+                            </DropdownMenuItem>
+
+                            {/* DELETE */}
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setClassToDelete(classItem);
+                                setDeleteDialogOpen(true);
+                              }}
+                              className="text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </div>
-              </>
+                </TableBody>
+              </Table>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Add Class Dialog */}
+      {/* Dialogs */}
+
       <AddClassDialog
         open={isAddClassOpen}
         onOpenChange={setIsAddClassOpen}
         onSuccess={fetchClasses}
       />
 
-      {/* Bulk Import Students Dialog */}
+      <EditClassDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        onSuccess={fetchClasses}
+        classData={classToEdit}
+      />
+
       <BulkStudentImportDialog
         open={isBulkImportOpen}
         onOpenChange={setIsBulkImportOpen}
         onSuccess={fetchClasses}
       />
 
-      {/* Delete Confirmation Dialog */}
+      {/* Delete Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Class</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{classToDelete?.name}"? This will also delete all students in this class. This action cannot be undone.
+              Are you sure you want to delete "{classToDelete?.name}"?
             </AlertDialogDescription>
           </AlertDialogHeader>
+
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => classToDelete && handleDelete(classToDelete.id)}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
     </DashboardLayout>
   );
 }

@@ -65,11 +65,13 @@ interface Centre {
   id: string;
   name: string;
   location: string;
+  email: string | null;     // ✅ ADDED
 }
 
 interface Class {
   id: string;
   name: string;
+  email: string | null;     // ✅ ADDED
 }
 
 interface CentreTimeSlot {
@@ -270,7 +272,7 @@ export function AddSessionDialog({
     try {
       const { data, error } = await supabase
         .from('classes')
-        .select('id, name')
+        .select('id, name,email')
         .order('name', { ascending: true });
 
       if (error) throw error;
@@ -435,7 +437,7 @@ export function AddSessionDialog({
     try {
       const { data, error } = await supabase
         .from('centres')
-        .select('id, name, location')
+        .select('id, name, location,email')
         .eq('status', 'active')
         .order('name', { ascending: true });
 
@@ -643,6 +645,8 @@ export function AddSessionDialog({
     const selectedVolunteerData = volunteers.find(v => v.id === selectedVolunteer);
     const selectedFacilitatorData = facilitators.find(f => f.id === selectedFacilitator);
     const selectedCoordinatorData = coordinators.find(c => c.id === selectedCoordinator);
+      const selectedClassData = classes.find(c => c.id === selectedClass);     // ✅ NEW
+    const selectedCentreData = centres.find(c => c.id === selectedCentre);   // ✅ NEW
 
     // Generate meeting link
     const meetingLink = `https://meet.google.com/${selectedDate.getTime()}-${selectedVolunteer}`;
@@ -739,6 +743,8 @@ For any questions, contact the coordinator.
             volunteerName: selectedVolunteerData?.name || '',
             facilitatorEmail: selectedFacilitatorData?.email || '',
             facilitatorName: selectedFacilitatorData?.name || '',
+             classEmail: selectedClassData?.email,     // ✅ NEW
+        centreEmail: selectedCentreData?.email,   // ✅ NEW
             coordinatorEmail: selectedCoordinatorData?.email || '',
             coordinatorName: selectedCoordinatorData?.name || '',
             meetingLink: meetingLink,

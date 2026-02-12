@@ -3,7 +3,7 @@ import { Plus } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
+ DialogHeader,
   DialogTitle,
   DialogDescription,
   DialogFooter,
@@ -38,6 +38,7 @@ const PREDEFINED_CLASSES = [
 export function AddClassDialog({ open, onOpenChange, onSuccess }: AddClassDialogProps) {
   const [selectedClass, setSelectedClass] = useState<string>('');
   const [customClass, setCustomClass] = useState('');
+  const [email, setEmail] = useState('');
   const [isManual, setIsManual] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -49,25 +50,36 @@ export function AddClassDialog({ open, onOpenChange, onSuccess }: AddClassDialog
       return;
     }
 
+    if (!email.trim()) {
+      toast.error('Please enter an email');
+      return;
+    }
+
     try {
       setSaving(true);
+
       const { error } = await supabase.from('classes').insert([
         {
           name: className,
           description: className,
+          email: email.trim(), // ✅ Added email
         },
       ]);
 
       if (error) throw error;
 
       toast.success('Class added successfully');
+
       setSelectedClass('');
       setCustomClass('');
+      setEmail('');
       setIsManual(false);
+
       onOpenChange(false);
       onSuccess();
     } catch (error: any) {
       console.error('Error adding class:', error);
+
       if (error.code === '23505') {
         toast.error('This class already exists');
       } else {
@@ -81,6 +93,7 @@ export function AddClassDialog({ open, onOpenChange, onSuccess }: AddClassDialog
   const handleClose = () => {
     setSelectedClass('');
     setCustomClass('');
+    setEmail('');
     setIsManual(false);
     onOpenChange(false);
   };
@@ -99,7 +112,7 @@ export function AddClassDialog({ open, onOpenChange, onSuccess }: AddClassDialog
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Toggle between predefined and manual */}
+          {/* Toggle */}
           <div className="flex gap-2">
             <Button
               variant={!isManual ? 'default' : 'outline'}
@@ -117,7 +130,7 @@ export function AddClassDialog({ open, onOpenChange, onSuccess }: AddClassDialog
             </Button>
           </div>
 
-          {/* Predefined Classes */}
+          {/* Predefined */}
           {!isManual && (
             <div>
               <Label htmlFor="class-select" className="text-sm">
@@ -138,7 +151,7 @@ export function AddClassDialog({ open, onOpenChange, onSuccess }: AddClassDialog
             </div>
           )}
 
-          {/* Manual Entry */}
+          {/* Manual */}
           {isManual && (
             <div>
               <Label htmlFor="class-name" className="text-sm">
@@ -153,6 +166,21 @@ export function AddClassDialog({ open, onOpenChange, onSuccess }: AddClassDialog
               />
             </div>
           )}
+
+          {/* ✅ Email Field */}
+          <div>
+            <Label htmlFor="email" className="text-sm">
+              Email
+            </Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="Enter email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="mt-2"
+            />
+          </div>
         </div>
 
         <DialogFooter>
@@ -161,7 +189,12 @@ export function AddClassDialog({ open, onOpenChange, onSuccess }: AddClassDialog
           </Button>
           <Button
             onClick={handleAdd}
-            disabled={saving || (!isManual && !selectedClass) || (isManual && !customClass.trim())}
+            disabled={
+              saving ||
+              (!isManual && !selectedClass) ||
+              (isManual && !customClass.trim()) ||
+              !email.trim()
+            }
           >
             {saving ? 'Adding...' : 'Add Class'}
           </Button>
