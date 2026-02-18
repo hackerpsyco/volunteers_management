@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Trash2, Upload, MoreVertical } from 'lucide-react';
+import { Trash2, Upload, MoreVertical, Plus } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -38,6 +38,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { UnifiedImportDialog } from '@/components/sessions/UnifiedImportDialog';
 import { EditCurriculumDialog } from '@/components/curriculum/EditCurriculumDialog';
+import { AddTopicDialog } from '@/components/curriculum/AddTopicDialog';
 import { Badge } from '@/components/ui/badge';
 
 interface RawCurriculumData {
@@ -90,6 +91,7 @@ export default function Curriculum() {
   const [filteredCurriculum, setFilteredCurriculum] = useState<CurriculumItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isAddTopicOpen, setIsAddTopicOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<CurriculumItem | null>(null);
@@ -298,14 +300,24 @@ export default function Curriculum() {
               Manage curriculum content
             </p>
           </div>
-          <Button
-            onClick={() => setIsImportOpen(true)}
-            variant="outline"
-            className="gap-2 w-full sm:w-auto"
-          >
-            <Upload className="h-4 w-4" />
-            Import Curriculum
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            <Button
+              onClick={() => setIsAddTopicOpen(true)}
+              variant="outline"
+              className="gap-2 w-full sm:w-auto"
+            >
+              <Plus className="h-4 w-4" />
+              Add Topic
+            </Button>
+            <Button
+              onClick={() => setIsImportOpen(true)}
+              variant="outline"
+              className="gap-2 w-full sm:w-auto"
+            >
+              <Upload className="h-4 w-4" />
+              Import Curriculum
+            </Button>
+          </div>
         </div>
 
         {/* Filter Section */}
@@ -752,6 +764,13 @@ export default function Curriculum() {
       <UnifiedImportDialog
         open={isImportOpen}
         onOpenChange={setIsImportOpen}
+        onSuccess={fetchCurriculum}
+      />
+
+      {/* Add Topic Dialog */}
+      <AddTopicDialog
+        open={isAddTopicOpen}
+        onOpenChange={setIsAddTopicOpen}
         onSuccess={fetchCurriculum}
       />
 
