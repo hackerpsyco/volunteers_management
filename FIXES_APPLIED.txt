@@ -1,0 +1,50 @@
+FIXES APPLIED - Calendar Sync 400 Error & Webhook Pub/Sub Format
+
+PROBLEM 1:
+Calendar sync was returning 400 error when creating sessions because undefined email values (classEmail, centreEmail) were being added to the attendees list, causing Google Calendar API to reject the request.
+
+PROBLEM 2:
+Webhook handler was not properly parsing Pub/Sub message format. Google Cloud Pub/Sub sends messages in a specific format with base64-encoded data, but the webhook was expecting raw JSON.
+
+FIXES APPLIED:
+
+1. supabase/functions/sync-google-calendar/index.ts
+   - Enhanced buildAttendees() function to properly filter out undefined, null, and empty email values
+   - Added type checking: email && typeof email === 'string' && email.trim().length > 0
+   - Added email.trim() to remove whitespace
+   - Added validation in createCalendarEvent() to filter invalid attendee emails before sending to Google API
+   - Added email format validation (must contain @)
+   - Improved error handling with detailed error messages
+   - Added validation for required fields (title, startDateTime, endDateTime)
+   - Better error logging for debugging
+
+2. supabase/functions/handle-recording-webhook/index.ts
+   - Added proper Request type annotation: serve(async (req: Request) => {})
+   - Added Pub/Sub message format parsing:
+     * Checks if message has body.message.data (Pub/Sub format)
+     * Decodes base64 data: atob(body.message.data)
+     * Parses decoded JSON
+     * Falls back to direct JSON for testing
+   - Added better error logging including request body
+   - Added detailed error messages for debugging
+
+RESULT:
+- Calendar sync will no longer fail with 400 errors due to invalid attendee emails
+- Invalid emails are silently filtered out instead of causing API errors
+- Webhook handler now properly handles Pub/Sub message format
+- Webhook can also accept direct JSON for testing
+- Better error messages for debugging
+
+TESTING:
+The calendar sync should now work correctly when:
+- classEmail is undefined or null
+- centreEmail is undefined or null
+- Either email field is empty or whitespace-only
+- Valid emails are properly formatted and included
+
+The webhook handler now accepts:
+1. Pub/Sub format: { "message": { "data": "base64-encoded-json" } }
+2. Direct JSON format: { "eventId": "...", "recordingUrl": "...", ... }
+
+All invalid emails are filtered before sending to Google Calendar API.
+

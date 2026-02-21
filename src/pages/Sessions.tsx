@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Upload, MoreVertical, GraduationCap, FileText, Edit } from 'lucide-react';
+import { Plus, Trash2, Upload, MoreVertical, GraduationCap, FileText, Edit, Film } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -49,6 +49,7 @@ import { toast } from 'sonner';
 import { SessionTypeDialog } from '@/components/sessions/SessionTypeDialog';
 import { AddSessionDialog } from '@/components/sessions/AddSessionDialog';
 import { UnifiedImportDialog } from '@/components/sessions/UnifiedImportDialog';
+import { UpdateRecordingDialog } from '@/components/sessions/UpdateRecordingDialog';
 
 interface Session {
   id: string;
@@ -74,6 +75,12 @@ interface Session {
   slot_day?: string | null;
   slot_start_time?: string | null;
   slot_end_time?: string | null;
+  recording_url?: string | null;
+  recording_status?: string | null;
+  recording_duration?: number | null;
+  recording_size?: string | null;
+  recording_created_at?: string | null;
+  google_event_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -87,6 +94,7 @@ export default function Sessions() {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const [updateRecordingDialogOpen, setUpdateRecordingDialogOpen] = useState(false);
   const [selectedSessionType, setSelectedSessionType] = useState<'guest_teacher' | 'guest_speaker' | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
@@ -428,6 +436,7 @@ export default function Sessions() {
                         <TableHead>Date</TableHead>
                         <TableHead>Type</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead>Recording</TableHead>
                         <TableHead>Meeting Link</TableHead>
                         <TableHead className="w-[60px]">Actions</TableHead>
                       </TableRow>
@@ -466,6 +475,34 @@ export default function Sessions() {
                             </Badge>
                           </TableCell>
                           <TableCell>
+                            {session.recording_status === 'available' ? (
+                              <div className="space-y-1">
+                                <a
+                                  href={session.recording_url || '#'}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-primary hover:underline text-sm font-medium block"
+                                >
+                                  📹 View Recording
+                                </a>
+                                <div className="text-xs text-muted-foreground">
+                                  {session.recording_duration && `${Math.floor(session.recording_duration / 60)}m`}
+                                  {session.recording_size && ` • ${session.recording_size}`}
+                                </div>
+                              </div>
+                            ) : session.recording_status === 'pending' ? (
+                              <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+                                ⏳ Processing
+                              </Badge>
+                            ) : session.recording_status === 'failed' ? (
+                              <Badge variant="secondary" className="bg-red-100 text-red-800">
+                                ❌ Failed
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground text-sm">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
                             {session.meeting_link ? (
                               <a
                                 href={session.meeting_link}
@@ -493,6 +530,15 @@ export default function Sessions() {
                                 >
                                   <Edit className="h-4 w-4 mr-2" />
                                   Edit Status
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  onClick={() => {
+                                    setSelectedSession(session);
+                                    setUpdateRecordingDialogOpen(true);
+                                  }}
+                                >
+                                  <Film className="h-4 w-4 mr-2" />
+                                  Update Recording
                                 </DropdownMenuItem>
                                 <DropdownMenuItem 
                                   onClick={() => navigate(`/sessions/${session.id}/recording`)}
@@ -625,6 +671,37 @@ export default function Sessions() {
                         </Badge>
                       </div>
 
+                      {/* Recording Status */}
+                      {session.recording_status && (
+                        <div className="text-xs">
+                          <span className="text-muted-foreground block">Recording</span>
+                          {session.recording_status === 'available' ? (
+                            <div className="space-y-1 mt-1">
+                              <a
+                                href={session.recording_url || '#'}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary hover:underline font-medium text-sm block"
+                              >
+                                📹 View Recording
+                              </a>
+                              <div className="text-xs text-muted-foreground">
+                                {session.recording_duration && `${Math.floor(session.recording_duration / 60)}m`}
+                                {session.recording_size && ` • ${session.recording_size}`}
+                              </div>
+                            </div>
+                          ) : session.recording_status === 'pending' ? (
+                            <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 mt-1">
+                              ⏳ Processing
+                            </Badge>
+                          ) : session.recording_status === 'failed' ? (
+                            <Badge variant="secondary" className="bg-red-100 text-red-800 mt-1">
+                              ❌ Failed
+                            </Badge>
+                          ) : null}
+                        </div>
+                      )}
+
                       {/* Actions */}
                       <div className="flex gap-2 pt-2 border-t border-border">
                         <Button 
@@ -635,6 +712,18 @@ export default function Sessions() {
                         >
                           <Edit className="h-4 w-4 mr-1" />
                           Status
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => {
+                            setSelectedSession(session);
+                            setUpdateRecordingDialogOpen(true);
+                          }}
+                          className="flex-1"
+                        >
+                          <Film className="h-4 w-4 mr-1" />
+                          Recording
                         </Button>
                         <Button 
                           size="sm" 
@@ -749,6 +838,17 @@ export default function Sessions() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Update Recording Dialog */}
+      <UpdateRecordingDialog
+        open={updateRecordingDialogOpen}
+        onOpenChange={setUpdateRecordingDialogOpen}
+        sessionId={selectedSession?.id || ''}
+        sessionTitle={selectedSession?.topics_covered || ''}
+        currentRecordingUrl={selectedSession?.recording_url}
+        currentRecordingStatus={selectedSession?.recording_status}
+        onSuccess={fetchSessions}
+      />
     </DashboardLayout>
   );
 }

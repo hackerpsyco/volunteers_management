@@ -754,6 +754,8 @@ For any questions, contact the coordinator.
           try {
             const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
             
+            console.log('Attempting calendar sync with eventId:', calendarEventData.sessionId);
+            
             const response = await fetch(`${supabaseUrl}/functions/v1/sync-google-calendar`, {
               method: 'POST',
               headers: {
@@ -766,9 +768,28 @@ For any questions, contact the coordinator.
             if (!response.ok) {
               const errorData = await response.json();
               console.warn('Calendar sync error:', errorData);
+              toast({
+                title: 'Warning',
+                description: 'Session created but calendar sync failed. Recording webhook may not work.',
+                variant: 'destructive',
+              });
             } else {
               const result = await response.json();
               console.log('Calendar sync result:', result);
+              
+              // Store google_event_id in session for recording webhook matching
+              if (result.eventId && sessionId) {
+                const { error: updateError } = await supabase
+                  .from('sessions')
+                  .update({ google_event_id: result.eventId })
+                  .eq('id', sessionId);
+                
+                if (updateError) {
+                  console.error('Error storing google_event_id:', updateError);
+                } else {
+                  console.log('Successfully stored google_event_id:', result.eventId);
+                }
+              }
             }
           } catch (calendarError) {
             console.warn('Calendar sync not available:', calendarError);

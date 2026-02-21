@@ -47,9 +47,9 @@ function buildAttendees(body: CalendarSyncRequest) {
   ];
 
   return emails
-    .filter(email => email && email.trim())   // ✅ Skip NULL / empty
+    .filter(email => email && typeof email === 'string' && email.trim().length > 0)   // ✅ Skip NULL / empty / undefined
     .map(email => ({
-      email,
+      email: email.trim(),
       responseStatus: "needsAction",
     }));
 }
@@ -139,6 +139,17 @@ async function getAccessToken(serviceAccountEmail: string, privateKey: string) {
 async function createCalendarEvent(event: any, serviceAccountEmail: string, privateKey: string) {
   const token = await getAccessToken(serviceAccountEmail, privateKey);
 
+  // Validate attendees before sending
+  if (event.attendees && Array.isArray(event.attendees)) {
+    event.attendees = event.attendees.filter((attendee: any) => {
+      const isValid = attendee.email && typeof attendee.email === 'string' && attendee.email.includes('@');
+      if (!isValid) {
+        console.warn(`Skipping invalid attendee email: ${attendee.email}`);
+      }
+      return isValid;
+    });
+  }
+
   const res = await fetch(
     "https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendNotifications=true",
     {
@@ -151,7 +162,11 @@ async function createCalendarEvent(event: any, serviceAccountEmail: string, priv
     }
   );
 
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.error(`Calendar API error (${res.status}):`, errorText);
+    throw new Error(`Calendar API error: ${res.status} - ${errorText}`);
+  }
 
   const data = await res.json();
   return data.id;
@@ -171,7 +186,20 @@ serve(async (req) => {
     const privateKey = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY")?.replace(/\\n/g, "\n");
 
     if (!serviceAccountEmail || !privateKey) {
-      throw new Error("Missing ENV");
+      console.error("Missing required environment variables");
+      return new Response(
+        JSON.stringify({ error: "Missing GOOGLE_SERVICE_ACCOUNT_EMAIL or GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Validate required fields
+    if (!body.title || !body.startDateTime || !body.endDateTime) {
+      console.error("Missing required fields:", { title: body.title, startDateTime: body.startDateTime, endDateTime: body.endDateTime });
+      return new Response(
+        JSON.stringify({ error: "Missing required fields: title, startDateTime, endDateTime" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const attendees = buildAttendees(body);   // ✅ NEW LOGIC
@@ -198,15 +226,20 @@ serve(async (req) => {
       privateKey
     );
 
+    console.log(`Successfully created calendar event: ${eventId}`);
+
     return new Response(
       JSON.stringify({ success: true, eventId }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
   } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    console.error("Calendar sync error:", errorMessage);
+    
     return new Response(
-      JSON.stringify({ error: String(err) }),
-      { status: 500, headers: corsHeaders }
+      JSON.stringify({ error: errorMessage }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
