@@ -107,6 +107,39 @@ export default function Sessions() {
 
   useEffect(() => {
     fetchSessions();
+    
+    // Subscribe to real-time updates on sessions table using the new API
+    const subscription = supabase
+      .channel('sessions-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'sessions',
+        },
+        (payload) => {
+          // Update the specific session in state with new data
+          setSessions(prev => 
+            prev.map(s => s.id === payload.new.id ? {
+              ...s,
+              ...payload.new,
+              // Preserve transformed fields if they exist
+              coordinator_name: s.coordinator_name,
+              centre_name: s.centre_name,
+              centre_location: s.centre_location,
+              slot_day: s.slot_day,
+              slot_start_time: s.slot_start_time,
+              slot_end_time: s.slot_end_time,
+            } : s)
+          );
+        }
+      )
+      .subscribe();
+    
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const fetchSessions = async () => {

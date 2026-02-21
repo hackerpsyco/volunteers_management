@@ -228,6 +228,44 @@ serve(async (req) => {
 
     console.log(`Successfully created calendar event: ${eventId}`);
 
+    // ✅ UPDATE SESSION WITH GOOGLE EVENT ID
+    if (body.sessionId) {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL");
+      const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+      if (!supabaseUrl || !supabaseServiceRoleKey) {
+        console.error("Missing Supabase environment variables");
+        return new Response(
+          JSON.stringify({ 
+            error: "Server configuration error",
+            warning: "Calendar event created but couldn't update session with eventId"
+          }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+
+      const { error: updateError } = await supabase
+        .from("sessions")
+        .update({ google_event_id: eventId })
+        .eq("id", body.sessionId);
+
+      if (updateError) {
+        console.error("Error updating session with google_event_id:", updateError);
+        return new Response(
+          JSON.stringify({ 
+            error: "Failed to update session with eventId",
+            details: updateError.message,
+            warning: "Calendar event created but couldn't link to session"
+          }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      console.log(`Successfully updated session ${body.sessionId} with google_event_id: ${eventId}`);
+    }
+
     return new Response(
       JSON.stringify({ success: true, eventId }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
