@@ -496,6 +496,69 @@ export type Database = {
           }
         ]
       }
+      student_task_feedback: {
+        Row: {
+          id: string
+          session_id: string
+          student_id: string
+          feedback_type: string
+          task_name: string
+          task_description: string | null
+          deadline: string | null
+          submission_link: string | null
+          feedback_notes: string | null
+          status: string
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          session_id: string
+          student_id: string
+          feedback_type: string
+          task_name: string
+          task_description?: string | null
+          deadline?: string | null
+          submission_link?: string | null
+          feedback_notes?: string | null
+          status?: string
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          session_id?: string
+          student_id?: string
+          feedback_type?: string
+          task_name?: string
+          task_description?: string | null
+          deadline?: string | null
+          submission_link?: string | null
+          feedback_notes?: string | null
+          status?: string
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_task_feedback_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_task_feedback_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       roles: {
         Row: {
           id: number

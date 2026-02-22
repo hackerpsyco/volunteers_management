@@ -8,10 +8,14 @@ const corsHeaders = {
 };
 
 interface EmailData {
-  from: string;
+  from?: string;
+  sender_email?: string;
+  from_email?: string;
   subject: string;
-  body: string;
+  body?: string;
+  plain_text_body?: string;
   html?: string;
+  html_body?: string;
   messageId?: string;
 }
 
@@ -71,23 +75,32 @@ serve(async (req: Request) => {
   try {
     const emailData: EmailData = await req.json();
 
+    // Normalize field names (Zapier uses different field names)
+    const from = emailData.from || emailData.sender_email || emailData.from_email || "";
+    const subject = emailData.subject || "";
+    const body = emailData.body || emailData.plain_text_body || "";
+    const html = emailData.html || emailData.html_body;
+
     console.log("Email received:", {
-      from: emailData.from,
-      subject: emailData.subject,
-      hasHtml: !!emailData.html,
+      from,
+      subject,
+      hasHtml: !!html,
     });
 
-    // Verify it's from Google
-    if (!emailData.from.includes("google.com")) {
-      console.warn("Email not from Google, ignoring");
+    // Verify it's from Google or your organization
+    const isFromGoogle = from.includes("google.com");
+    const isFromOrganization = from.includes("wazireducationsociety.com");
+    
+    if (!isFromGoogle && !isFromOrganization) {
+      console.warn("Email not from Google or organization, ignoring");
       return new Response(
-        JSON.stringify({ warning: "Email not from Google" }),
+        JSON.stringify({ warning: "Email not from Google or organization" }),
         { status: 200, headers: corsHeaders }
       );
     }
 
     // Verify it's a recording notification
-    if (!emailData.subject.includes("recording") && !emailData.subject.includes("Meet")) {
+    if (!subject.includes("recording") && !subject.includes("Meet")) {
       console.warn("Email not about recording, ignoring");
       return new Response(
         JSON.stringify({ warning: "Email not about recording" }),
@@ -96,7 +109,7 @@ serve(async (req: Request) => {
     }
 
     // Extract recording URL
-    const recordingUrl = extractRecordingUrl(emailData.body, emailData.html);
+    const recordingUrl = extractRecordingUrl(body, html);
     if (!recordingUrl) {
       console.error("Could not extract recording URL from email");
       return new Response(
@@ -108,7 +121,7 @@ serve(async (req: Request) => {
     console.log("Recording URL extracted:", recordingUrl);
 
     // Extract session info
-    const sessionInfo = extractSessionInfo(emailData.subject, emailData.body);
+    const sessionInfo = extractSessionInfo(subject, body);
     console.log("Session info extracted:", sessionInfo);
 
     // Initialize Supabase client
@@ -130,39 +143,36 @@ serve(async (req: Request) => {
 
     // Try to find by eventId first
     if (sessionInfo.eventId) {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("sessions")
         .select("id, title, topics_covered")
         .eq("google_event_id", sessionInfo.eventId)
-        .limit(1)
-        .single();
+        .limit(1);
 
-      if (data) session = data;
+      if (data && data.length > 0) session = data[0];
     }
 
     // If not found, try to find by title
     if (!session && sessionInfo.title) {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("sessions")
         .select("id, title, topics_covered")
         .ilike("title", `%${sessionInfo.title}%`)
         .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
+        .limit(1);
 
-      if (data) session = data;
+      if (data && data.length > 0) session = data[0];
     }
 
     // If still not found, find most recent session
     if (!session) {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("sessions")
         .select("id, title, topics_covered")
         .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
+        .limit(1);
 
-      if (data) session = data;
+      if (data && data.length > 0) session = data[0];
     }
 
     if (!session) {

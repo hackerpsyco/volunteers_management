@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Save, ChevronRight, ChevronLeft, Plus, Trash2, Shield } from 'lucide-react';
+import { ArrowLeft, Save, ChevronRight, ChevronLeft, Plus, Trash2, Shield, ExternalLink } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -7,6 +7,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -104,6 +111,20 @@ export default function SessionRecording() {
     logged_hours_in_benevity: false,
     notes: '',
   });
+  const [homeworkRecords, setHomeworkRecords] = useState<any[]>([]);
+  const [homeworkLoading, setHomeworkLoading] = useState(false);
+  const [savingHomework, setSavingHomework] = useState(false);
+  const [students, setStudents] = useState<any[]>([]);
+  const [studentsLoading, setStudentsLoading] = useState(false);
+  const [newHomework, setNewHomework] = useState({
+    student_id: '',
+    task_name: '',
+    task_type: '',
+    deadline: '',
+    task_description: '',
+    submission_link: '',
+    feedback_notes: '',
+  });
 
   useEffect(() => {
     if (user?.id) {
@@ -136,6 +157,7 @@ export default function SessionRecording() {
       fetchSession();
       fetchStudentPerformance();
       fetchHoursTracker();
+      fetchHomeworkRecords();
     }
   }, [sessionId]);
 
@@ -227,6 +249,92 @@ export default function SessionRecording() {
       }
     } catch (error) {
       console.error('Error fetching hours tracker:', error);
+    }
+  };
+
+  const fetchHomeworkRecords = async () => {
+    try {
+      setHomeworkLoading(true);
+      const { data, error } = await supabase
+        .from('student_task_feedback')
+        .select(`
+          id,
+          student_id,
+          feedback_type,
+          task_name,
+          deadline,
+          submission_link,
+          status,
+          feedback_notes,
+          students:student_id(name)
+        `)
+        .eq('session_id', sessionId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching homework records:', error);
+        return;
+      }
+
+      const transformedData = (data || []).map((item: any) => ({
+        ...item,
+        student_name: item.students?.name || 'Unknown',
+      }));
+
+      setHomeworkRecords(transformedData);
+    } catch (error) {
+      console.error('Error fetching homework records:', error);
+    } finally {
+      setHomeworkLoading(false);
+    }
+  };
+
+  const fetchStudents = async () => {
+    try {
+      setStudentsLoading(true);
+
+      // Get session to find its class batch
+      const { data: sessionData, error: sessionError } = await supabase
+        .from('sessions')
+        .select('class_batch')
+        .eq('id', sessionId)
+        .single();
+
+      if (sessionError) throw sessionError;
+
+      if (!sessionData?.class_batch) {
+        toast.error('Session has no class assigned');
+        return;
+      }
+
+      // Find class by matching class_batch name
+      const { data: classData, error: classError } = await supabase
+        .from('classes')
+        .select('id')
+        .ilike('name', `%${sessionData.class_batch}%`)
+        .single();
+
+      if (classError) {
+        console.warn('Could not find class by name:', sessionData.class_batch);
+        toast.error('Could not find class for this session');
+        return;
+      }
+
+      // Fetch students from that class
+      const { data: studentsData, error: studentsError } = await supabase
+        .from('students')
+        .select('id, name, student_id')
+        .eq('class_id', classData.id)
+        .order('name', { ascending: true });
+
+      if (studentsError) throw studentsError;
+
+      setStudents(studentsData || []);
+    } catch (error) {
+      console.error('Error fetching students:', error);
+      toast.error('Failed to load students');
+    } finally {
+      setStudentsLoading(false);
     }
   };
 
@@ -392,6 +500,69 @@ export default function SessionRecording() {
     }
   };
 
+  const handleSaveHomework = async () => {
+    if (!newHomework.student_id || !newHomework.task_name.trim()) {
+      toast.error('Please select a student and enter task name');
+      return;
+    }
+
+    try {
+      setSavingHomework(true);
+
+      const { error } = await supabase
+        .from('student_task_feedback')
+        .insert({
+          session_id: sessionId,
+          student_id: newHomework.student_id,
+          feedback_type: newHomework.task_type || 'homework',
+          task_name: newHomework.task_name,
+          task_description: newHomework.task_description || null,
+          deadline: newHomework.deadline || null,
+          submission_link: newHomework.submission_link || null,
+          feedback_notes: newHomework.feedback_notes || null,
+          status: 'pending',
+        });
+
+      if (error) throw error;
+
+      toast.success('Homework feedback saved successfully');
+      setNewHomework({
+        student_id: '',
+        task_name: '',
+        task_type: '',
+        deadline: '',
+        task_description: '',
+        submission_link: '',
+        feedback_notes: '',
+      });
+      fetchHomeworkRecords();
+    } catch (error) {
+      console.error('Error saving homework:', error);
+      toast.error('Failed to save homework feedback');
+    } finally {
+      setSavingHomework(false);
+    }
+  };
+
+  const handleDeleteHomework = async (id: string) => {
+    if (!confirm('Delete this homework feedback?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('student_task_feedback')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast.success('Homework deleted successfully');
+      fetchHomeworkRecords();
+    } catch (error) {
+      console.error('Error deleting homework:', error);
+      toast.error('Failed to delete homework');
+    }
+  };
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -533,6 +704,16 @@ export default function SessionRecording() {
               }`}
             >
               b) Performance Details
+            </button>
+            <button
+              onClick={() => setCurrentSubTab('c')}
+              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                currentSubTab === 'c'
+                  ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              c) Student Homework Feedback
             </button>
           </div>
         )}
@@ -798,6 +979,214 @@ export default function SessionRecording() {
                       placeholder="Name and details of best performer"
                       className="min-h-[60px]"
                     />
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Sub-tab c: Student Homework Feedback */}
+            {currentSubTab === 'c' && (
+              <div className="space-y-4">
+                {/* Fetch students when this tab opens */}
+                {students.length === 0 && !studentsLoading && (
+                  <div className="mb-4">
+                    {(() => {
+                      fetchStudents();
+                      return null;
+                    })()}
+                  </div>
+                )}
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Add Student Homework & Tasks</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="hw_student" className="text-sm">Student Name *</Label>
+                        <Select
+                          value={newHomework.student_id}
+                          onValueChange={(value) => setNewHomework({ ...newHomework, student_id: value })}
+                        >
+                          <SelectTrigger id="hw_student" disabled={studentsLoading}>
+                            <SelectValue placeholder={studentsLoading ? "Loading students..." : "Select a student"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {students.map((student) => (
+                              <SelectItem key={student.id} value={student.id}>
+                                {student.name}
+                                {student.student_id && ` (${student.student_id})`}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="hw_task" className="text-sm">Task Name *</Label>
+                        <Input
+                          id="hw_task"
+                          placeholder="e.g., Chapter 5 Exercise"
+                          value={newHomework.task_name}
+                          onChange={(e) => setNewHomework({ ...newHomework, task_name: e.target.value })}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="hw_type" className="text-sm">Task Type</Label>
+                        <Input
+                          id="hw_type"
+                          placeholder="homework, assignment, project, etc."
+                          value={newHomework.task_type}
+                          onChange={(e) => setNewHomework({ ...newHomework, task_type: e.target.value })}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="hw_deadline" className="text-sm">Deadline</Label>
+                        <Input
+                          id="hw_deadline"
+                          type="date"
+                          value={newHomework.deadline}
+                          onChange={(e) => setNewHomework({ ...newHomework, deadline: e.target.value })}
+                          className="mt-1"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="hw_description" className="text-sm">Task Description</Label>
+                      <Textarea
+                        id="hw_description"
+                        placeholder="Describe the task or assignment"
+                        value={newHomework.task_description}
+                        onChange={(e) => setNewHomework({ ...newHomework, task_description: e.target.value })}
+                        className="mt-1 min-h-[60px]"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="hw_link" className="text-sm">Submission Link</Label>
+                      <Input
+                        id="hw_link"
+                        type="url"
+                        placeholder="https://example.com/submission"
+                        value={newHomework.submission_link}
+                        onChange={(e) => setNewHomework({ ...newHomework, submission_link: e.target.value })}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="hw_notes" className="text-sm">Feedback Notes</Label>
+                      <Textarea
+                        id="hw_notes"
+                        placeholder="Add feedback or instructions"
+                        value={newHomework.feedback_notes}
+                        onChange={(e) => setNewHomework({ ...newHomework, feedback_notes: e.target.value })}
+                        className="mt-1 min-h-[60px]"
+                      />
+                    </div>
+                    <Button 
+                      onClick={handleSaveHomework}
+                      disabled={savingHomework}
+                      className="w-full gap-2"
+                    >
+                      <Plus className="h-4 w-4" />
+                      {savingHomework ? 'Saving...' : 'Save Homework Feedback'}
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                {/* Homework List */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Student Homework Records ({homeworkRecords.length})</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {homeworkLoading ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mb-2"></div>
+                        Loading homework records...
+                      </div>
+                    ) : homeworkRecords.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <p>No homework records yet</p>
+                        <p className="text-xs mt-2">Add homework feedback above</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {homeworkRecords.map((homework, index) => (
+                          <div
+                            key={homework.id}
+                            className="border border-border rounded-lg p-4 space-y-2"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1">
+                                <h4 className="font-semibold text-foreground">
+                                  {index + 1}. {homework.student_name}
+                                </h4>
+                                <p className="text-sm text-muted-foreground">
+                                  {homework.task_name}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                  homework.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                  homework.status === 'submitted' ? 'bg-blue-100 text-blue-800' :
+                                  homework.status === 'reviewed' ? 'bg-purple-100 text-purple-800' :
+                                  'bg-green-100 text-green-800'
+                                }`}>
+                                  {homework.status}
+                                </span>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleDeleteHomework(homework.id)}
+                                  className="h-8 w-8 text-destructive hover:text-destructive"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3 text-sm">
+                              <div>
+                                <span className="text-muted-foreground">Type</span>
+                                <p className="font-medium capitalize">
+                                  {homework.feedback_type}
+                                </p>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Deadline</span>
+                                <p className="font-medium">
+                                  {homework.deadline
+                                    ? new Date(homework.deadline).toLocaleDateString()
+                                    : '-'}
+                                </p>
+                              </div>
+                            </div>
+
+                            {homework.feedback_notes && (
+                              <div className="bg-muted/50 rounded p-2 text-sm">
+                                <p className="text-muted-foreground">Notes:</p>
+                                <p className="text-foreground">{homework.feedback_notes}</p>
+                              </div>
+                            )}
+
+                            {homework.submission_link && (
+                              <div className="pt-2 border-t border-border">
+                                <a
+                                  href={homework.submission_link}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-primary hover:underline text-sm flex items-center gap-1"
+                                >
+                                  View Submission <ExternalLink className="h-3 w-3" />
+                                </a>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>

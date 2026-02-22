@@ -1,0 +1,37 @@
+{
+  "name": "Google Meet Recording → Supabase",
+  "flow": [
+    {
+      "id": 1,
+      "module": "google-mail:WatchEmails",
+      "version": 1,
+      "parameters": {
+        "folder": "INBOX",
+        "query": "from:noreply@google.com subject:recording",
+        "limit": 1
+      }
+    },
+    {
+      "id": 2,
+      "module": "http:MakeRequest",
+      "version": 1,
+      "parameters": {
+        "method": "post",
+        "url": "https://bkafweywaswykowzrhmx.supabase.co/functions/v1/parse-recording-email",
+        "headers": [
+          {
+            "name": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "bodyType": "raw",
+        "contentType": "application/json",
+        "body": "{\n  \"from\": \"{{1.from}}\",\n  \"subject\": \"{{1.subject}}\",\n  \"body\": \"{{1.text}}\",\n  \"html\": \"{{1.html}}\"\n}"
+      }
+    }
+  ],
+  "metadata": {
+    "instant": false,
+    "version": 1
+  }
+}
