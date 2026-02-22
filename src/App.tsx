@@ -12,6 +12,8 @@ import SessionRecording from "./pages/SessionRecording";
 import StudentPerformance from "./pages/StudentPerformance";
 import FeedbackSelection from "./pages/FeedbackSelection";
 import FeedbackDetails from "./pages/FeedbackDetails";
+import StudentDashboard from "./pages/StudentDashboard";
+import StudentCalendar from "./pages/StudentCalendar";
 import Curriculum from "./pages/Curriculum";
 import Facilitators from "./pages/Facilitators";
 import { Coordinators } from "./pages/Coordinators";
@@ -38,6 +40,8 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Navigate to="/auth" replace />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/student-dashboard" element={<StudentDashboard />} />
+            <Route path="/student-calendar" element={<StudentCalendar />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/calendar" element={<Calendar />} />
             <Route path="/sessions" element={<Sessions />} />

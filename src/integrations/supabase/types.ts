@@ -115,31 +115,84 @@ export type Database = {
       }
       classes: {
         Row: {
-    id: string
-    name: string
-    description: string | null
-    email: string | null        // ✅ ADD THIS
-    created_at: string
-    updated_at: string
-  }
-  Insert: {
-    id?: string
-    name: string
-    description?: string | null
-    email?: string | null       // ✅ ADD THIS
-    created_at?: string
-    updated_at?: string
-  }
-  Update: {
-    id?: string
-    name?: string
-    description?: string | null
-    email?: string | null       // ✅ ADD THIS
-    created_at?: string
-    updated_at?: string
-  }
-  Relationships: []
-}
+          id: string
+          name: string
+          description: string | null
+          email: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          description?: string | null
+          email?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          description?: string | null
+          email?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      students: {
+        Row: {
+          id: string
+          class_id: string
+          student_id: string
+          name: string
+          gender: string | null
+          dob: string | null
+          email: string | null
+          phone_number: string | null
+          roll_number: string | null
+          subject: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          class_id: string
+          student_id: string
+          name: string
+          gender?: string | null
+          dob?: string | null
+          email?: string | null
+          phone_number?: string | null
+          roll_number?: string | null
+          subject?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          class_id?: string
+          student_id?: string
+          name?: string
+          gender?: string | null
+          dob?: string | null
+          email?: string | null
+          phone_number?: string | null
+          roll_number?: string | null
+          subject?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "students_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
 
       centre_time_slots: {
         Row: {
@@ -590,6 +643,7 @@ export type Database = {
           bio: string | null
           profile_image_url: string | null
           role_id: number | null
+          class_id: string | null
           is_active: boolean
           created_at: string
           updated_at: string
@@ -603,6 +657,7 @@ export type Database = {
           bio?: string | null
           profile_image_url?: string | null
           role_id?: number | null
+          class_id?: string | null
           is_active?: boolean
           created_at?: string
           updated_at?: string
@@ -616,6 +671,7 @@ export type Database = {
           bio?: string | null
           profile_image_url?: string | null
           role_id?: number | null
+          class_id?: string | null
           is_active?: boolean
           created_at?: string
           updated_at?: string
@@ -626,6 +682,13 @@ export type Database = {
             columns: ["role_id"]
             isOneToOne: false
             referencedRelation: "roles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_profiles_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
             referencedColumns: ["id"]
           }
         ]

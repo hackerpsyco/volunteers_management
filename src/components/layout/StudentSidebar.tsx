@@ -1,60 +1,20 @@
-import { Home, Users, LogOut, CalendarDays, BookOpen, Menu, X, Users2, MapPin, FileText, GraduationCap, Shield } from 'lucide-react';
+import { Home, LogOut, CalendarDays } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import wesLogo from '@/assets/wes-logo.jpg';
-import { useState, useEffect, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { useState } from 'react';
 
-const navItems = [
-  { title: 'Student Dashboard', url: '/student-dashboard', icon: Home, requiredRole: null, studentVisible: true },
-  { title: 'Dashboard', url: '/dashboard', icon: Home, requiredRole: null, studentVisible: false },
-  { title: 'Calendar', url: '/calendar', icon: CalendarDays, requiredRole: null, studentVisible: true },
-  { title: 'Session', url: '/sessions', icon: BookOpen, requiredRole: null, studentVisible: false },
-  { title: 'Feedback & Record', url: '/feedback', icon: FileText, requiredRole: null, studentVisible: false },
-  { title: 'Curriculum', url: '/curriculum', icon: BookOpen, requiredRole: null, studentVisible: false },
-  { title: 'Facilitator', url: '/facilitators', icon: Users2, requiredRole: null, studentVisible: false },
-  { title: 'Coordinators', url: '/coordinators', icon: Users2, requiredRole: null, studentVisible: false },
-  { title: 'Centres & Slots', url: '/centres', icon: MapPin, requiredRole: null, studentVisible: false },
-  { title: 'Classes', url: '/classes', icon: GraduationCap, requiredRole: null, studentVisible: false },
-  { title: 'Volunteer', url: '/volunteers', icon: Users, requiredRole: null, studentVisible: false },
-  { title: 'Admin Panel', url: '/admin', icon: Shield, requiredRole: 1, studentVisible: false }, // 1 = Admin
+const studentNavItems = [
+  { title: 'My Dashboard', url: '/student-dashboard', icon: Home },
+  { title: 'My Calendar', url: '/student-calendar', icon: CalendarDays },
+
 ];
 
-export function AppSidebar() {
-  const { signOut, user } = useAuth();
+export function StudentSidebar() {
+  const { signOut } = useAuth();
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
-  const [userRole, setUserRole] = useState<number | null>(null);
-  const roleLoadedRef = useRef(false);
-
-  useEffect(() => {
-    // Only load role once per user session
-    if (user?.id && !roleLoadedRef.current) {
-      loadUserRole();
-    }
-  }, [user?.id]);
-
-  const loadUserRole = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('role_id')
-        .eq('id', user?.id)
-        .single();
-
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error loading user role:', error);
-      }
-
-      if (data?.role_id) {
-        setUserRole(data.role_id);
-        roleLoadedRef.current = true;
-      }
-    } catch (error) {
-      console.error('Error loading user role:', error);
-    }
-  };
 
   const handleSignOut = async () => {
     await signOut();
@@ -67,7 +27,15 @@ export function AppSidebar() {
         onClick={() => setIsOpen(!isOpen)}
         className="md:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-card border border-border hover:bg-accent"
       >
-        {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+        {isOpen ? (
+          <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        ) : (
+          <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        )}
       </button>
 
       {/* Sidebar */}
@@ -85,24 +53,14 @@ export function AppSidebar() {
             />
             <div className="min-w-0">
               <h1 className="font-bold text-foreground text-base md:text-lg truncate">WES Foundation</h1>
-              <p className="text-xs text-muted-foreground truncate">Volunteer Management</p>
+              <p className="text-xs text-muted-foreground truncate">Student Portal</p>
             </div>
           </div>
         </div>
 
         {/* Navigation */}
         <nav className="flex-1 p-3 md:p-4 space-y-1 md:space-y-2">
-          {navItems.map((item) => {
-            // For students (role_id = 5), only show items marked as studentVisible
-            if (userRole === 5 && !item.studentVisible) {
-              return null;
-            }
-
-            // Check if user has required role for this item
-            if (item.requiredRole !== null && userRole !== item.requiredRole) {
-              return null; // Don't show this item
-            }
-
+          {studentNavItems.map((item) => {
             const isActive = location.pathname === item.url;
             return (
               <NavLink

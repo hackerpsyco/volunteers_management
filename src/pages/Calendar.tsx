@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -65,6 +66,7 @@ interface CalendarDay {
 }
 
 export default function Calendar() {
+  const { user } = useAuth();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [sessions, setSessions] = useState<Session[]>([]);
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
@@ -80,12 +82,54 @@ export default function Calendar() {
   const [selectedSessionType, setSelectedSessionType] = useState<'guest_teacher' | 'guest_speaker' | null>(null);
   const [selectedDateForNewSession, setSelectedDateForNewSession] = useState<Date | null>(null);
   const [expandedDateKey, setExpandedDateKey] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<number | null>(null);
 
   useEffect(() => {
-    fetchVolunteers();
-    fetchClasses();
-    fetchSessions();
-  }, []);
+    if (user?.id) {
+      loadUserRoleAndClass();
+      fetchVolunteers();
+      fetchClasses();
+      fetchSessions();
+    }
+  }, [user?.id]);
+
+  const loadUserRoleAndClass = async () => {
+    try {
+      // Get user role and class info
+      const { data: profileData, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('role_id, class_id')
+        .eq('id', user?.id)
+        .single();
+
+      if (profileError && profileError.code !== 'PGRST116') {
+        console.error('Error loading user role:', profileError);
+      }
+
+      if (profileData?.role_id) {
+        setUserRole(profileData.role_id);
+
+        // If student (role_id = 5) and has class_id, fetch and set their class
+        if (profileData.role_id === 5) {
+          if (profileData.class_id) {
+            const { data: classData } = await supabase
+              .from('classes')
+              .select('name')
+              .eq('id', profileData.class_id)
+              .single();
+            
+            if (classData?.name) {
+              setSelectedClass(classData.name);
+            }
+          } else {
+            console.warn('Student has no class_id assigned');
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error loading user info:', error);
+    }
+  };
 
   useEffect(() => {
     generateCalendar();
@@ -321,60 +365,76 @@ export default function Calendar() {
             <h1 className="text-2xl md:text-3xl font-bold text-foreground">Session Calendar</h1>
             <p className="text-sm md:text-base text-muted-foreground mt-1">Plan and track session progress</p>
           </div>
-          <Button
-            onClick={() => setIsSessionTypeOpen(true)}
-            className="w-full sm:w-auto gap-2"
-          >
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">Add Session</span>
-            <span className="sm:hidden">Add</span>
-          </Button>
+          {userRole !== 5 && (
+            <Button
+              onClick={() => setIsSessionTypeOpen(true)}
+              className="w-full sm:w-auto gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">Add Session</span>
+              <span className="sm:hidden">Add</span>
+            </Button>
+          )}
         </div>
 
-        {/* Volunteer and Class Filters */}
-        <div className="bg-card border border-border rounded-lg p-4 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Volunteer Filter */}
-            <div>
-              <label className="text-sm font-medium text-foreground block mb-2">
-                Filter by Volunteer
-              </label>
-              <Select value={selectedVolunteer} onValueChange={setSelectedVolunteer}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select a Volunteer" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Volunteers</SelectItem>
-                  {volunteers.map((volunteer) => (
-                    <SelectItem key={volunteer.id} value={volunteer.name}>
-                      {volunteer.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+        {/* Volunteer and Class Filters - Only show for non-students */}
+        {userRole !== 5 && (
+          <div className="bg-card border border-border rounded-lg p-4 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Volunteer Filter */}
+              <div>
+                <label className="text-sm font-medium text-foreground block mb-2">
+                  Filter by Volunteer
+                </label>
+                <Select value={selectedVolunteer} onValueChange={setSelectedVolunteer}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a Volunteer" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Volunteers</SelectItem>
+                    {volunteers.map((volunteer) => (
+                      <SelectItem key={volunteer.id} value={volunteer.name}>
+                        {volunteer.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-            {/* Class Filter */}
-            <div>
-              <label className="text-sm font-medium text-foreground block mb-2">
-                Filter by Class
-              </label>
-              <Select value={selectedClass} onValueChange={setSelectedClass}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select a Class" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Classes</SelectItem>
-                  {classes.map((cls) => (
-                    <SelectItem key={cls.id} value={cls.name}>
-                      {cls.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {/* Class Filter */}
+              <div>
+                <label className="text-sm font-medium text-foreground block mb-2">
+                  Filter by Class
+                </label>
+                <Select value={selectedClass} onValueChange={setSelectedClass}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a Class" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Classes</SelectItem>
+                    {classes.map((cls) => (
+                      <SelectItem key={cls.id} value={cls.name}>
+                        {cls.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
-        </div>
+        )}
+
+        {/* Student Class Display */}
+        {userRole === 5 && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <p className="text-sm text-blue-800">
+              <strong>Your Class:</strong> {selectedClass !== 'all' ? selectedClass : 'Loading...'}
+            </p>
+            <p className="text-xs text-blue-700 mt-1">
+              Showing sessions for your class only
+            </p>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 gap-6">
           {/* Calendar */}

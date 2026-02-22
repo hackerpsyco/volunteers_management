@@ -1063,7 +1063,7 @@ export default function SessionRecording() {
                         className="mt-1 min-h-[60px]"
                       />
                     </div>
-                    <div>
+                    {/* <div>
                       <Label htmlFor="hw_link" className="text-sm">Submission Link</Label>
                       <Input
                         id="hw_link"
@@ -1073,8 +1073,8 @@ export default function SessionRecording() {
                         onChange={(e) => setNewHomework({ ...newHomework, submission_link: e.target.value })}
                         className="mt-1"
                       />
-                    </div>
-                    <div>
+                    </div> */}
+                    {/* <div>
                       <Label htmlFor="hw_notes" className="text-sm">Feedback Notes</Label>
                       <Textarea
                         id="hw_notes"
@@ -1083,7 +1083,7 @@ export default function SessionRecording() {
                         onChange={(e) => setNewHomework({ ...newHomework, feedback_notes: e.target.value })}
                         className="mt-1 min-h-[60px]"
                       />
-                    </div>
+                    </div> */}
                     <Button 
                       onClick={handleSaveHomework}
                       disabled={savingHomework}

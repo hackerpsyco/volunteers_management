@@ -2,6 +2,7 @@ import { ReactNode, useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { AppSidebar } from './AppSidebar';
+import { StudentSidebar } from './StudentSidebar';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -24,6 +25,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [userEmail, setUserEmail] = useState<string>('');
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
+  const [userRole, setUserRole] = useState<number | null>(null);
+  const [roleLoaded, setRoleLoaded] = useState(false);
 
   useEffect(() => {
     if (user?.email) {
@@ -33,9 +36,32 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   useEffect(() => {
     if (user?.id) {
+      loadUserRole();
       loadProfileImage();
     }
   }, [user?.id]);
+
+  const loadUserRole = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('role_id')
+        .eq('id', user?.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error loading user role:', error);
+      }
+
+      if (data?.role_id) {
+        setUserRole(data.role_id);
+      }
+      setRoleLoaded(true);
+    } catch (error) {
+      console.error('Error loading user role:', error);
+      setRoleLoaded(true);
+    }
+  };
 
   const loadProfileImage = async () => {
     try {
@@ -96,10 +122,22 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     return null;
   }
 
-  // User is authenticated, render the dashboard
+  // Show loading state while role is being fetched
+  if (!roleLoaded) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          <p className="text-muted-foreground">Loading your dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // User is authenticated and role is loaded, render the dashboard
   return (
     <div className="min-h-screen bg-muted/30 flex w-full">
-      <AppSidebar />
+      {userRole === 5 ? <StudentSidebar /> : <AppSidebar />}
       <main className="flex-1 flex flex-col">
         {/* Top Header with Profile */}
         <div className="bg-card border-b border-border px-4 md:px-8 py-4 flex items-center justify-between">

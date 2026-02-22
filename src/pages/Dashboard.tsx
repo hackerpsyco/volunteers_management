@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Users, Calendar, BookOpen, Plus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { useNavigate } from 'react-router-dom';
 import { VolunteerSessionStats } from '@/components/dashboard/VolunteerSessionStats';
 
 interface Stats {
@@ -28,6 +29,7 @@ interface CurriculumCategory {
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [stats, setStats] = useState<Stats>({ 
     totalVolunteers: 0, 
     totalSessions: 0,
@@ -42,6 +44,30 @@ export default function Dashboard() {
   });
   const [curriculumCategories, setCurriculumCategories] = useState<CurriculumCategory[]>([]);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function checkUserRole() {
+      if (!user?.id) return;
+
+      try {
+        const { data: profileData } = await supabase
+          .from('user_profiles')
+          .select('role_id')
+          .eq('id', user.id)
+          .single();
+
+        // Redirect students to their dashboard
+        if (profileData?.role_id === 5) {
+          navigate('/student-dashboard', { replace: true });
+          return;
+        }
+      } catch (error) {
+        console.error('Error checking user role:', error);
+      }
+    }
+
+    checkUserRole();
+  }, [user?.id, navigate]);
 
   useEffect(() => {
     async function fetchDashboardData() {
