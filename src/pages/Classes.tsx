@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, MoreVertical, BookOpen, Users, Upload, Pencil } from 'lucide-react';
+import { Plus, Trash2, MoreVertical, BookOpen, Users, Upload, Pencil, Eye } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
@@ -33,6 +33,14 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -57,6 +65,7 @@ export default function Classes() {
 
   const [isAddClassOpen, setIsAddClassOpen] = useState(false);
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
+  const [isViewStudentsOpen, setIsViewStudentsOpen] = useState(false);
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [classToDelete, setClassToDelete] = useState<Class | null>(null);
@@ -123,6 +132,15 @@ export default function Classes() {
           </div>
 
           <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsViewStudentsOpen(true)}
+              className="gap-2"
+            >
+              <Eye className="h-4 w-4" />
+              View Students
+            </Button>
+
             <Button
               variant="outline"
               onClick={() => setIsBulkImportOpen(true)}
@@ -280,6 +298,46 @@ export default function Classes() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* View Students Dialog */}
+      <Dialog open={isViewStudentsOpen} onOpenChange={setIsViewStudentsOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-primary" />
+              Select Class to View Students
+            </DialogTitle>
+            <DialogDescription>
+              Choose a class to view and manage its students
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2 max-h-[400px] overflow-y-auto">
+            {classes.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">No classes available</p>
+            ) : (
+              classes.map((classItem) => (
+                <button
+                  key={classItem.id}
+                  onClick={() => {
+                    handleViewStudents(classItem);
+                    setIsViewStudentsOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-3 rounded-lg border border-border hover:bg-muted transition-colors"
+                >
+                  <div className="font-semibold text-foreground">{classItem.name}</div>
+                  {classItem.description && (
+                    <div className="text-sm text-muted-foreground">{classItem.description}</div>
+                  )}
+                  {classItem.email && (
+                    <div className="text-xs text-muted-foreground mt-1">{classItem.email}</div>
+                  )}
+                </button>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
     </DashboardLayout>
   );

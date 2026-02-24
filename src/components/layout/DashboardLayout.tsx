@@ -1,5 +1,5 @@
 import { ReactNode, useEffect, useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { AppSidebar } from './AppSidebar';
 import { StudentSidebar } from './StudentSidebar';
@@ -21,10 +21,8 @@ interface DashboardLayoutProps {
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
   const [userEmail, setUserEmail] = useState<string>('');
   const [profileImage, setProfileImage] = useState<string | null>(null);
-  const [loadingProfile, setLoadingProfile] = useState(false);
   const [userRole, setUserRole] = useState<number | null>(null);
   const [roleLoaded, setRoleLoaded] = useState(false);
 
@@ -43,37 +41,68 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   const loadUserRole = async () => {
     try {
+      // Try to get role_id using auth user ID (normal case)
       const { data, error } = await supabase
         .from('user_profiles')
         .select('role_id')
         .eq('id', user?.id)
         .single();
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error loading user role:', error);
-      }
+      if (error) {
+        // If RLS blocks it (406 error), try querying by email instead
+        // This handles the case where profile ID doesn't match auth user ID
+        if (error.code === 'PGRST116') {
+          console.warn('Profile ID mismatch detected, querying by email...');
+          const { data: emailData, error: emailError } = await supabase
+            .from('user_profiles')
+            .select('role_id')
+            .eq('email', user?.email)
+            .single();
 
-      if (data?.role_id) {
+          if (emailError) {
+            console.error('Error loading user role by email:', emailError);
+            setUserRole(null);
+          } else if (emailData?.role_id) {
+            setUserRole(emailData.role_id);
+          }
+        } else {
+          console.error('Error loading user role:', error);
+          setUserRole(null);
+        }
+      } else if (data?.role_id) {
         setUserRole(data.role_id);
       }
       setRoleLoaded(true);
     } catch (error) {
       console.error('Error loading user role:', error);
+      setUserRole(null);
       setRoleLoaded(true);
     }
   };
 
   const loadProfileImage = async () => {
     try {
-      setLoadingProfile(true);
       const { data, error } = await supabase
         .from('user_profiles')
         .select('profile_image_url')
         .eq('id', user?.id)
         .single();
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error loading profile image:', error);
+      if (error) {
+        // If RLS blocks it (406 error), try querying by email instead
+        if (error.code === 'PGRST116') {
+          const { data: emailData } = await supabase
+            .from('user_profiles')
+            .select('profile_image_url')
+            .eq('email', user?.email)
+            .single();
+
+          if (emailData?.profile_image_url) {
+            setProfileImage(emailData.profile_image_url);
+          }
+        } else if (error.code !== 'PGRST116') {
+          console.error('Error loading profile image:', error);
+        }
       }
 
       if (data?.profile_image_url) {
@@ -81,8 +110,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       }
     } catch (error) {
       console.error('Error loading profile image:', error);
-    } finally {
-      setLoadingProfile(false);
     }
   };
 

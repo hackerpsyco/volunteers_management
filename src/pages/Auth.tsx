@@ -129,16 +129,26 @@ export default function Auth() {
               {isLoading ? 'Please wait...' : (isLogin ? 'Sign In' : 'Sign Up')}
             </Button>
           </form>
-          <div className="mt-6 text-center">
-            <button
+          <div className="mt-6 space-y-3">
+            
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-border"></div>
+              </div>
+              <div className="relative flex justify-center text-xs">
+                <span className="px-2 bg-card text-muted-foreground">
+                  Student Login
+                </span>
+              </div>
+            </div>
+            <Button
               type="button"
-              onClick={() => setIsLogin(!isLogin)}
-              className="text-sm text-primary hover:underline"
+              variant="outline"
+              className="w-full"
+              onClick={() => navigate('/student-auth')}
             >
-              {isLogin 
-                ? "" 
-                : 'Already have an account? Sign in'}
-            </button>
+              Student Sign In / Sign Up
+            </Button>
           </div>
         </CardContent>
       </Card>

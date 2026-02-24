@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import Auth from "./pages/Auth";
+import { StudentAuth } from "./pages/StudentAuth";
 import Dashboard from "./pages/Dashboard";
 import Calendar from "./pages/Calendar";
 import Sessions from "./pages/Sessions";
@@ -40,6 +41,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Navigate to="/auth" replace />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/student-auth" element={<StudentAuth />} />
             <Route path="/student-dashboard" element={<StudentDashboard />} />
             <Route path="/student-calendar" element={<StudentCalendar />} />
             <Route path="/dashboard" element={<Dashboard />} />

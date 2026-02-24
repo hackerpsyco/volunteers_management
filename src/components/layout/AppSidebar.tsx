@@ -16,7 +16,7 @@ const navItems = [
   { title: 'Facilitator', url: '/facilitators', icon: Users2, requiredRole: null, studentVisible: false },
   { title: 'Coordinators', url: '/coordinators', icon: Users2, requiredRole: null, studentVisible: false },
   { title: 'Centres & Slots', url: '/centres', icon: MapPin, requiredRole: null, studentVisible: false },
-  { title: 'Classes', url: '/classes', icon: GraduationCap, requiredRole: null, studentVisible: false },
+  { title: 'Classes & students', url: '/classes', icon: GraduationCap, requiredRole: null, studentVisible: false },
   { title: 'Volunteer', url: '/volunteers', icon: Users, requiredRole: null, studentVisible: false },
   { title: 'Admin Panel', url: '/admin', icon: Shield, requiredRole: 1, studentVisible: false }, // 1 = Admin
 ];

@@ -158,6 +158,7 @@ export default function SessionRecording() {
       fetchStudentPerformance();
       fetchHoursTracker();
       fetchHomeworkRecords();
+      fetchStudents();
     }
   }, [sessionId]);
 
@@ -293,30 +294,37 @@ export default function SessionRecording() {
     try {
       setStudentsLoading(true);
 
-      // Get session to find its class batch
+      // Get session to find its class batch or class_id
       const { data: sessionData, error: sessionError } = await supabase
         .from('sessions')
-        .select('class_batch')
+        .select('class_batch, class_id')
         .eq('id', sessionId)
         .single();
 
       if (sessionError) throw sessionError;
 
-      if (!sessionData?.class_batch) {
-        toast.error('Session has no class assigned');
-        return;
+      let classId = null;
+
+      // Try to find class by class_id first
+      if (sessionData?.class_id) {
+        classId = sessionData.class_id;
+      } 
+      // Then try by class_batch name
+      else if (sessionData?.class_batch) {
+        const { data: classData, error: classError } = await supabase
+          .from('classes')
+          .select('id')
+          .ilike('name', `%${sessionData.class_batch}%`)
+          .single();
+
+        if (!classError && classData) {
+          classId = classData.id;
+        }
       }
 
-      // Find class by matching class_batch name
-      const { data: classData, error: classError } = await supabase
-        .from('classes')
-        .select('id')
-        .ilike('name', `%${sessionData.class_batch}%`)
-        .single();
-
-      if (classError) {
-        console.warn('Could not find class by name:', sessionData.class_batch);
-        toast.error('Could not find class for this session');
+      if (!classId) {
+        console.warn('Could not determine class for this session');
+        setStudents([]);
         return;
       }
 
@@ -324,7 +332,7 @@ export default function SessionRecording() {
       const { data: studentsData, error: studentsError } = await supabase
         .from('students')
         .select('id, name, student_id')
-        .eq('class_id', classData.id)
+        .eq('class_id', classId)
         .order('name', { ascending: true });
 
       if (studentsError) throw studentsError;
@@ -332,7 +340,7 @@ export default function SessionRecording() {
       setStudents(studentsData || []);
     } catch (error) {
       console.error('Error fetching students:', error);
-      toast.error('Failed to load students');
+      setStudents([]);
     } finally {
       setStudentsLoading(false);
     }
@@ -509,23 +517,32 @@ export default function SessionRecording() {
     try {
       setSavingHomework(true);
 
+      // Get all students in the class
+      if (students.length === 0) {
+        toast.error('No students found in this class');
+        return;
+      }
+
+      // Create task for each student
+      const homeworkRecords = students.map(student => ({
+        session_id: sessionId,
+        student_id: student.id,
+        feedback_type: newHomework.task_type || 'homework',
+        task_name: newHomework.task_name,
+        task_description: newHomework.task_description || null,
+        deadline: newHomework.deadline || null,
+        submission_link: newHomework.submission_link || null,
+        feedback_notes: newHomework.feedback_notes || null,
+        status: 'pending',
+      }));
+
       const { error } = await supabase
         .from('student_task_feedback')
-        .insert({
-          session_id: sessionId,
-          student_id: newHomework.student_id,
-          feedback_type: newHomework.task_type || 'homework',
-          task_name: newHomework.task_name,
-          task_description: newHomework.task_description || null,
-          deadline: newHomework.deadline || null,
-          submission_link: newHomework.submission_link || null,
-          feedback_notes: newHomework.feedback_notes || null,
-          status: 'pending',
-        });
+        .insert(homeworkRecords);
 
       if (error) throw error;
 
-      toast.success('Homework feedback saved successfully');
+      toast.success(`Homework assigned to ${students.length} students`);
       setNewHomework({
         student_id: '',
         task_name: '',
@@ -846,13 +863,18 @@ export default function SessionRecording() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <Label htmlFor="student_name" className="text-sm">Student Name *</Label>
-                        <Input
-                          id="student_name"
-                          value={newStudent.student_name}
-                          onChange={(e) => setNewStudent({ ...newStudent, student_name: e.target.value })}
-                          placeholder="Enter student name"
-                          className="mt-1"
-                        />
+                        <Select value={newStudent.student_name} onValueChange={(value) => setNewStudent({ ...newStudent, student_name: value })}>
+                          <SelectTrigger id="student_name" className="mt-1">
+                            <SelectValue placeholder="Select a student" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {students.map((student) => (
+                              <SelectItem key={student.id} value={student.name}>
+                                {student.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div>
                         <Label htmlFor="questions_asked" className="text-sm">No. of Questions Asked</Label>
@@ -1003,25 +1025,6 @@ export default function SessionRecording() {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="hw_student" className="text-sm">Student Name *</Label>
-                        <Select
-                          value={newHomework.student_id}
-                          onValueChange={(value) => setNewHomework({ ...newHomework, student_id: value })}
-                        >
-                          <SelectTrigger id="hw_student" disabled={studentsLoading}>
-                            <SelectValue placeholder={studentsLoading ? "Loading students..." : "Select a student"} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {students.map((student) => (
-                              <SelectItem key={student.id} value={student.id}>
-                                {student.name}
-                                {student.student_id && ` (${student.student_id})`}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
                       <div>
                         <Label htmlFor="hw_task" className="text-sm">Task Name *</Label>
                         <Input

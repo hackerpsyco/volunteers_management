@@ -55,13 +55,42 @@ export default function StudentDashboard() {
       setLoading(true);
 
       // Get student profile with class_id
-      const { data: profileData, error: profileError } = await supabase
+      let profileData = null;
+      let profileError = null;
+
+      // Try to get profile using auth user ID first
+      const { data: idData, error: idError } = await supabase
         .from('user_profiles')
         .select('full_name, class_id')
         .eq('id', user?.id)
         .single();
 
-      if (profileError) throw profileError;
+      if (idError) {
+        // If RLS blocks it (profile ID mismatch), try querying by email
+        if (idError.code === 'PGRST116') {
+          console.warn('Profile ID mismatch detected, querying by email...');
+          const { data: emailData, error: emailError } = await supabase
+            .from('user_profiles')
+            .select('full_name, class_id')
+            .eq('email', user?.email)
+            .single();
+
+          profileData = emailData;
+          profileError = emailError;
+        } else {
+          profileError = idError;
+        }
+      } else {
+        profileData = idData;
+      }
+
+      if (profileError) {
+        console.error('Profile error:', profileError);
+        // Profile doesn't exist or RLS blocked access
+        setTasks([]);
+        setSessions([]);
+        return;
+      }
 
       if (profileData?.full_name) {
         setStudentName(profileData.full_name);
@@ -76,23 +105,22 @@ export default function StudentDashboard() {
           .eq('id', profileData.class_id)
           .single();
 
-        // Fetch tasks for this class
-        // Tasks are linked to class via student_task_feedback.student_id
-        // We need to get students in this class first
-        const { data: classStudents, error: studentsError } = await supabase
+        // Fetch tasks for THIS STUDENT ONLY
+        // First, get the student record from students table
+        const { data: studentRecord, error: studentError } = await supabase
           .from('students')
           .select('id')
-          .eq('class_id', profileData.class_id);
+          .eq('email', user?.email)
+          .single();
 
-        if (studentsError) throw studentsError;
-
-        const studentIds = classStudents?.map(s => s.id) || [];
-
-        if (studentIds.length > 0) {
+        if (studentError) {
+          console.warn('Student record not found for email:', user?.email);
+          setTasks([]);
+        } else if (studentRecord) {
           const { data: tasksData, error: tasksError } = await supabase
             .from('student_task_feedback')
             .select('*')
-            .in('student_id', studentIds)
+            .eq('student_id', studentRecord.id)
             .order('deadline', { ascending: true });
 
           if (tasksError) throw tasksError;
