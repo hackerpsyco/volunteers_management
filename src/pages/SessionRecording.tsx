@@ -97,6 +97,9 @@ export default function SessionRecording() {
     mic_sound_rating: 5,
     seating_view_rating: 5,
     session_strength: 5,
+    coordinator_mic_sound_rating: 5,
+    coordinator_seating_view_rating: 5,
+    coordinator_session_strength: 5,
     class_batch: '',
   });
   const [hoursData, setHoursData] = useState<SessionHoursTracker>({
@@ -108,6 +111,7 @@ export default function SessionRecording() {
     logged_hours_in_benevity: false,
     notes: '',
   });
+  const [hoursValidationId, setHoursValidationId] = useState<string>('');
   const [homeworkRecords, setHomeworkRecords] = useState<any[]>([]);
   const [homeworkLoading, setHomeworkLoading] = useState(false);
   const [savingHomework, setSavingHomework] = useState(false);
@@ -205,6 +209,9 @@ export default function SessionRecording() {
         mic_sound_rating: (sessionData as any).mic_sound_rating || 5,
         seating_view_rating: (sessionData as any).seating_view_rating || 5,
         session_strength: (sessionData as any).session_strength || 5,
+        coordinator_mic_sound_rating: (sessionData as any).coordinator_mic_sound_rating || 5,
+        coordinator_seating_view_rating: (sessionData as any).coordinator_seating_view_rating || 5,
+        coordinator_session_strength: (sessionData as any).coordinator_session_strength || 5,
         class_batch: (sessionData as any).class_batch || '',
       } as any);
     } catch (error) {
@@ -245,6 +252,7 @@ export default function SessionRecording() {
       }
       if (data) {
         setHoursData(data as unknown as SessionHoursTracker);
+        setHoursValidationId(data.validation_id || '');
       }
     } catch (error) {
       console.error('Error fetching hours tracker:', error);
@@ -357,6 +365,9 @@ export default function SessionRecording() {
           mic_sound_rating: formData.mic_sound_rating,
           seating_view_rating: formData.seating_view_rating,
           session_strength: formData.session_strength,
+          coordinator_mic_sound_rating: formData.coordinator_mic_sound_rating,
+          coordinator_seating_view_rating: formData.coordinator_seating_view_rating,
+          coordinator_session_strength: formData.coordinator_session_strength,
           class_batch: formData.class_batch,
           recorded_at: new Date().toISOString(),
         } as any)
@@ -411,6 +422,7 @@ export default function SessionRecording() {
             reflection_feedback_followup_hours: hoursData.reflection_feedback_followup_hours,
             logged_hours_in_benevity: hoursData.logged_hours_in_benevity,
             notes: hoursData.notes,
+            validation_id: hoursValidationId,
             updated_at: new Date().toISOString(),
           })
           .eq('session_id', sessionId);
@@ -429,6 +441,7 @@ export default function SessionRecording() {
               reflection_feedback_followup_hours: hoursData.reflection_feedback_followup_hours,
               logged_hours_in_benevity: hoursData.logged_hours_in_benevity,
               notes: hoursData.notes,
+              validation_id: hoursValidationId,
             },
           ]);
 
@@ -801,7 +814,7 @@ export default function SessionRecording() {
                    {/* Quality Ratings - Before Session Objective */}
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-base">Quality Ratings</CardTitle>
+                    <CardTitle className="text-base">Quality Test Ratings</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="grid grid-cols-3 gap-4">
@@ -1304,13 +1317,17 @@ export default function SessionRecording() {
               <CardHeader>
                 <CardTitle className="text-base">Guest Teacher Feedback</CardTitle>
               </CardHeader>
-              <CardContent>
-                <Textarea
-                  value={formData.guest_teacher_feedback}
-                  onChange={(e) => setFormData({ ...formData, guest_teacher_feedback: e.target.value })}
-                  placeholder="Feedback from guest teacher"
-                  className="min-h-[80px]"
-                />
+              <CardContent className="space-y-3">
+                <div>
+                  <Label htmlFor="guest_teacher_feedback" className="text-sm">Feedback</Label>
+                  <Textarea
+                    id="guest_teacher_feedback"
+                    value={formData.guest_teacher_feedback}
+                    onChange={(e) => setFormData({ ...formData, guest_teacher_feedback: e.target.value })}
+                    placeholder="Feedback from guest teacher"
+                    className="min-h-[80px] mt-1"
+                  />
+                </div>
               </CardContent>
             </Card>
 
@@ -1360,6 +1377,52 @@ export default function SessionRecording() {
                       View Recording
                     </a>
                   )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Coordinator Quality Ratings</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <Label className="text-sm font-medium">Mic/Sound Quality</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={formData.coordinator_mic_sound_rating}
+                      onChange={(e) => setFormData({ ...formData, coordinator_mic_sound_rating: parseInt(e.target.value) || 5 })}
+                      className="mt-1"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">Rate 1-10</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Seating/View</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={formData.coordinator_seating_view_rating}
+                      onChange={(e) => setFormData({ ...formData, coordinator_seating_view_rating: parseInt(e.target.value) || 5 })}
+                      className="mt-1"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">Rate 1-10</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Session Strength</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={formData.coordinator_session_strength}
+                      onChange={(e) => setFormData({ ...formData, coordinator_session_strength: parseInt(e.target.value) || 5 })}
+                      className="mt-1"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">Rate 1-10</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -1470,6 +1533,19 @@ export default function SessionRecording() {
                     onChange={(e) => setHoursData({ ...hoursData, notes: e.target.value })}
                     placeholder="Add any additional notes about the hours tracked"
                     className="mt-1 min-h-[80px]"
+                  />
+                </div>
+
+                {/* Validation ID */}
+                <div>
+                  <Label htmlFor="hours_validation_id" className="text-sm">Validation ID</Label>
+                  <Input
+                    id="hours_validation_id"
+                    type="text"
+                    value={hoursValidationId}
+                    onChange={(e) => setHoursValidationId(e.target.value)}
+                    placeholder="Enter validation ID number"
+                    className="mt-1"
                   />
                 </div>
               </CardContent>
