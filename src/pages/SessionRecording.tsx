@@ -82,12 +82,8 @@ export default function SessionRecording() {
   const [currentPage, setCurrentPage] = useState(1);
   const [currentSubTab, setCurrentSubTab] = useState('a');
   const [studentPerformance, setStudentPerformance] = useState<StudentPerformance[]>([]);
-  const [newStudent, setNewStudent] = useState<StudentPerformance>({
-    student_name: '',
-    questions_asked: 0,
-    performance_rating: 5,
-    performance_comment: '',
-  });
+  const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
+  const [studentFormData, setStudentFormData] = useState<{ [key: string]: StudentPerformance }>({});
   const [formData, setFormData] = useState({
     session_objective: '',
     practical_activities: '',
@@ -294,37 +290,30 @@ export default function SessionRecording() {
     try {
       setStudentsLoading(true);
 
-      // Get session to find its class batch or class_id
+      // Get session to find its class batch
       const { data: sessionData, error: sessionError } = await supabase
         .from('sessions')
-        .select('class_batch, class_id')
+        .select('class_batch')
         .eq('id', sessionId)
         .single();
 
       if (sessionError) throw sessionError;
 
-      let classId = null;
-
-      // Try to find class by class_id first
-      if (sessionData?.class_id) {
-        classId = sessionData.class_id;
-      } 
-      // Then try by class_batch name
-      else if (sessionData?.class_batch) {
-        const { data: classData, error: classError } = await supabase
-          .from('classes')
-          .select('id')
-          .ilike('name', `%${sessionData.class_batch}%`)
-          .single();
-
-        if (!classError && classData) {
-          classId = classData.id;
-        }
+      if (!sessionData?.class_batch) {
+        toast.error('Session has no class assigned');
+        return;
       }
 
-      if (!classId) {
-        console.warn('Could not determine class for this session');
-        setStudents([]);
+      // Find class by matching class_batch name
+      const { data: classData, error: classError } = await supabase
+        .from('classes')
+        .select('id')
+        .ilike('name', `%${sessionData.class_batch}%`)
+        .single();
+
+      if (classError) {
+        console.warn('Could not find class by name:', sessionData.class_batch);
+        toast.error('Could not find class for this session');
         return;
       }
 
@@ -332,7 +321,7 @@ export default function SessionRecording() {
       const { data: studentsData, error: studentsError } = await supabase
         .from('students')
         .select('id, name, student_id')
-        .eq('class_id', classId)
+        .eq('class_id', classData.id)
         .order('name', { ascending: true });
 
       if (studentsError) throw studentsError;
@@ -340,7 +329,7 @@ export default function SessionRecording() {
       setStudents(studentsData || []);
     } catch (error) {
       console.error('Error fetching students:', error);
-      setStudents([]);
+      toast.error('Failed to load students');
     } finally {
       setStudentsLoading(false);
     }
@@ -454,38 +443,89 @@ export default function SessionRecording() {
   };
 
   const handleAddStudent = async () => {
-    if (!newStudent.student_name.trim()) {
-      toast.error('Please enter student name');
+    if (selectedStudents.size === 0) {
+      toast.error('Please select at least one student');
       return;
     }
 
     try {
+      setSavingStudents(true);
+      const recordsToInsert = Array.from(selectedStudents).map(studentId => {
+        const data = studentFormData[studentId] || {
+          student_name: '',
+          questions_asked: 0,
+          performance_rating: 5,
+          performance_comment: '',
+        };
+        const student = students.find(s => s.id === studentId);
+        return {
+          session_id: sessionId,
+          student_name: student?.name || '',
+          questions_asked: data.questions_asked || 0,
+          performance_rating: data.performance_rating || 5,
+          performance_comment: data.performance_comment || '',
+        };
+      });
+
       const { data, error } = await supabase
         .from('student_performance' as any)
-        .insert([
-          {
-            session_id: sessionId,
-            student_name: newStudent.student_name,
-            questions_asked: newStudent.questions_asked,
-            performance_rating: newStudent.performance_rating,
-            performance_comment: newStudent.performance_comment,
-          },
-        ])
+        .insert(recordsToInsert)
         .select();
 
       if (error) throw error;
 
-      setStudentPerformance([...studentPerformance, data[0] as unknown as StudentPerformance]);
-      setNewStudent({
+      setStudentPerformance([...studentPerformance, ...(data as unknown as StudentPerformance[])]);
+      setSelectedStudents(new Set());
+      setStudentFormData({});
+      toast.success(`${selectedStudents.size} student(s) added successfully`);
+    } catch (error) {
+      console.error('Error adding students:', error);
+      toast.error('Failed to add students');
+    } finally {
+      setSavingStudents(false);
+    }
+  };
+
+  const handleSaveStudentPerformanceField = async (studentId: string, fieldName: string, value: any) => {
+    try {
+      const data = studentFormData[studentId] || {
         student_name: '',
         questions_asked: 0,
         performance_rating: 5,
         performance_comment: '',
+      };
+      const student = students.find(s => s.id === studentId);
+      
+      const updatedData = {
+        ...data,
+        [fieldName]: value,
+      };
+
+      const recordToInsert = {
+        session_id: sessionId,
+        student_name: student?.name || '',
+        questions_asked: updatedData.questions_asked || 0,
+        performance_rating: updatedData.performance_rating || 5,
+        performance_comment: updatedData.performance_comment || '',
+      };
+
+      const { error } = await supabase
+        .from('student_performance' as any)
+        .insert([recordToInsert]);
+
+      if (error) throw error;
+
+      // Update local state
+      setStudentFormData({
+        ...studentFormData,
+        [studentId]: updatedData,
       });
-      toast.success('Student added successfully');
+
+      // Refresh the list
+      fetchStudentPerformance();
     } catch (error) {
-      console.error('Error adding student:', error);
-      toast.error('Failed to add student');
+      console.error('Error saving student performance:', error);
+      toast.error('Failed to save performance data');
     }
   };
 
@@ -667,7 +707,7 @@ export default function SessionRecording() {
             }`}
           >
             <div className="flex flex-col items-center">
-              <span className="text-sm font-semibold">A. Session Details & Performance</span>
+              <span className="text-sm font-semibold">1. Session Details & Performance</span>
               <span className="text-xs ">by Facilitator</span>
             </div>
           </button>
@@ -680,7 +720,7 @@ export default function SessionRecording() {
             }`}
           >
             <div className="flex flex-col items-center">
-              <span className="text-sm font-semibold">B. Feedback & Closure</span>
+              <span className="text-sm font-semibold">2. Feedback & Closure</span>
               <span className="text-xs ">by Coordinator</span>
             </div>
           </button>
@@ -693,7 +733,7 @@ export default function SessionRecording() {
             }`}
           >
             <div className="flex flex-col items-center">
-              <span className="text-sm font-semibold">C. Session Hours Tracker</span>
+              <span className="text-sm font-semibold">3. Session Hours Tracker</span>
               <span className="text-xs ">by Supervisor</span>
             </div>
           </button>
@@ -857,122 +897,177 @@ export default function SessionRecording() {
                 {/* Add Student Performance */}
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-base">Add Student Performance</CardTitle>
+                    <CardTitle className="text-base">Select Students</CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="student_name" className="text-sm">Student Name *</Label>
-                        <Select value={newStudent.student_name} onValueChange={(value) => setNewStudent({ ...newStudent, student_name: value })}>
-                          <SelectTrigger id="student_name" className="mt-1">
-                            <SelectValue placeholder="Select a student" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {students.map((student) => (
-                              <SelectItem key={student.id} value={student.name}>
-                                {student.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Label htmlFor="questions_asked" className="text-sm">No. of Questions Asked</Label>
-                        <Input
-                          id="questions_asked"
-                          type="number"
-                          min="0"
-                          value={newStudent.questions_asked}
-                          onChange={(e) => setNewStudent({ ...newStudent, questions_asked: parseInt(e.target.value) || 0 })}
-                          className="mt-1"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="performance_rating" className="text-sm">Performance Rating (1-10) *</Label>
-                        <Input
-                          id="performance_rating"
-                          type="number"
-                          min="1"
-                          max="10"
-                          value={newStudent.performance_rating}
-                          onChange={(e) => setNewStudent({ ...newStudent, performance_rating: parseInt(e.target.value) || 5 })}
-                          className="mt-1"
-                        />
-                      </div>
-                      <div className="flex items-end">
-                        <Button
-                          onClick={handleAddStudent}
-                          className="w-full gap-2"
-                        >
-                          <Plus className="h-4 w-4" />
-                          Add Student
-                        </Button>
-                      </div>
-                    </div>
-                    <div>
-                      <Label htmlFor="performance_comment" className="text-sm">Performance Comment</Label>
-                      <Textarea
-                        id="performance_comment"
-                        value={newStudent.performance_comment}
-                        onChange={(e) => setNewStudent({ ...newStudent, performance_comment: e.target.value })}
-                        placeholder="Add any comments about the student's performance"
-                        className="mt-1 min-h-[60px]"
-                      />
+                  <CardContent>
+                    <div className="overflow-x-auto">
+                      <Table className="text-sm">
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-[40px]">Select</TableHead>
+                            <TableHead>Student Name</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {students.map((student) => {
+                            const isSelected = selectedStudents.has(student.id);
+                            return (
+                              <TableRow key={student.id}>
+                                <TableCell>
+                                  <input
+                                    type="checkbox"
+                                    id={`student_${student.id}`}
+                                    checked={isSelected}
+                                    onChange={(e) => {
+                                      const newSelected = new Set(selectedStudents);
+                                      if (e.target.checked) {
+                                        newSelected.add(student.id);
+                                        setStudentFormData({
+                                          ...studentFormData,
+                                          [student.id]: {
+                                            student_name: student.name,
+                                            questions_asked: 0,
+                                            performance_rating: 5,
+                                            performance_comment: '',
+                                          },
+                                        });
+                                      } else {
+                                        newSelected.delete(student.id);
+                                        const newFormData = { ...studentFormData };
+                                        delete newFormData[student.id];
+                                        setStudentFormData(newFormData);
+                                      }
+                                      setSelectedStudents(newSelected);
+                                    }}
+                                    className="w-4 h-4 cursor-pointer"
+                                  />
+                                </TableCell>
+                                <TableCell className="font-medium">
+                                  {student.name} {student.student_id && `(${student.student_id})`}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
                     </div>
                   </CardContent>
                 </Card>
 
-                {/* Students Table */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">
-                      Student Performance Records ({studentPerformance.length})
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {studentPerformance.length > 0 ? (
-                      <div className="overflow-x-auto">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="w-[50px]">SN</TableHead>
-                              <TableHead>Student Name</TableHead>
-                              <TableHead className="w-[120px]">Questions</TableHead>
-                              <TableHead className="w-[100px]">Rating</TableHead>
-                              <TableHead>Comment</TableHead>
-                              <TableHead className="w-[60px]">Action</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {studentPerformance.map((student, index) => (
-                              <TableRow key={student.id}>
-                                <TableCell className="font-medium">{index + 1}</TableCell>
-                                <TableCell className="font-medium">{student.student_name}</TableCell>
-                                <TableCell className="text-center">{student.questions_asked}</TableCell>
-                                <TableCell className="text-center font-medium">{student.performance_rating}/10</TableCell>
-                                <TableCell className="max-w-[200px] truncate text-sm">{student.performance_comment || '-'}</TableCell>
-                                <TableCell>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => handleDeleteStudent(student.id)}
-                                    className="h-8 w-8 text-destructive hover:text-destructive"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    ) : (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <p>No students added yet. Add student performance records above.</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+                {/* Performance Details for Selected Students */}
+                {selectedStudents.size > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Performance Details ({selectedStudents.size} selected)</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {Array.from(selectedStudents).map((studentId) => {
+                        const student = students.find(s => s.id === studentId);
+                        const formData = studentFormData[studentId] || {
+                          student_name: student?.name || '',
+                          questions_asked: 0,
+                          performance_rating: 5,
+                          performance_comment: '',
+                        };
+
+                        return (
+                          <div key={studentId} className="border border-border rounded-lg p-4 space-y-3">
+                            <h4 className="font-semibold text-foreground">{student?.name}</h4>
+                            
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                              <div>
+                                <Label className="text-xs font-medium">Status</Label>
+                                <select
+                                  value={formData.performance_comment === 'Absent' ? 'absent' : 'present'}
+                                  onChange={(e) => {
+                                    const newValue = e.target.value === 'absent' ? 'Absent' : 'Present';
+                                    setStudentFormData({
+                                      ...studentFormData,
+                                      [studentId]: {
+                                        ...formData,
+                                        performance_comment: newValue
+                                      }
+                                    });
+                                    handleSaveStudentPerformanceField(studentId, 'performance_comment', newValue);
+                                  }}
+                                  className="px-2 py-1 border border-border rounded text-sm mt-1"
+                                >
+                                  <option value="present">Present</option>
+                                  <option value="absent">Absent</option>
+                                </select>
+                              </div>
+
+                              <div>
+                                <Label className="text-xs font-medium">Questions Asked</Label>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  value={formData.questions_asked}
+                                  onChange={(e) => {
+                                    const newValue = parseInt(e.target.value) || 0;
+                                    setStudentFormData({
+                                      ...studentFormData,
+                                      [studentId]: {
+                                        ...formData,
+                                        questions_asked: newValue
+                                      }
+                                    });
+                                    handleSaveStudentPerformanceField(studentId, 'questions_asked', newValue);
+                                  }}
+                                  className="h-8 text-sm mt-1"
+                                />
+                              </div>
+
+                              <div>
+                                <Label className="text-xs font-medium">Rating (1-10)</Label>
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  max="10"
+                                  value={formData.performance_rating}
+                                  onChange={(e) => {
+                                    const newValue = parseInt(e.target.value) || 5;
+                                    setStudentFormData({
+                                      ...studentFormData,
+                                      [studentId]: {
+                                        ...formData,
+                                        performance_rating: newValue
+                                      }
+                                    });
+                                    handleSaveStudentPerformanceField(studentId, 'performance_rating', newValue);
+                                  }}
+                                  className="h-8 text-sm mt-1"
+                                />
+                              </div>
+
+                              <div>
+                                <Label className="text-xs font-medium">Comment</Label>
+                                <Input
+                                  type="text"
+                                  value={formData.performance_comment}
+                                  onChange={(e) => {
+                                    const newValue = e.target.value;
+                                    setStudentFormData({
+                                      ...studentFormData,
+                                      [studentId]: {
+                                        ...formData,
+                                        performance_comment: newValue
+                                      }
+                                    });
+                                    handleSaveStudentPerformanceField(studentId, 'performance_comment', newValue);
+                                  }}
+                                  placeholder="Add comment..."
+                                  className="h-8 text-sm mt-1"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Facilitator Reflection */}
                 <Card>
