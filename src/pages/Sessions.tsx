@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Upload, MoreVertical, GraduationCap, FileText, Edit, Film } from 'lucide-react';
+import { Plus, Trash2, Upload, MoreVertical, GraduationCap, FileText, Edit, Film, Search, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import {
   Table,
   TableBody,
@@ -104,6 +105,9 @@ export default function Sessions() {
   const [volunteerFilter, setVolunteerFilter] = useState<string | null>(null);
   const [facilitatorFilter, setFacilitatorFilter] = useState<string | null>(null);
   const [coordinatorFilter, setCoordinatorFilter] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [dateFromFilter, setDateFromFilter] = useState<string>('');
+  const [dateToFilter, setDateToFilter] = useState<string>('');
 
   useEffect(() => {
     fetchSessions();
@@ -237,6 +241,23 @@ export default function Sessions() {
   const getFilteredSessions = () => {
     let filtered = sessions;
 
+    // Apply search query across all columns
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(s => 
+        (s.title?.toLowerCase().includes(query)) ||
+        (s.content_category?.toLowerCase().includes(query)) ||
+        (s.module_name?.toLowerCase().includes(query)) ||
+        (s.topics_covered?.toLowerCase().includes(query)) ||
+        (s.facilitator_name?.toLowerCase().includes(query)) ||
+        (s.volunteer_name?.toLowerCase().includes(query)) ||
+        (s.coordinator_name?.toLowerCase().includes(query)) ||
+        (s.class_batch?.toLowerCase().includes(query)) ||
+        (s.centre_name?.toLowerCase().includes(query)) ||
+        (s.status?.toLowerCase().includes(query))
+      );
+    }
+
     // Apply status filter
     if (statusFilter) {
       filtered = filtered.filter(s => s.status === statusFilter);
@@ -252,6 +273,19 @@ export default function Sessions() {
       } else if (timeFilter === 'past') {
         filtered = filtered.filter(s => new Date(s.session_date) < today);
       }
+    }
+
+    // Apply date range filter
+    if (dateFromFilter) {
+      const fromDate = new Date(dateFromFilter);
+      fromDate.setHours(0, 0, 0, 0);
+      filtered = filtered.filter(s => new Date(s.session_date) >= fromDate);
+    }
+
+    if (dateToFilter) {
+      const toDate = new Date(dateToFilter);
+      toDate.setHours(23, 59, 59, 999);
+      filtered = filtered.filter(s => new Date(s.session_date) <= toDate);
     }
 
     // Apply volunteer filter
@@ -341,109 +375,160 @@ export default function Sessions() {
             ) : (
               <>
                 {/* Filters */}
-                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center mb-6">
-                  {/* Status Filter */}
-                  <div className="w-full sm:w-48">
-                    <label className="text-sm font-medium text-foreground mb-2 block">
-                      Filter by Status
-                    </label>
-                    <Select value={statusFilter || 'all'} onValueChange={(value) => setStatusFilter(value === 'all' ? null : value)}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Statuses</SelectItem>
-                        <SelectItem value="pending">Pending</SelectItem>
-                        <SelectItem value="committed">Committed</SelectItem>
-                        <SelectItem value="available">Available</SelectItem>
-                        <SelectItem value="completed">Completed</SelectItem>
-                      </SelectContent>
-                    </Select>
+                <div className="space-y-4 mb-6">
+                  {/* Search Bar */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search sessions by title, topic, facilitator, volunteer, coordinator, class, centre, or status..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10 pr-10"
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
 
-                  {/* Time Filter */}
-                  <div className="w-full sm:w-48">
-                    <label className="text-sm font-medium text-foreground mb-2 block">
-                      Filter by Time
-                    </label>
-                    <Select value={timeFilter || 'all'} onValueChange={(value) => setTimeFilter(value === 'all' ? null : value)}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select time" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Times</SelectItem>
-                        <SelectItem value="upcoming">Upcoming</SelectItem>
-                        <SelectItem value="past">Past</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Volunteer Filter */}
-                  <div className="w-full sm:w-48">
-                    <label className="text-sm font-medium text-foreground mb-2 block">
-                      Filter by Volunteer
-                    </label>
-                    <Select value={volunteerFilter || 'all'} onValueChange={(value) => setVolunteerFilter(value === 'all' ? null : value)}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select volunteer" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Volunteers</SelectItem>
-                        {[...new Set(sessions.map(s => s.volunteer_name).filter(Boolean))].sort().map((volunteer) => (
-                          <SelectItem key={volunteer} value={volunteer || ''}>
-                            {volunteer}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Facilitator Filter */}
-                  <div className="w-full sm:w-48">
-                    <label className="text-sm font-medium text-foreground mb-2 block">
-                      Filter by Facilitator
-                    </label>
-                    <Select value={facilitatorFilter || 'all'} onValueChange={(value) => setFacilitatorFilter(value === 'all' ? null : value)}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select facilitator" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Facilitators</SelectItem>
-                        {[...new Set(sessions.map(s => s.facilitator_name).filter(Boolean))].sort().map((facilitator) => (
-                          <SelectItem key={facilitator} value={facilitator || ''}>
-                            {facilitator}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Coordinator Filter */}
-                  <div className="w-full sm:w-48">
-                    <label className="text-sm font-medium text-foreground mb-2 block">
-                      Filter by Coordinator
-                    </label>
-                    <Select value={coordinatorFilter || 'all'} onValueChange={(value) => setCoordinatorFilter(value === 'all' ? null : value)}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select coordinator" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Coordinators</SelectItem>
-                        {[...new Set(sessions.map(s => s.coordinator_name).filter(Boolean))].sort().map((coordinator) => (
-                          <SelectItem key={coordinator} value={coordinator || ''}>
-                            {coordinator}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Active Filters Summary */}
-                  {(statusFilter || timeFilter || volunteerFilter || facilitatorFilter || coordinatorFilter) && (
-                    <div className="text-sm text-muted-foreground mt-2 sm:mt-0">
-                      Showing {filteredSessions.length} of {sessions.length} sessions
+                  {/* Filter Row 1: Status, Time, Date Range */}
+                  <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
+                    {/* Status Filter */}
+                    <div className="w-full sm:w-48">
+                      <label className="text-sm font-medium text-foreground mb-2 block">
+                        Filter by Status
+                      </label>
+                      <Select value={statusFilter || 'all'} onValueChange={(value) => setStatusFilter(value === 'all' ? null : value)}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Statuses</SelectItem>
+                          <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="committed">Committed</SelectItem>
+                          <SelectItem value="available">Available</SelectItem>
+                          <SelectItem value="completed">Completed</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
-                  )}
+
+                    {/* Time Filter */}
+                    <div className="w-full sm:w-48">
+                      <label className="text-sm font-medium text-foreground mb-2 block">
+                        Filter by Time
+                      </label>
+                      <Select value={timeFilter || 'all'} onValueChange={(value) => setTimeFilter(value === 'all' ? null : value)}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select time" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Times</SelectItem>
+                          <SelectItem value="upcoming">Upcoming</SelectItem>
+                          <SelectItem value="past">Past</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Date From Filter */}
+                    <div className="w-full sm:w-48">
+                      <label className="text-sm font-medium text-foreground mb-2 block">
+                        From Date
+                      </label>
+                      <Input
+                        type="date"
+                        value={dateFromFilter}
+                        onChange={(e) => setDateFromFilter(e.target.value)}
+                        className="w-full"
+                      />
+                    </div>
+
+                    {/* Date To Filter */}
+                    <div className="w-full sm:w-48">
+                      <label className="text-sm font-medium text-foreground mb-2 block">
+                        To Date
+                      </label>
+                      <Input
+                        type="date"
+                        value={dateToFilter}
+                        onChange={(e) => setDateToFilter(e.target.value)}
+                        className="w-full"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Filter Row 2: Volunteer, Facilitator, Coordinator */}
+                  <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
+                    {/* Volunteer Filter */}
+                    <div className="w-full sm:w-48">
+                      <label className="text-sm font-medium text-foreground mb-2 block">
+                        Filter by Volunteer
+                      </label>
+                      <Select value={volunteerFilter || 'all'} onValueChange={(value) => setVolunteerFilter(value === 'all' ? null : value)}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select volunteer" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Volunteers</SelectItem>
+                          {[...new Set(sessions.map(s => s.volunteer_name).filter(Boolean))].sort().map((volunteer) => (
+                            <SelectItem key={volunteer} value={volunteer || ''}>
+                              {volunteer}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Facilitator Filter */}
+                    <div className="w-full sm:w-48">
+                      <label className="text-sm font-medium text-foreground mb-2 block">
+                        Filter by Facilitator
+                      </label>
+                      <Select value={facilitatorFilter || 'all'} onValueChange={(value) => setFacilitatorFilter(value === 'all' ? null : value)}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select facilitator" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Facilitators</SelectItem>
+                          {[...new Set(sessions.map(s => s.facilitator_name).filter(Boolean))].sort().map((facilitator) => (
+                            <SelectItem key={facilitator} value={facilitator || ''}>
+                              {facilitator}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Coordinator Filter */}
+                    <div className="w-full sm:w-48">
+                      <label className="text-sm font-medium text-foreground mb-2 block">
+                        Filter by Coordinator
+                      </label>
+                      <Select value={coordinatorFilter || 'all'} onValueChange={(value) => setCoordinatorFilter(value === 'all' ? null : value)}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select coordinator" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Coordinators</SelectItem>
+                          {[...new Set(sessions.map(s => s.coordinator_name).filter(Boolean))].sort().map((coordinator) => (
+                            <SelectItem key={coordinator} value={coordinator || ''}>
+                              {coordinator}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Active Filters Summary */}
+                    {(searchQuery || statusFilter || timeFilter || dateFromFilter || dateToFilter || volunteerFilter || facilitatorFilter || coordinatorFilter) && (
+                      <div className="text-sm text-muted-foreground mt-2 sm:mt-0 w-full sm:w-auto">
+                        Showing {filteredSessions.length} of {sessions.length} sessions
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {filteredSessions.length === 0 ? (
@@ -452,50 +537,52 @@ export default function Sessions() {
                   </div>
                 ) : (
                   <>
-                {/* Desktop Table View */}
-                <div className="hidden md:block overflow-x-auto">
-                  <Table>
+                {/* Desktop Table View - Single Table with Horizontal Scroll */}
+                <div className="hidden md:block overflow-x-auto border border-border rounded-lg">
+                  <Table className="w-full">
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Category</TableHead>
-                        <TableHead>Module</TableHead>
-                        <TableHead className="max-w-[200px]">Topic</TableHead>
-                        <TableHead>Facilitator</TableHead>
-                        <TableHead>Volunteer</TableHead>
-                        <TableHead>Coordinator</TableHead>
-                        <TableHead>Class</TableHead>
-                        <TableHead>Centre</TableHead>
-                        <TableHead>Time Slot</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Recording</TableHead>
-                        <TableHead>Meeting Link</TableHead>
-                        <TableHead className="w-[60px]">Actions</TableHead>
+                        <TableHead className="min-w-[140px]">Topic</TableHead>
+                        <TableHead className="min-w-[100px]">Category</TableHead>
+                        <TableHead className="min-w-[100px]">Module</TableHead>
+                        <TableHead className="min-w-[100px]">Facilitator</TableHead>
+                        <TableHead className="min-w-[100px]">Volunteer</TableHead>
+                        <TableHead className="min-w-[100px]">Coordinator</TableHead>
+                        <TableHead className="min-w-[80px]">Class</TableHead>
+                        <TableHead className="min-w-[100px]">Centre</TableHead>
+                        <TableHead className="min-w-[110px]">Time Slot</TableHead>
+                        <TableHead className="min-w-[90px]">Date</TableHead>
+                        <TableHead className="min-w-[70px]">Type</TableHead>
+                        <TableHead className="min-w-[80px]">Status</TableHead>
+                        <TableHead className="min-w-[100px]">Recording</TableHead>
+                        <TableHead className="min-w-[100px]">Meeting</TableHead>
+                        <TableHead className="min-w-[60px]">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredSessions.map((session) => (
-                        <TableRow key={session.id}>
-                          <TableCell>{session.content_category || '-'}</TableCell>
-                          <TableCell>{session.module_name || '-'}</TableCell>
-                          <TableCell className="max-w-[200px] truncate" title={session.topics_covered || ''}>
-                            <span className="font-medium">{session.topics_covered || '-'}</span>
+                        <TableRow key={session.id} className="hover:bg-muted/50">
+                          <TableCell className="font-medium truncate max-w-[140px]" title={session.topics_covered || ''}>
+                            {session.topics_covered || '-'}
                           </TableCell>
-                          <TableCell>{session.facilitator_name || '-'}</TableCell>
-                          <TableCell>{session.volunteer_name || '-'}</TableCell>
-                          <TableCell>{session.coordinator_name || '-'}</TableCell>
-                          <TableCell>{session.class_batch || '-'}</TableCell>
-                          <TableCell>{session.centre_name || '-'}</TableCell>
-                          <TableCell className="text-sm">
+                          <TableCell className="text-sm truncate">{session.content_category || '-'}</TableCell>
+                          <TableCell className="text-sm truncate">{session.module_name || '-'}</TableCell>
+                          <TableCell className="text-sm truncate">{session.facilitator_name || '-'}</TableCell>
+                          <TableCell className="text-sm truncate">{session.volunteer_name || '-'}</TableCell>
+                          <TableCell className="text-sm truncate">{session.coordinator_name || '-'}</TableCell>
+                          <TableCell className="text-sm truncate">{session.class_batch || '-'}</TableCell>
+                          <TableCell className="text-sm truncate">{session.centre_name || '-'}</TableCell>
+                          <TableCell className="text-xs whitespace-nowrap">
                             {session.slot_start_time && session.slot_end_time 
-                              ? `${session.slot_start_time} - ${session.slot_end_time}` 
+                              ? `${session.slot_start_time.slice(0, 5)} - ${session.slot_end_time.slice(0, 5)}` 
                               : '-'}
                           </TableCell>
-                          <TableCell>{new Date(session.session_date).toLocaleDateString()}</TableCell>
+                          <TableCell className="text-sm whitespace-nowrap">
+                            {new Date(session.session_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          </TableCell>
                           <TableCell>
-                            <Badge variant="outline" className="capitalize">
-                              {session.session_type === 'guest_teacher' ? 'Guest Teacher' : 'Guest Speaker'}
+                            <Badge variant="outline" className="text-xs whitespace-nowrap">
+                              {session.session_type === 'guest_teacher' ? 'GT' : 'GS'}
                             </Badge>
                           </TableCell>
                           <TableCell>
@@ -503,51 +590,44 @@ export default function Sessions() {
                               session.status === 'completed' ? 'default' :
                               session.status === 'pending' ? 'secondary' :
                               'outline'
-                            }>
+                            } className="text-xs whitespace-nowrap">
                               {session.status}
                             </Badge>
                           </TableCell>
-                          <TableCell>
-                            {session.recording_status === 'available' ? (
-                              <div className="space-y-1">
-                                <a
-                                  href={session.recording_url || '#'}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-primary hover:underline text-sm font-medium block"
-                                >
-                                  📹 View Recording
-                                </a>
-                                <div className="text-xs text-muted-foreground">
-                                  {session.recording_duration && `${Math.floor(session.recording_duration / 60)}m`}
-                                  {session.recording_size && ` • ${session.recording_size}`}
-                                </div>
-                              </div>
+                          <TableCell className="text-xs">
+                            {session.recording_url ? (
+                              <a
+                                href={session.recording_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary hover:underline whitespace-nowrap"
+                              >
+                                📹 View
+                              </a>
                             ) : session.recording_status === 'pending' ? (
-                              <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
-                                ⏳ Processing
+                              <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 text-xs">
+                                ⏳
                               </Badge>
                             ) : session.recording_status === 'failed' ? (
-                              <Badge variant="secondary" className="bg-red-100 text-red-800">
-                                ❌ Failed
+                              <Badge variant="secondary" className="bg-red-100 text-red-800 text-xs">
+                                ❌
                               </Badge>
                             ) : (
-                              <span className="text-muted-foreground text-sm">-</span>
+                              <span className="text-muted-foreground">-</span>
                             )}
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="text-xs">
                             {session.meeting_link ? (
                               <a
                                 href={session.meeting_link}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-primary hover:underline text-sm truncate max-w-[150px] inline-block"
-                                title={session.meeting_link}
+                                className="text-primary hover:underline whitespace-nowrap"
                               >
-                                Join Meeting
+                                Join
                               </a>
                             ) : (
-                              <span className="text-muted-foreground text-sm">-</span>
+                              <span className="text-muted-foreground">-</span>
                             )}
                           </TableCell>
                           <TableCell>
@@ -565,19 +645,10 @@ export default function Sessions() {
                                   Edit Status
                                 </DropdownMenuItem>
                                 <DropdownMenuItem 
-                                  onClick={() => {
-                                    setSelectedSession(session);
-                                    setUpdateRecordingDialogOpen(true);
-                                  }}
-                                >
-                                  <Film className="h-4 w-4 mr-2" />
-                                  Update Recording
-                                </DropdownMenuItem>
-                                <DropdownMenuItem 
                                   onClick={() => navigate(`/sessions/${session.id}/recording`)}
                                 >
                                   <FileText className="h-4 w-4 mr-2" />
-                                  Record Session
+                                  Record feedback Session
                                 </DropdownMenuItem>
                                 <DropdownMenuItem 
                                   onClick={() => {
@@ -705,13 +776,13 @@ export default function Sessions() {
                       </div>
 
                       {/* Recording Status */}
-                      {session.recording_status && (
+                      {session.recording_url || session.recording_status ? (
                         <div className="text-xs">
                           <span className="text-muted-foreground block">Recording</span>
-                          {session.recording_status === 'available' ? (
+                          {session.recording_url ? (
                             <div className="space-y-1 mt-1">
                               <a
-                                href={session.recording_url || '#'}
+                                href={session.recording_url}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-primary hover:underline font-medium text-sm block"
@@ -733,7 +804,7 @@ export default function Sessions() {
                             </Badge>
                           ) : null}
                         </div>
-                      )}
+                      ) : null}
 
                       {/* Actions */}
                       <div className="flex gap-2 pt-2 border-t border-border">

@@ -43,8 +43,11 @@ interface Session {
   session_date: string;
   session_time: string;
   facilitator_name?: string;
+  facilitator_email?: string;
   volunteer_name?: string;
+  volunteer_email?: string;
   coordinator_name?: string;
+  coordinator_email?: string;
   videos?: string;
   quiz_content_ppt?: string;
   final_content_ppt?: string;
@@ -53,6 +56,7 @@ interface Session {
   centre_time_slot_id?: string;
   centre_name?: string;
   centre_location?: string;
+  centre_email?: string;
   slot_day?: string;
   slot_start_time?: string;
   slot_end_time?: string;
@@ -172,7 +176,7 @@ export default function Calendar() {
         .from('sessions')
         .select(`
           *,
-          coordinators:coordinator_id(name),
+          coordinators:coordinator_id(name, email),
           centres:centre_id(name, location),
           centre_time_slots:centre_time_slot_id(day, start_time, end_time)
         `)
@@ -180,15 +184,58 @@ export default function Calendar() {
 
       if (error) throw error;
       
-      // Transform data to flatten relationships
-      const transformedData = (data || []).map((session: any) => ({
-        ...session,
-        coordinator_name: session.coordinators?.name || null,
-        centre_name: session.centres?.name || null,
-        centre_location: session.centres?.location || null,
-        slot_day: session.centre_time_slots?.day || null,
-        slot_start_time: session.centre_time_slots?.start_time || null,
-        slot_end_time: session.centre_time_slots?.end_time || null,
+      // Transform data and fetch facilitator/volunteer emails
+      const transformedData = await Promise.all((data || []).map(async (session: any) => {
+        let facilitator_email = null;
+        let volunteer_email = null;
+
+        // Fetch facilitator email
+        if (session.facilitator_name) {
+          try {
+            const { data: facData, error: facError } = await supabase
+              .from('facilitators')
+              .select('email')
+              .eq('name', session.facilitator_name)
+              .single();
+            
+            if (!facError && facData) {
+              facilitator_email = facData.email || null;
+            }
+          } catch (err) {
+            console.warn(`Could not fetch facilitator email for ${session.facilitator_name}:`, err);
+          }
+        }
+
+        // Fetch volunteer email (try personal_email first, then work_email)
+        if (session.volunteer_name) {
+          try {
+            const { data: volData, error: volError } = await supabase
+              .from('volunteers')
+              .select('personal_email, work_email')
+              .eq('name', session.volunteer_name)
+              .single();
+            
+            if (!volError && volData) {
+              volunteer_email = volData.personal_email || volData.work_email || null;
+            }
+          } catch (err) {
+            console.warn(`Could not fetch volunteer email for ${session.volunteer_name}:`, err);
+          }
+        }
+
+        return {
+          ...session,
+          facilitator_email,
+          volunteer_email,
+          coordinator_name: session.coordinators?.name || null,
+          coordinator_email: session.coordinators?.email || null,
+          centre_name: session.centres?.name || null,
+          centre_location: session.centres?.location || null,
+          centre_email: null,
+          slot_day: session.centre_time_slots?.day || null,
+          slot_start_time: session.centre_time_slots?.start_time || null,
+          slot_end_time: session.centre_time_slots?.end_time || null,
+        };
       }));
       
       setSessions(transformedData || []);
@@ -302,6 +349,50 @@ export default function Calendar() {
     } catch (error) {
       console.error('Error cancelling session:', error);
       toast.error('Failed to cancel session');
+    }
+  };
+
+  const handleDeleteSession = async (sessionId: string) => {
+    if (!confirm('Are you sure you want to permanently delete this session? This will remove it from Google Calendar and send cancellation emails to all participants.')) {
+      return;
+    }
+
+    try {
+      // Try to remove from Google Calendar first
+      try {
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        
+        const response = await fetch(`${supabaseUrl}/functions/v1/sync-google-calendar`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseAnonKey}`,
+          },
+          body: JSON.stringify({ sessionId }),
+        });
+
+        if (!response.ok) {
+          console.warn('Could not remove from Google Calendar:', await response.text());
+        }
+      } catch (calendarError) {
+        console.warn('Could not remove from Google Calendar:', calendarError);
+      }
+
+      // Actually delete the session from database
+      const { error } = await supabase
+        .from('sessions')
+        .delete()
+        .eq('id', sessionId);
+
+      if (error) throw error;
+
+      toast.success('Session deleted successfully');
+      setSelectedSession(null);
+      fetchSessions();
+    } catch (error) {
+      console.error('Error deleting session:', error);
+      toast.error('Failed to delete session');
     }
   };
 
@@ -506,7 +597,7 @@ export default function Calendar() {
                                 className={`text-xs px-2 py-1 rounded truncate w-full text-left hover:opacity-80 ${getStatusColor(session.status)}`}
                                 title={session.title}
                               >
-                                {session.session_time} - {session.title}
+                                {session.session_time.split(':').slice(0, 2).join(':')} - {session.title}
                               </button>
                             ))}
                             {day.sessions.length > 2 && (
@@ -576,6 +667,10 @@ export default function Calendar() {
                     <p className="font-medium">{new Date(selectedSession.session_date).toLocaleDateString()}</p>
                   </div>
                   <div>
+                    <p className="text-xs text-muted-foreground">Time</p>
+                    <p className="font-medium">{selectedSession.session_time.split(':').slice(0, 2).join(':')}</p>
+                  </div>
+                  <div>
                     <p className="text-xs text-muted-foreground">Status</p>
                     <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold capitalize ${
                       selectedSession.status === 'completed' ? 'bg-green-100 text-green-800' :
@@ -586,104 +681,60 @@ export default function Calendar() {
                       {selectedSession.status}
                     </span>
                   </div>
-                  {selectedSession.facilitator_name && (
-                    <div>
-                      <p className="text-xs text-muted-foreground">Facilitator</p>
-                      <p className="font-medium">{selectedSession.facilitator_name}</p>
-                    </div>
-                  )}
-                  {selectedSession.volunteer_name && (
-                    <div>
-                      <p className="text-xs text-muted-foreground">Volunteer</p>
-                      <p className="font-medium">{selectedSession.volunteer_name}</p>
-                    </div>
-                  )}
-                  {selectedSession.coordinator_name && (
-                    <div>
-                      <p className="text-xs text-muted-foreground">Coordinator</p>
-                      <p className="font-medium">{selectedSession.coordinator_name}</p>
-                    </div>
-                  )}
-                  {selectedSession.centre_name && (
-                    <div>
-                      <p className="text-xs text-muted-foreground">Centre</p>
-                      <p className="font-medium">{selectedSession.centre_name}</p>
-                    </div>
-                  )}
-                  {selectedSession.slot_start_time && selectedSession.slot_end_time && (
-                    <div>
-                      <p className="text-xs text-muted-foreground">Time Slot</p>
-                      <p className="font-medium">{selectedSession.slot_start_time} - {selectedSession.slot_end_time}</p>
-                    </div>
-                  )}
                 </div>
 
-                {/* Resources */}
+                {/* Participants & Details */}
                 <div className="space-y-3">
-                  <h4 className="font-semibold text-sm">Resources & Meeting</h4>
+                  <h4 className="font-semibold text-sm">Participants & Meeting Invites</h4>
                   
-                  {selectedSession.meeting_link ? (
-                    <div>
-                      <p className="text-xs text-muted-foreground">🎥 Google Meet Link</p>
-                      <a
-                        href={selectedSession.meeting_link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:underline text-sm break-all font-medium"
-                      >
-                        Join Meeting
-                      </a>
+                  {selectedSession.facilitator_name && (
+                    <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                      <p className="text-xs text-muted-foreground">👤 Facilitator</p>
+                      <p className="font-medium text-sm">{selectedSession.facilitator_name}</p>
+                      {selectedSession.facilitator_email && (
+                        <p className="text-xs text-blue-600 mt-1">📧 {selectedSession.facilitator_email}</p>
+                      )}
                     </div>
-                  ) : (
-                    <div className="text-xs text-muted-foreground">🎥 Google Meet Link - Not available</div>
+                  )}
+                  
+                  {selectedSession.volunteer_name && (
+                    <div className="bg-purple-50 border border-purple-200 rounded p-3">
+                      <p className="text-xs text-muted-foreground">👥 Volunteer</p>
+                      <p className="font-medium text-sm">{selectedSession.volunteer_name}</p>
+                      {selectedSession.volunteer_email && (
+                        <p className="text-xs text-purple-600 mt-1">📧 {selectedSession.volunteer_email}</p>
+                      )}
+                    </div>
+                  )}
+                  
+                  {selectedSession.coordinator_name && (
+                    <div className="bg-green-50 border border-green-200 rounded p-3">
+                      <p className="text-xs text-muted-foreground">📋 Coordinator</p>
+                      <p className="font-medium text-sm">{selectedSession.coordinator_name}</p>
+                      {selectedSession.coordinator_email && (
+                        <p className="text-xs text-green-600 mt-1">📧 {selectedSession.coordinator_email}</p>
+                      )}
+                    </div>
                   )}
 
-                  {selectedSession.videos ? (
-                    <div>
-                      <p className="text-xs text-muted-foreground">📹 Videos</p>
-                      <a
-                        href={selectedSession.videos}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:underline text-sm break-all"
-                      >
-                        {selectedSession.videos.substring(0, 50)}...
-                      </a>
+                  {selectedSession.centre_name && (
+                    <div className="bg-orange-50 border border-orange-200 rounded p-3">
+                      <p className="text-xs text-muted-foreground">📍 Centre</p>
+                      <p className="font-medium text-sm">{selectedSession.centre_name}</p>
+                      {selectedSession.centre_location && (
+                        <p className="text-xs text-muted-foreground">{selectedSession.centre_location}</p>
+                      )}
+                      {selectedSession.centre_email && (
+                        <p className="text-xs text-orange-600 mt-1">📧 {selectedSession.centre_email}</p>
+                      )}
                     </div>
-                  ) : (
-                    <div className="text-xs text-muted-foreground">📹 Videos - Not available</div>
                   )}
 
-                  {selectedSession.quiz_content_ppt ? (
-                    <div>
-                      <p className="text-xs text-muted-foreground">📊 Quiz/Content PPT</p>
-                      <a
-                        href={selectedSession.quiz_content_ppt}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:underline text-sm break-all"
-                      >
-                        {selectedSession.quiz_content_ppt.substring(0, 50)}...
-                      </a>
+                  {selectedSession.slot_start_time && selectedSession.slot_end_time && (
+                    <div className="bg-indigo-50 border border-indigo-200 rounded p-3">
+                      <p className="text-xs text-muted-foreground">⏰ Time Slot</p>
+                      <p className="font-medium text-sm">{selectedSession.slot_start_time.split(':').slice(0, 2).join(':')} - {selectedSession.slot_end_time.split(':').slice(0, 2).join(':')}</p>
                     </div>
-                  ) : (
-                    <div className="text-xs text-muted-foreground">📊 Quiz/Content PPT - Not available</div>
-                  )}
-
-                  {selectedSession.final_content_ppt ? (
-                    <div>
-                      <p className="text-xs text-muted-foreground">📄 Final Content PPT</p>
-                      <a
-                        href={selectedSession.final_content_ppt}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:underline text-sm break-all"
-                      >
-                        {selectedSession.final_content_ppt.substring(0, 50)}...
-                      </a>
-                    </div>
-                  ) : (
-                    <div className="text-xs text-muted-foreground">📄 Final Content PPT - Not available</div>
                   )}
                 </div>
               </div>
@@ -696,16 +747,22 @@ export default function Calendar() {
                   ℹ️ Calendar invitations have been sent to the volunteer and facilitator. They will receive email notifications from Google Calendar.
                 </div>
                 
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   <button
                     onClick={() => handleCancelSession(selectedSession.id)}
-                    className="flex-1 px-4 py-2 bg-red-50 border border-red-200 text-red-700 rounded hover:bg-red-100 transition-colors text-sm font-medium"
+                    className="flex-1 min-w-[120px] px-4 py-2 bg-yellow-50 border border-yellow-200 text-yellow-700 rounded hover:bg-yellow-100 transition-colors text-sm font-medium"
                   >
                     Cancel Session
                   </button>
                   <button
+                    onClick={() => handleDeleteSession(selectedSession.id)}
+                    className="flex-1 min-w-[120px] px-4 py-2 bg-red-50 border border-red-200 text-red-700 rounded hover:bg-red-100 transition-colors text-sm font-medium"
+                  >
+                    Delete Session
+                  </button>
+                  <button
                     onClick={() => handleModifySession(selectedSession)}
-                    className="flex-1 px-4 py-2 bg-blue-50 border border-blue-200 text-blue-700 rounded hover:bg-blue-100 transition-colors text-sm font-medium"
+                    className="flex-1 min-w-[120px] px-4 py-2 bg-blue-50 border border-blue-200 text-blue-700 rounded hover:bg-blue-100 transition-colors text-sm font-medium"
                   >
                     Modify Session
                   </button>

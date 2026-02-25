@@ -9,7 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 const navItems = [
   { title: 'Student Dashboard', url: '/student-dashboard', icon: Home, requiredRole: null, studentVisible: true },
   { title: 'Dashboard', url: '/dashboard', icon: Home, requiredRole: null, studentVisible: false },
-  { title: 'Calendar', url: '/calendar', icon: CalendarDays, requiredRole: null, studentVisible: true },
+  { title: 'Calendar', url: '/calendar', icon: CalendarDays, requiredRole: null, studentVisible: false },
   { title: 'Session', url: '/sessions', icon: BookOpen, requiredRole: null, studentVisible: false },
   { title: 'Feedback & Record', url: '/feedback', icon: FileText, requiredRole: null, studentVisible: false },
   { title: 'Curriculum', url: '/curriculum', icon: BookOpen, requiredRole: null, studentVisible: false },
@@ -94,8 +94,15 @@ export function AppSidebar() {
         <nav className="flex-1 p-3 md:p-4 space-y-1 md:space-y-2">
           {navItems.map((item) => {
             // For students (role_id = 5), only show items marked as studentVisible
-            if (userRole === 5 && !item.studentVisible) {
-              return null;
+            if (userRole === 5) {
+              if (!item.studentVisible) {
+                return null;
+              }
+            } else {
+              // For non-students (admin, facilitator, etc.), only show items marked as NOT studentVisible
+              if (item.studentVisible) {
+                return null;
+              }
             }
 
             // Check if user has required role for this item

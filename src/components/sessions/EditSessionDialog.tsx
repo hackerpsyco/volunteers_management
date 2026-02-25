@@ -114,12 +114,13 @@ export function EditSessionDialog({
   const [topics, setTopics] = useState<CurriculumItem[]>([]);
   const [centres, setCentres] = useState<Centre[]>([]);
   const [centreSlots, setCentreSlots] = useState<CentreTimeSlot[]>([]);
-  const [classes, setClasses] = useState<string[]>([]);
+  const [classes, setClasses] = useState<{ id: string; name: string }[]>([]);
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
   const [facilitators, setFacilitators] = useState<Facilitator[]>([]);
   const [coordinators, setCoordinators] = useState<Coordinator[]>([]);
   const [selectedTopic, setSelectedTopic] = useState<CurriculumItem | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedClassId, setSelectedClassId] = useState<string>('');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -130,16 +131,29 @@ export function EditSessionDialog({
   }, [session, open]);
 
   useEffect(() => {
-    if (formData?.content_category) {
-      fetchModules(formData.content_category);
+    if (formData?.class_batch && classes.length > 0) {
+      const classObj = classes.find(c => c.name === formData.class_batch);
+      if (classObj) {
+        setSelectedClassId(classObj.id);
+        fetchCategories(classObj.id);
+        setModules([]);
+        setTopics([]);
+      }
     }
-  }, [formData?.content_category]);
+  }, [formData?.class_batch, classes]);
 
   useEffect(() => {
-    if (formData?.content_category && formData?.module_name) {
-      fetchTopics(formData.content_category, formData.module_name);
+    if (formData?.content_category && selectedClassId) {
+      fetchModules(formData.content_category, selectedClassId);
+      setTopics([]);
     }
-  }, [formData?.content_category, formData?.module_name]);
+  }, [formData?.content_category, selectedClassId]);
+
+  useEffect(() => {
+    if (formData?.content_category && formData?.module_name && selectedClassId) {
+      fetchTopics(formData.content_category, formData.module_name, selectedClassId);
+    }
+  }, [formData?.content_category, formData?.module_name, selectedClassId]);
 
   useEffect(() => {
     if (formData?.centre_id) {
@@ -149,34 +163,81 @@ export function EditSessionDialog({
 
   const fetchAllData = async () => {
     try {
-      const [categoriesRes, centresRes, classesRes, volunteersRes, facilitatorsRes, coordinatorsRes] = await Promise.all([
-        supabase.from('curriculum').select('content_category').not('content_category', 'is', null),
+      const [centresRes, classesRes, volunteersRes, facilitatorsRes, coordinatorsRes] = await Promise.all([
         supabase.from('centres').select('id, name, location').eq('status', 'active'),
-        supabase.from('classes').select('name').order('name', { ascending: true }),
+        supabase.from('classes').select('id, name').order('name', { ascending: true }),
         supabase.from('volunteers').select('id, name, personal_email, work_email, phone_number, organization_name').eq('is_active', true).order('name', { ascending: true }),
         supabase.from('facilitators').select('id, name, email, phone, location, status').eq('status', 'active').order('name', { ascending: true }),
         supabase.from('coordinators').select('id, name, email, phone, location, status').eq('status', 'active').order('name', { ascending: true }),
       ]);
 
-      const uniqueCategories = [...new Set(categoriesRes.data?.map(item => item.content_category) || [])];
-      setCategories(uniqueCategories as string[]);
       setCentres(centresRes.data || []);
-      setClasses(classesRes.data?.map(item => item.name) || []);
+      setClasses(classesRes.data || []);
       setVolunteers(volunteersRes.data || []);
       setFacilitators(facilitatorsRes.data || []);
       setCoordinators(coordinatorsRes.data || []);
+
+      // Set selectedClassId if session has class_batch
+      if (session?.class_batch && classesRes.data) {
+        const classObj = classesRes.data.find(c => c.name === session.class_batch);
+        if (classObj) {
+          setSelectedClassId(classObj.id);
+        }
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
     }
   };
 
-  const fetchModules = async (category: string) => {
+  const fetchCategories = async (classId?: string) => {
     try {
-      const { data } = await supabase
+      let query: any = supabase
+        .from('curriculum')
+        .select('content_category')
+        .not('content_category', 'is', null);
+
+      if (classId) {
+        query = query.eq('class_id', classId);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+      const uniqueCategories = [...new Set(data?.map(item => item.content_category) || [])];
+      setCategories(uniqueCategories as string[]);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    }
+  };
+
+  const fetchModules = async (category: string, classId?: string) => {
+    try {
+      let query: any = supabase
         .from('curriculum')
         .select('module_name')
         .eq('content_category', category)
         .not('module_name', 'is', null);
+
+      if (classId) {
+        query = query.eq('class_id', classId);
+      }
+
+      let { data, error } = await query;
+
+      if (error) throw error;
+
+      // If no data with class_id filter, try without it (fallback for NULL class_id)
+      if ((!data || data.length === 0) && classId) {
+        const fallbackQuery = supabase
+          .from('curriculum')
+          .select('module_name')
+          .eq('content_category', category)
+          .not('module_name', 'is', null);
+        
+        const { data: fallbackData, error: fallbackError } = await fallbackQuery;
+        if (fallbackError) throw fallbackError;
+        data = fallbackData;
+      }
 
       const uniqueModules = [...new Set(data?.map(item => item.module_name) || [])];
       setModules(uniqueModules as string[]);
@@ -185,14 +246,36 @@ export function EditSessionDialog({
     }
   };
 
-  const fetchTopics = async (category: string, moduleName: string) => {
+  const fetchTopics = async (category: string, moduleName: string, classId?: string) => {
     try {
-      const { data } = await supabase
+      let query: any = supabase
         .from('curriculum')
         .select('*')
         .eq('content_category', category)
         .eq('module_name', moduleName)
         .order('topics_covered', { ascending: true });
+
+      if (classId) {
+        query = query.eq('class_id', classId);
+      }
+
+      let { data, error } = await query;
+
+      if (error) throw error;
+
+      // If no data with class_id filter, try without it (fallback for NULL class_id)
+      if ((!data || data.length === 0) && classId) {
+        const fallbackQuery = supabase
+          .from('curriculum')
+          .select('*')
+          .eq('content_category', category)
+          .eq('module_name', moduleName)
+          .order('topics_covered', { ascending: true });
+        
+        const { data: fallbackData, error: fallbackError } = await fallbackQuery;
+        if (fallbackError) throw fallbackError;
+        data = fallbackData;
+      }
 
       setTopics(data || []);
     } catch (error) {
@@ -426,10 +509,27 @@ Session updated with new details.
             </Select>
           </div>
 
-          {/* Content Selection */}
+          {/* Class Selection - FIRST */}
           <div className="border-t border-border pt-4">
-            <h4 className="font-medium text-sm sm:text-base text-foreground mb-3">Select Content & Topic</h4>
+            <h4 className="font-medium text-sm sm:text-base text-foreground mb-3">Select Class & Content</h4>
             
+            <div className="space-y-2 mb-4">
+              <Label htmlFor="class_batch" className="text-sm sm:text-base">Class *</Label>
+              <Select value={formData.class_batch || ''} onValueChange={(value) => setFormData({ ...formData, class_batch: value })}>
+                <SelectTrigger className="text-sm sm:text-base">
+                  <SelectValue placeholder="Select a class" />
+                </SelectTrigger>
+                <SelectContent>
+                  {classes.map((cls) => (
+                    <SelectItem key={cls.id} value={cls.name}>
+                      {cls.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Content Selection */}
             <div className="space-y-2 mb-4">
               <Label htmlFor="category" className="text-sm sm:text-base">Content Category *</Label>
               <Select value={formData.content_category || ''} onValueChange={(value) => {
@@ -492,22 +592,6 @@ Session updated with new details.
           {/* Content Details */}
           <div className="border-t border-border pt-4">
             <h4 className="font-medium text-sm sm:text-base text-foreground mb-3">Content Details {selectedTopic && '(Auto-filled)'}</h4>
-            
-            <div className="space-y-2 mb-4">
-              <Label htmlFor="class_batch" className="text-sm sm:text-base">Class *</Label>
-              <Select value={formData.class_batch || ''} onValueChange={(value) => setFormData({ ...formData, class_batch: value })}>
-                <SelectTrigger className="text-sm sm:text-base">
-                  <SelectValue placeholder="Select a class" />
-                </SelectTrigger>
-                <SelectContent>
-                  {classes.map((className) => (
-                    <SelectItem key={className} value={className}>
-                      {className}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
             
             <div className="space-y-2 mb-4">
               <Label htmlFor="session_type_option" className="text-sm sm:text-base">Session Type Option *</Label>

@@ -28,7 +28,6 @@ interface CalendarSyncRequest {
   coordinatorEmail?: string;
 
   classEmail?: string;     // ✅ NEW
-  centreEmail?: string;    // ✅ NEW
 
   googleEventId?: string;
 }
@@ -43,7 +42,6 @@ function buildAttendees(body: CalendarSyncRequest) {
     body.facilitatorEmail,
     body.coordinatorEmail,
     body.classEmail,      // ✅ NEW
-    body.centreEmail,     // ✅ NEW
   ];
 
   return emails
@@ -193,6 +191,90 @@ serve(async (req) => {
       );
     }
 
+    // ✅ HANDLE DELETE REQUEST
+    if (req.method === "DELETE") {
+      if (!body.sessionId) {
+        return new Response(
+          JSON.stringify({ error: "Missing sessionId for deletion" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const supabaseUrl = Deno.env.get("SUPABASE_URL");
+      const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+      if (!supabaseUrl || !supabaseServiceRoleKey) {
+        console.error("Missing Supabase environment variables");
+        return new Response(
+          JSON.stringify({ error: "Server configuration error" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+
+      // Get the google_event_id from the session
+      const { data: sessionData, error: fetchError } = await supabase
+        .from("sessions")
+        .select("google_event_id")
+        .eq("id", body.sessionId)
+        .single();
+
+      if (fetchError || !sessionData?.google_event_id) {
+        console.warn(`No google_event_id found for session ${body.sessionId}`);
+        return new Response(
+          JSON.stringify({ success: true, message: "Session has no Google Calendar event to delete" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Delete from Google Calendar
+      try {
+        const token = await getAccessToken(serviceAccountEmail, privateKey);
+
+        const deleteRes = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/primary/events/${sessionData.google_event_id}?sendNotifications=true`,
+          {
+            method: "DELETE",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (!deleteRes.ok && deleteRes.status !== 404) {
+          const errorText = await deleteRes.text();
+          console.error(`Calendar API delete error (${deleteRes.status}):`, errorText);
+          throw new Error(`Calendar API error: ${deleteRes.status}`);
+        }
+
+        console.log(`Successfully deleted calendar event: ${sessionData.google_event_id}`);
+      } catch (calendarError) {
+        console.warn("Could not delete from Google Calendar:", calendarError);
+        // Continue anyway - we still want to clear the event ID from the session
+      }
+
+      // Clear the google_event_id from the session
+      const { error: updateError } = await supabase
+        .from("sessions")
+        .update({ google_event_id: null })
+        .eq("id", body.sessionId);
+
+      if (updateError) {
+        console.error("Error clearing google_event_id:", updateError);
+        return new Response(
+          JSON.stringify({ error: "Failed to clear event ID from session" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, message: "Calendar event deleted successfully" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ✅ HANDLE POST REQUEST (CREATE)
     // Validate required fields
     if (!body.title || !body.startDateTime || !body.endDateTime) {
       console.error("Missing required fields:", { title: body.title, startDateTime: body.startDateTime, endDateTime: body.endDateTime });

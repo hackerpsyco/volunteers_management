@@ -93,6 +93,7 @@ export default function SessionRecording() {
     best_performer: '',
     guest_teacher_feedback: '',
     incharge_reviewer_feedback: '',
+    recording_url: '',
     mic_sound_rating: 5,
     seating_view_rating: 5,
     session_strength: 5,
@@ -200,6 +201,7 @@ export default function SessionRecording() {
         best_performer: (sessionData as any).best_performer || '',
         guest_teacher_feedback: (sessionData as any).guest_teacher_feedback || '',
         incharge_reviewer_feedback: (sessionData as any).incharge_reviewer_feedback || '',
+        recording_url: (sessionData as any).recording_url || '',
         mic_sound_rating: (sessionData as any).mic_sound_rating || 5,
         seating_view_rating: (sessionData as any).seating_view_rating || 5,
         session_strength: (sessionData as any).session_strength || 5,
@@ -351,6 +353,7 @@ export default function SessionRecording() {
           best_performer: formData.best_performer,
           guest_teacher_feedback: formData.guest_teacher_feedback,
           incharge_reviewer_feedback: formData.incharge_reviewer_feedback,
+          recording_url: formData.recording_url,
           mic_sound_rating: formData.mic_sound_rating,
           seating_view_rating: formData.seating_view_rating,
           session_strength: formData.session_strength,
@@ -1322,6 +1325,42 @@ export default function SessionRecording() {
                   placeholder="Feedback from incharge or reviewer"
                   className="min-h-[80px]"
                 />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <ExternalLink className="h-4 w-4" />
+                  Recording Link
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <Label htmlFor="recording_url" className="text-sm">Session Recording URL</Label>
+                  <Input
+                    id="recording_url"
+                    type="url"
+                    value={formData.recording_url}
+                    onChange={(e) => setFormData({ ...formData, recording_url: e.target.value })}
+                    placeholder="https://example.com/recording"
+                    className="w-full"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Paste the link to the session recording (YouTube, Google Drive, etc.)
+                  </p>
+                  {formData.recording_url && (
+                    <a
+                      href={formData.recording_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-primary hover:underline text-sm mt-2"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      View Recording
+                    </a>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </div>
