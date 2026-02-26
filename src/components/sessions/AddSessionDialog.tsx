@@ -648,8 +648,20 @@ export function AddSessionDialog({
       const selectedClassData = classes.find(c => c.id === selectedClass);     // ✅ NEW
     const selectedCentreData = centres.find(c => c.id === selectedCentre);   // ✅ NEW
 
-    // Generate meeting link
-    const meetingLink = `https://meet.google.com/${selectedDate.getTime()}-${selectedVolunteer}`;
+    // Generate meeting link with valid Google Meet format
+    // Google Meet links should be: https://meet.google.com/xxx-xxxx-xxx (with hyphens)
+    const generateMeetingCode = () => {
+      const chars = 'abcdefghijklmnopqrstuvwxyz';
+      let code = '';
+      // Generate format: xxx-xxxx-xxx
+      for (let i = 0; i < 3; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+      code += '-';
+      for (let i = 0; i < 4; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+      code += '-';
+      for (let i = 0; i < 3; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+      return code;
+    };
+    const meetingLink = `https://meet.google.com/${generateMeetingCode()}`;
 
     const sessionData = {
       title: formData.title,

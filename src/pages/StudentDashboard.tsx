@@ -86,9 +86,11 @@ export default function StudentDashboard() {
 
       if (profileError) {
         console.error('Profile error:', profileError);
-        // Profile doesn't exist or RLS blocked access
+        // Profile doesn't exist or RLS blocked access - this is expected for some users
+        // Continue with empty data
         setTasks([]);
         setSessions([]);
+        setLoading(false);
         return;
       }
 
@@ -114,7 +116,7 @@ export default function StudentDashboard() {
           .single();
 
         if (studentError) {
-          console.warn('Student record not found for email:', user?.email);
+          console.warn('Student record not found for email:', user?.email, studentError);
           setTasks([]);
         } else if (studentRecord) {
           const { data: tasksData, error: tasksError } = await supabase
@@ -123,8 +125,12 @@ export default function StudentDashboard() {
             .eq('student_id', studentRecord.id)
             .order('deadline', { ascending: true });
 
-          if (tasksError) throw tasksError;
-          setTasks(tasksData || []);
+          if (tasksError) {
+            console.error('Error fetching tasks:', tasksError);
+            setTasks([]);
+          } else {
+            setTasks(tasksData || []);
+          }
         }
 
         // Fetch sessions for this class
@@ -135,8 +141,12 @@ export default function StudentDashboard() {
           .gte('session_date', new Date().toISOString().split('T')[0])
           .order('session_date', { ascending: true });
 
-        if (sessionsError) throw sessionsError;
-        setSessions(sessionsData || []);
+        if (sessionsError) {
+          console.error('Error fetching sessions:', sessionsError);
+          setSessions([]);
+        } else {
+          setSessions(sessionsData || []);
+        }
       } else {
         // No class assigned - show empty state
         setTasks([]);

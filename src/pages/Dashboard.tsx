@@ -75,16 +75,15 @@ export default function Dashboard() {
         // Fetch stats
         const volunteersResult = await supabase.from('volunteers').select('id', { count: 'exact', head: true });
         const sessionsResult = await supabase.from('sessions').select('id', { count: 'exact', head: true });
-        
-        // These tables might not exist yet, so we handle them gracefully
-        let centresCount = 0;
-        let facilitatorsCount = 0;
+        const centresResult = await supabase.from('centres').select('id', { count: 'exact', head: true });
+        const facilitatorsResult = await supabase.from('facilitators').select('id', { count: 'exact', head: true });
+        const slotsResult = await supabase.from('centre_time_slots').select('id', { count: 'exact', head: true });
 
         setStats({
           totalVolunteers: volunteersResult.count || 0,
           totalSessions: sessionsResult.count || 0,
-          totalCentres: centresCount,
-          totalFacilitators: facilitatorsCount,
+          totalCentres: (centresResult.count || 0) + (slotsResult.count || 0),
+          totalFacilitators: facilitatorsResult.count || 0,
         });
 
         // Fetch session status breakdown

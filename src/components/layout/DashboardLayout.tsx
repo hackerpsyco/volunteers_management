@@ -121,7 +121,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   }, [user, loading, navigate]);
 
   const handleSignOut = async () => {
-    await signOut();
+    try {
+      await signOut();
+      // Navigate to auth page after sign out
+      navigate('/auth', { replace: true });
+    } catch (error) {
+      console.error('Sign out error:', error);
+      // Still navigate even if there's an error
+      navigate('/auth', { replace: true });
+    }
   };
 
   const handleSettings = () => {

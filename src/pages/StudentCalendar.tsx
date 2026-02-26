@@ -84,7 +84,20 @@ export default function StudentCalendar() {
         const { data: sessionsData, error: sessionsError } = await supabase
           .from('sessions')
           .select(`
-            *,
+            id,
+            title,
+            content_category,
+            module_name,
+            topics_covered,
+            status,
+            session_date,
+            session_time,
+            facilitator_name,
+            meeting_link,
+            class_batch,
+            coordinator_id,
+            centre_id,
+            centre_time_slot_id,
             coordinators:coordinator_id(name),
             centres:centre_id(name, location),
             centre_time_slots:centre_time_slot_id(day, start_time, end_time)
@@ -348,17 +361,28 @@ export default function StudentCalendar() {
                 </div>
 
                 {/* Meeting Link */}
-                {selectedSession.meeting_link && (
+                {selectedSession.meeting_link ? (
                   <div className="border-t border-border pt-4">
                     <h4 className="font-semibold text-sm mb-3">Join Session</h4>
                     <a
                       href={selectedSession.meeting_link}
                       target="_blank"
                       rel="noopener noreferrer"
+                      onClick={(e) => {
+                        if (!selectedSession.meeting_link || selectedSession.meeting_link.trim() === '') {
+                          e.preventDefault();
+                          toast.error('Meeting link is not available');
+                        }
+                      }}
                       className="inline-block px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors"
                     >
                       Join Google Meet
                     </a>
+                  </div>
+                ) : (
+                  <div className="border-t border-border pt-4">
+                    <h4 className="font-semibold text-sm mb-3">Join Session</h4>
+                    <p className="text-sm text-muted-foreground">Meeting link will be available soon</p>
                   </div>
                 )}
               </div>
