@@ -105,6 +105,7 @@ export default function Sessions() {
   const [volunteerFilter, setVolunteerFilter] = useState<string | null>(null);
   const [facilitatorFilter, setFacilitatorFilter] = useState<string | null>(null);
   const [coordinatorFilter, setCoordinatorFilter] = useState<string | null>(null);
+  const [categorySort, setCategorySort] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [dateFromFilter, setDateFromFilter] = useState<string>('');
   const [dateToFilter, setDateToFilter] = useState<string>('');
@@ -303,6 +304,15 @@ export default function Sessions() {
       filtered = filtered.filter(s => s.coordinator_name === coordinatorFilter);
     }
 
+    // Apply category sort - selected category sessions first, then others
+    if (categorySort) {
+      filtered = filtered.sort((a, b) => {
+        const aMatches = a.content_category === categorySort ? 0 : 1;
+        const bMatches = b.content_category === categorySort ? 0 : 1;
+        return aMatches - bMatches;
+      });
+    }
+
     return filtered;
   };
 
@@ -460,7 +470,7 @@ export default function Sessions() {
                     </div>
                   </div>
 
-                  {/* Filter Row 2: Volunteer, Facilitator, Coordinator */}
+                  {/* Filter Row 2: Volunteer, Facilitator, Coordinator, Category Sort */}
                   <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
                     {/* Volunteer Filter */}
                     <div className="w-full sm:w-48">
@@ -522,8 +532,28 @@ export default function Sessions() {
                       </Select>
                     </div>
 
+                    {/* Category Sort */}
+                    <div className="w-full sm:w-48">
+                      <label className="text-sm font-medium text-foreground mb-2 block">
+                        Sort by Category
+                      </label>
+                      <Select value={categorySort || 'all'} onValueChange={(value) => setCategorySort(value === 'all' ? null : value)}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Categories</SelectItem>
+                          {[...new Set(sessions.map(s => s.content_category).filter(Boolean))].sort().map((category) => (
+                            <SelectItem key={category} value={category || ''}>
+                              {category}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
                     {/* Active Filters Summary */}
-                    {(searchQuery || statusFilter || timeFilter || dateFromFilter || dateToFilter || volunteerFilter || facilitatorFilter || coordinatorFilter) && (
+                    {(searchQuery || statusFilter || timeFilter || dateFromFilter || dateToFilter || volunteerFilter || facilitatorFilter || coordinatorFilter || categorySort) && (
                       <div className="text-sm text-muted-foreground mt-2 sm:mt-0 w-full sm:w-auto">
                         Showing {filteredSessions.length} of {sessions.length} sessions
                       </div>
