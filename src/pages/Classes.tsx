@@ -55,6 +55,7 @@ interface Class {
   email: string | null;
   created_at: string;
   updated_at: string;
+  student_count?: number;
 }
 
 export default function Classes() {
@@ -88,7 +89,22 @@ export default function Classes() {
 
       if (error) throw error;
 
-      setClasses(data || []);
+      // Fetch student count for each class
+      const classesWithCounts = await Promise.all(
+        (data || []).map(async (classItem) => {
+          const { count, error: countError } = await supabase
+            .from('students')
+            .select('*', { count: 'exact', head: true })
+            .eq('class_id', classItem.id);
+
+          return {
+            ...classItem,
+            student_count: countError ? 0 : (count || 0),
+          };
+        })
+      );
+
+      setClasses(classesWithCounts);
     } catch (error) {
       console.error(error);
       toast.error('Failed to load classes');
@@ -184,6 +200,7 @@ export default function Classes() {
                   <TableRow>
                     <TableHead>Class Name</TableHead>
                     <TableHead>Email</TableHead>
+                    <TableHead>Total Students</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead className="w-[60px]">Actions</TableHead>
                   </TableRow>
@@ -198,6 +215,13 @@ export default function Classes() {
 
                       <TableCell>
                         {classItem.email || '-'}
+                      </TableCell>
+
+                      <TableCell>
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-blue-100 text-blue-700 text-sm font-medium">
+                          <Users className="h-4 w-4" />
+                          {classItem.student_count || 0}
+                        </span>
                       </TableCell>
 
                       <TableCell>
@@ -325,13 +349,21 @@ export default function Classes() {
                   }}
                   className="w-full text-left px-4 py-3 rounded-lg border border-border hover:bg-muted transition-colors"
                 >
-                  <div className="font-semibold text-foreground">{classItem.name}</div>
-                  {classItem.description && (
-                    <div className="text-sm text-muted-foreground">{classItem.description}</div>
-                  )}
-                  {classItem.email && (
-                    <div className="text-xs text-muted-foreground mt-1">{classItem.email}</div>
-                  )}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-semibold text-foreground">{classItem.name}</div>
+                      {classItem.description && (
+                        <div className="text-sm text-muted-foreground">{classItem.description}</div>
+                      )}
+                      {classItem.email && (
+                        <div className="text-xs text-muted-foreground mt-1">{classItem.email}</div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-blue-100 text-blue-700 text-sm font-medium whitespace-nowrap ml-2">
+                      <Users className="h-4 w-4" />
+                      {classItem.student_count || 0}
+                    </div>
+                  </div>
                 </button>
               ))
             )}

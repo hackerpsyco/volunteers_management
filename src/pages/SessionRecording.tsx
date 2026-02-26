@@ -81,8 +81,8 @@ export default function SessionRecording() {
   const [session, setSession] = useState<SessionRecording | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [currentSubTab, setCurrentSubTab] = useState('a');
+  const [hoursSubTab, setHoursSubTab] = useState('a');
   const [studentPerformance, setStudentPerformance] = useState<StudentPerformance[]>([]);
-  const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
   const [studentFormData, setStudentFormData] = useState<{ [key: string]: StudentPerformance }>({});
   const [formData, setFormData] = useState({
     session_objective: '',
@@ -250,9 +250,9 @@ export default function SessionRecording() {
         // PGRST116 is "no rows found" which is expected if no hours tracker exists
         throw error;
       }
-      if (data) {
+      if (data && typeof data === 'object') {
         setHoursData(data as unknown as SessionHoursTracker);
-        setHoursValidationId(data.validation_id || '');
+        setHoursValidationId((data as any).validation_id || '');
       }
     } catch (error) {
       console.error('Error fetching hours tracker:', error);
@@ -386,7 +386,7 @@ export default function SessionRecording() {
   const handleSaveStudentPerformance = async () => {
     try {
       setSavingStudents(true);
-      // Student performance is already saved when added via handleAddStudent
+      // Student performance is already saved when fields are changed
       // This just confirms and navigates back
       toast.success('Student performance saved successfully');
       navigate('/feedback');
@@ -458,50 +458,6 @@ export default function SessionRecording() {
     }
   };
 
-  const handleAddStudent = async () => {
-    if (selectedStudents.size === 0) {
-      toast.error('Please select at least one student');
-      return;
-    }
-
-    try {
-      setSavingStudents(true);
-      const recordsToInsert = Array.from(selectedStudents).map(studentId => {
-        const data = studentFormData[studentId] || {
-          student_name: '',
-          questions_asked: 0,
-          performance_rating: 5,
-          performance_comment: '',
-        };
-        const student = students.find(s => s.id === studentId);
-        return {
-          session_id: sessionId,
-          student_name: student?.name || '',
-          questions_asked: data.questions_asked || 0,
-          performance_rating: data.performance_rating || 5,
-          performance_comment: data.performance_comment || '',
-        };
-      });
-
-      const { data, error } = await supabase
-        .from('student_performance' as any)
-        .insert(recordsToInsert)
-        .select();
-
-      if (error) throw error;
-
-      setStudentPerformance([...studentPerformance, ...(data as unknown as StudentPerformance[])]);
-      setSelectedStudents(new Set());
-      setStudentFormData({});
-      toast.success(`${selectedStudents.size} student(s) added successfully`);
-    } catch (error) {
-      console.error('Error adding students:', error);
-      toast.error('Failed to add students');
-    } finally {
-      setSavingStudents(false);
-    }
-  };
-
   const handleSaveStudentPerformanceField = async (studentId: string, fieldName: string, value: any) => {
     try {
       const data = studentFormData[studentId] || {
@@ -510,32 +466,50 @@ export default function SessionRecording() {
         performance_rating: 5,
         performance_comment: '',
       };
-      const student = students.find(s => s.id === studentId);
       
       const updatedData = {
         ...data,
         [fieldName]: value,
       };
 
-      const recordToInsert = {
-        session_id: sessionId,
-        student_name: student?.name || '',
-        questions_asked: updatedData.questions_asked || 0,
-        performance_rating: updatedData.performance_rating || 5,
-        performance_comment: updatedData.performance_comment || '',
-      };
-
-      const { error } = await supabase
-        .from('student_performance' as any)
-        .insert([recordToInsert]);
-
-      if (error) throw error;
-
-      // Update local state
+      // Update local state immediately for UI responsiveness
       setStudentFormData({
         ...studentFormData,
         [studentId]: updatedData,
       });
+
+      // Check if this student already has a performance record
+      const existingRecord = studentPerformance.find(sp => sp.id && sp.student_name === data.student_name);
+      
+      if (existingRecord && existingRecord.id) {
+        // Update existing record
+        const { error } = await supabase
+          .from('student_performance' as any)
+          .update({
+            questions_asked: updatedData.questions_asked || 0,
+            performance_rating: updatedData.performance_rating || 5,
+            performance_comment: updatedData.performance_comment || '',
+          })
+          .eq('id', existingRecord.id);
+
+        if (error) throw error;
+      } else {
+        // Insert new record only if not already in the list
+        const student = students.find(s => s.id === studentId);
+        const recordToInsert = {
+          session_id: sessionId,
+          student_name: student?.name || '',
+          questions_asked: updatedData.questions_asked || 0,
+          performance_rating: updatedData.performance_rating || 5,
+          performance_comment: updatedData.performance_comment || '',
+        };
+
+        const { error } = await supabase
+          .from('student_performance' as any)
+          .insert([recordToInsert]);
+
+        if (error) throw error;
+      }
 
       // Refresh the list
       fetchStudentPerformance();
@@ -565,8 +539,8 @@ export default function SessionRecording() {
   };
 
   const handleSaveHomework = async () => {
-    if (!newHomework.student_id || !newHomework.task_name.trim()) {
-      toast.error('Please select a student and enter task name');
+    if (!newHomework.task_name.trim()) {
+      toast.error('Please enter a task name');
       return;
     }
 
@@ -863,8 +837,6 @@ export default function SessionRecording() {
             {/* Sub-tab b: Performance Details */}
             {currentSubTab === 'b' && (
               <div className="space-y-4">
-             
-
                 {/* Practical Activities */}
                 <Card>
                   <CardHeader>
@@ -910,180 +882,113 @@ export default function SessionRecording() {
                   </CardContent>
                 </Card>
 
-                {/* Add Student Performance */}
+                {/* Student Performance - All Students Visible in Compact Inline Format */}
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-base">Select Students</CardTitle>
+                    <CardTitle className="text-base">Student Performance Feedback</CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <div className="overflow-x-auto">
-                      <Table className="text-sm">
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="w-[40px]">Select</TableHead>
-                            <TableHead>Student Name</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {students.map((student) => {
-                            const isSelected = selectedStudents.has(student.id);
-                            return (
-                              <TableRow key={student.id}>
-                                <TableCell>
-                                  <input
-                                    type="checkbox"
-                                    id={`student_${student.id}`}
-                                    checked={isSelected}
-                                    onChange={(e) => {
-                                      const newSelected = new Set(selectedStudents);
-                                      if (e.target.checked) {
-                                        newSelected.add(student.id);
-                                        setStudentFormData({
-                                          ...studentFormData,
-                                          [student.id]: {
-                                            student_name: student.name,
-                                            questions_asked: 0,
-                                            performance_rating: 5,
-                                            performance_comment: '',
-                                          },
-                                        });
-                                      } else {
-                                        newSelected.delete(student.id);
-                                        const newFormData = { ...studentFormData };
-                                        delete newFormData[student.id];
-                                        setStudentFormData(newFormData);
-                                      }
-                                      setSelectedStudents(newSelected);
-                                    }}
-                                    className="w-4 h-4 cursor-pointer"
-                                  />
-                                </TableCell>
-                                <TableCell className="font-medium">
-                                  {student.name} {student.student_id && `(${student.student_id})`}
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </CardContent>
-                </Card>
+                  <CardContent className="space-y-2">
+                    {students.length === 0 ? (
+                      <p className="text-muted-foreground text-sm">Loading students...</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {/* Header Row */}
+                        <div className="grid grid-cols-12 gap-2 pb-2 border-b border-border">
+                          <div className="col-span-3">
+                            <p className="text-xs font-semibold text-muted-foreground">Student Name</p>
+                          </div>
+                          <div className="col-span-2">
+                            <p className="text-xs font-semibold text-muted-foreground">Status</p>
+                          </div>
+                          <div className="col-span-2">
+                            <p className="text-xs font-semibold text-muted-foreground">Questions</p>
+                          </div>
+                          <div className="col-span-2">
+                            <p className="text-xs font-semibold text-muted-foreground">Rating</p>
+                          </div>
+                          <div className="col-span-3">
+                            <p className="text-xs font-semibold text-muted-foreground">Comment</p>
+                          </div>
+                        </div>
 
-                {/* Performance Details for Selected Students */}
-                {selectedStudents.size > 0 && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">Performance Details ({selectedStudents.size} selected)</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      {Array.from(selectedStudents).map((studentId) => {
-                        const student = students.find(s => s.id === studentId);
-                        const formData = studentFormData[studentId] || {
-                          student_name: student?.name || '',
-                          questions_asked: 0,
-                          performance_rating: 5,
-                          performance_comment: '',
-                        };
+                        {/* Student Rows */}
+                        {students.map((student) => {
+                          const perfData = studentPerformance.find(sp => sp.student_name === student.name) || {
+                            student_name: student.name,
+                            questions_asked: 0,
+                            performance_rating: 5,
+                            performance_comment: '',
+                          };
 
-                        return (
-                          <div key={studentId} className="border border-border rounded-lg p-4 space-y-3">
-                            <h4 className="font-semibold text-foreground">{student?.name}</h4>
-                            
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                              <div>
-                                <Label className="text-xs font-medium">Status</Label>
+                          return (
+                            <div key={student.id} className="grid grid-cols-12 gap-2 items-center py-2 hover:bg-muted/30 rounded px-2 transition-colors">
+                              <div className="col-span-3">
+                                <p className="text-sm font-medium truncate">
+                                  {student.name}
+                                  {student.student_id && <span className="text-xs text-muted-foreground ml-1">({student.student_id})</span>}
+                                </p>
+                              </div>
+
+                              <div className="col-span-2">
                                 <select
-                                  value={formData.performance_comment === 'Absent' ? 'absent' : 'present'}
+                                  value={perfData.performance_comment === 'Absent' ? 'absent' : 'present'}
                                   onChange={(e) => {
                                     const newValue = e.target.value === 'absent' ? 'Absent' : 'Present';
-                                    setStudentFormData({
-                                      ...studentFormData,
-                                      [studentId]: {
-                                        ...formData,
-                                        performance_comment: newValue
-                                      }
-                                    });
-                                    handleSaveStudentPerformanceField(studentId, 'performance_comment', newValue);
+                                    handleSaveStudentPerformanceField(student.id, 'performance_comment', newValue);
                                   }}
-                                  className="px-2 py-1 border border-border rounded text-sm mt-1"
+                                  className="px-2 py-1 border border-border rounded text-xs w-full h-8"
                                 >
                                   <option value="present">Present</option>
                                   <option value="absent">Absent</option>
                                 </select>
                               </div>
 
-                              <div>
-                                <Label className="text-xs font-medium">Questions Asked</Label>
+                              <div className="col-span-2">
                                 <Input
                                   type="number"
                                   min="0"
-                                  value={formData.questions_asked}
+                                  value={perfData.questions_asked || 0}
                                   onChange={(e) => {
                                     const newValue = parseInt(e.target.value) || 0;
-                                    setStudentFormData({
-                                      ...studentFormData,
-                                      [studentId]: {
-                                        ...formData,
-                                        questions_asked: newValue
-                                      }
-                                    });
-                                    handleSaveStudentPerformanceField(studentId, 'questions_asked', newValue);
+                                    handleSaveStudentPerformanceField(student.id, 'questions_asked', newValue);
                                   }}
-                                  className="h-8 text-sm mt-1"
+                                  className="h-8 text-xs p-1"
                                 />
                               </div>
 
-                              <div>
-                                <Label className="text-xs font-medium">Rating (1-10)</Label>
+                              <div className="col-span-2">
                                 <Input
                                   type="number"
                                   min="1"
                                   max="10"
-                                  value={formData.performance_rating}
+                                  value={perfData.performance_rating || 5}
                                   onChange={(e) => {
                                     const newValue = parseInt(e.target.value) || 5;
-                                    setStudentFormData({
-                                      ...studentFormData,
-                                      [studentId]: {
-                                        ...formData,
-                                        performance_rating: newValue
-                                      }
-                                    });
-                                    handleSaveStudentPerformanceField(studentId, 'performance_rating', newValue);
+                                    handleSaveStudentPerformanceField(student.id, 'performance_rating', newValue);
                                   }}
-                                  className="h-8 text-sm mt-1"
+                                  className="h-8 text-xs p-1"
                                 />
                               </div>
 
-                              <div>
-                                <Label className="text-xs font-medium">Comment</Label>
+                              <div className="col-span-3">
                                 <Input
                                   type="text"
-                                  value={formData.performance_comment}
+                                  value={perfData.performance_comment === 'Absent' || perfData.performance_comment === 'Present' ? '' : perfData.performance_comment || ''}
                                   onChange={(e) => {
                                     const newValue = e.target.value;
-                                    setStudentFormData({
-                                      ...studentFormData,
-                                      [studentId]: {
-                                        ...formData,
-                                        performance_comment: newValue
-                                      }
-                                    });
-                                    handleSaveStudentPerformanceField(studentId, 'performance_comment', newValue);
+                                    handleSaveStudentPerformanceField(student.id, 'performance_comment', newValue);
                                   }}
-                                  placeholder="Add comment..."
-                                  className="h-8 text-sm mt-1"
+                                  placeholder="Comment..."
+                                  className="h-8 text-xs p-1"
                                 />
                               </div>
                             </div>
-                          </div>
-                        );
-                      })}
-
-                    </CardContent>
-                  </Card>
-                )}
+                          );
+                        })}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
 
                 {/* Facilitator Reflection */}
                 <Card>
@@ -1434,122 +1339,163 @@ export default function SessionRecording() {
           <>
             {userRole === 1 ? (
               <div className="space-y-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Volunteer Hours Tracking</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="plan_coordinate_hours" className="text-sm">Plan & Coordinate Hours</Label>
-                    <Input
-                      id="plan_coordinate_hours"
-                      type="number"
-                      min="0"
-                      step="0.5"
-                      value={hoursData.plan_coordinate_hours}
-                      onChange={(e) => setHoursData({ ...hoursData, plan_coordinate_hours: parseFloat(e.target.value) || 0 })}
-                      placeholder="0.0"
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="preparation_hours" className="text-sm">Preparation Hours</Label>
-                    <Input
-                      id="preparation_hours"
-                      type="number"
-                      min="0"
-                      step="0.5"
-                      value={hoursData.preparation_hours}
-                      onChange={(e) => setHoursData({ ...hoursData, preparation_hours: parseFloat(e.target.value) || 0 })}
-                      placeholder="0.0"
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="session_hours" className="text-sm">Session Hours</Label>
-                    <Input
-                      id="session_hours"
-                      type="number"
-                      min="0"
-                      step="0.5"
-                      value={hoursData.session_hours}
-                      onChange={(e) => setHoursData({ ...hoursData, session_hours: parseFloat(e.target.value) || 0 })}
-                      placeholder="0.0"
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="reflection_feedback_followup_hours" className="text-sm">Reflection & Feedback & Followup Hours</Label>
-                    <Input
-                      id="reflection_feedback_followup_hours"
-                      type="number"
-                      min="0"
-                      step="0.5"
-                      value={hoursData.reflection_feedback_followup_hours}
-                      onChange={(e) => setHoursData({ ...hoursData, reflection_feedback_followup_hours: parseFloat(e.target.value) || 0 })}
-                      placeholder="0.0"
-                      className="mt-1"
-                    />
-                  </div>
+                {/* Sub-tabs for Hours Tracker */}
+                <div className="flex justify-center gap-2 flex-wrap border-b border-border pb-4">
+                  <button
+                    onClick={() => setHoursSubTab('a')}
+                    className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                      hoursSubTab === 'a'
+                        ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    a) Volunteer Hours
+                  </button>
+                  <button
+                    onClick={() => setHoursSubTab('b')}
+                    className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                      hoursSubTab === 'b'
+                        ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    b) Benevity ID
+                  </button>
                 </div>
 
-                {/* Total Volunteering Time Display */}
-                <div className="bg-blue-50 border border-blue-200 rounded p-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label className="text-sm font-semibold">Total Volunteering Time</Label>
-                      <p className="text-2xl font-bold text-blue-600 mt-2">
-                        {(
-                          (hoursData.plan_coordinate_hours || 0) +
-                          (hoursData.preparation_hours || 0) +
-                          (hoursData.session_hours || 0) +
-                          (hoursData.reflection_feedback_followup_hours || 0)
-                        ).toFixed(2)} hours
-                      </p>
-                    </div>
-                    <div>
-                      <Label htmlFor="logged_hours_in_benevity" className="text-sm">Logged hours in Benevity?</Label>
-                      <div className="flex items-center gap-2 mt-2">
-                        <input
-                          id="logged_hours_in_benevity"
-                          type="checkbox"
-                          checked={hoursData.logged_hours_in_benevity}
-                          onChange={(e) => setHoursData({ ...hoursData, logged_hours_in_benevity: e.target.checked })}
-                          className="w-5 h-5"
-                        />
-                        <span className="text-sm">{hoursData.logged_hours_in_benevity ? 'Yes' : 'No'}</span>
-                      </div>
-                    </div>
+                {/* Sub-tab a: Volunteer Hours */}
+                {hoursSubTab === 'a' && (
+                  <div className="space-y-4">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base">Volunteer Hours Tracking</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <Label htmlFor="plan_coordinate_hours" className="text-sm">Plan & Coordinate Hours</Label>
+                            <Input
+                              id="plan_coordinate_hours"
+                              type="number"
+                              min="0"
+                              step="0.5"
+                              value={hoursData.plan_coordinate_hours}
+                              onChange={(e) => setHoursData({ ...hoursData, plan_coordinate_hours: parseFloat(e.target.value) || 0 })}
+                              placeholder="0.0"
+                              className="mt-1"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="preparation_hours" className="text-sm">Preparation Hours</Label>
+                            <Input
+                              id="preparation_hours"
+                              type="number"
+                              min="0"
+                              step="0.5"
+                              value={hoursData.preparation_hours}
+                              onChange={(e) => setHoursData({ ...hoursData, preparation_hours: parseFloat(e.target.value) || 0 })}
+                              placeholder="0.0"
+                              className="mt-1"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="session_hours" className="text-sm">Session Hours</Label>
+                            <Input
+                              id="session_hours"
+                              type="number"
+                              min="0"
+                              step="0.5"
+                              value={hoursData.session_hours}
+                              onChange={(e) => setHoursData({ ...hoursData, session_hours: parseFloat(e.target.value) || 0 })}
+                              placeholder="0.0"
+                              className="mt-1"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="reflection_feedback_followup_hours" className="text-sm">Reflection & Feedback & Followup Hours</Label>
+                            <Input
+                              id="reflection_feedback_followup_hours"
+                              type="number"
+                              min="0"
+                              step="0.5"
+                              value={hoursData.reflection_feedback_followup_hours}
+                              onChange={(e) => setHoursData({ ...hoursData, reflection_feedback_followup_hours: parseFloat(e.target.value) || 0 })}
+                              placeholder="0.0"
+                              className="mt-1"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Total Volunteering Time Display */}
+                        <div className="bg-blue-50 border border-blue-200 rounded p-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <Label className="text-sm font-semibold">Total Volunteering Time</Label>
+                              <p className="text-2xl font-bold text-blue-600 mt-2">
+                                {(
+                                  (hoursData.plan_coordinate_hours || 0) +
+                                  (hoursData.preparation_hours || 0) +
+                                  (hoursData.session_hours || 0) +
+                                  (hoursData.reflection_feedback_followup_hours || 0)
+                                ).toFixed(2)} hours
+                              </p>
+                            </div>
+                            <div>
+                              <Label htmlFor="logged_hours_in_benevity" className="text-sm">Logged hours in Benevity?</Label>
+                              <div className="flex items-center gap-2 mt-2">
+                                <input
+                                  id="logged_hours_in_benevity"
+                                  type="checkbox"
+                                  checked={hoursData.logged_hours_in_benevity}
+                                  onChange={(e) => setHoursData({ ...hoursData, logged_hours_in_benevity: e.target.checked })}
+                                  className="w-5 h-5"
+                                />
+                                <span className="text-sm">{hoursData.logged_hours_in_benevity ? 'Yes' : 'No'}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Notes */}
+                        <div>
+                          <Label htmlFor="hours_notes" className="text-sm">Notes</Label>
+                          <Textarea
+                            id="hours_notes"
+                            value={hoursData.notes}
+                            onChange={(e) => setHoursData({ ...hoursData, notes: e.target.value })}
+                            placeholder="Add any additional notes about the hours tracked"
+                            className="mt-1 min-h-[80px]"
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
                   </div>
-                </div>
+                )}
 
-                {/* Notes */}
-                <div>
-                  <Label htmlFor="hours_notes" className="text-sm">Notes</Label>
-                  <Textarea
-                    id="hours_notes"
-                    value={hoursData.notes}
-                    onChange={(e) => setHoursData({ ...hoursData, notes: e.target.value })}
-                    placeholder="Add any additional notes about the hours tracked"
-                    className="mt-1 min-h-[80px]"
-                  />
-                </div>
-
-                {/* Validation ID */}
-                <div>
-                  <Label htmlFor="hours_validation_id" className="text-sm">Validation ID</Label>
-                  <Input
-                    id="hours_validation_id"
-                    type="text"
-                    value={hoursValidationId}
-                    onChange={(e) => setHoursValidationId(e.target.value)}
-                    placeholder="Enter validation ID number"
-                    className="mt-1"
-                  />
-                </div>
-              </CardContent>
-            </Card>
+                {/* Sub-tab b: Validation ID */}
+                {hoursSubTab === 'b' && (
+                  <div className="space-y-4">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base">Benevity ID</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div>
+                          <Label htmlFor="hours_validation_id" className="text-sm">Benevity ID</Label>
+                          <Input
+                            id="hours_validation_id"
+                            type="text"
+                            value={hoursValidationId}
+                            onChange={(e) => setHoursValidationId(e.target.value)}
+                            placeholder="Enter Benevity ID number"
+                            className="mt-1"
+                          />
+                          <p className="text-xs text-muted-foreground mt-2">Enter the Benevity ID for hours tracker verification</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
               </div>
             ) : (
               <Card>
