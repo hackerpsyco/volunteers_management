@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Trash2, Upload, MoreVertical, Plus } from 'lucide-react';
+import { Trash2, Upload, MoreVertical, Plus, Search } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -37,6 +37,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { UnifiedImportDialog } from '@/components/sessions/UnifiedImportDialog';
+import { Input } from '@/components/ui/input';
 import { EditCurriculumDialog } from '@/components/curriculum/EditCurriculumDialog';
 import { AddTopicDialog } from '@/components/curriculum/AddTopicDialog';
 import { Badge } from '@/components/ui/badge';
@@ -100,6 +101,7 @@ export default function Curriculum() {
   const [categories, setCategories] = useState<string[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
   const [sessionInfo, setSessionInfo] = useState<Record<string, SessionInfo>>({});
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     fetchClasses();
@@ -118,15 +120,32 @@ export default function Curriculum() {
   }, [selectedClass]);
 
   useEffect(() => {
-    // Filter curriculum based on selected category
     let filtered = curriculum;
     
     if (selectedCategory !== 'all') {
       filtered = filtered.filter((item) => item.content_category === selectedCategory);
     }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter((item) => {
+        const info = sessionInfo[item.topic_title];
+        return (
+          item.content_category?.toLowerCase().includes(q) ||
+          item.module_code?.toLowerCase().includes(q) ||
+          item.module_title?.toLowerCase().includes(q) ||
+          item.topic_title?.toLowerCase().includes(q) ||
+          item.videos?.toLowerCase().includes(q) ||
+          item.quiz_content_ppt?.toLowerCase().includes(q) ||
+          info?.volunteer_name?.toLowerCase().includes(q) ||
+          info?.fresh_status?.toLowerCase().includes(q) ||
+          info?.revision_status?.toLowerCase().includes(q)
+        );
+      });
+    }
     
     setFilteredCurriculum(filtered);
-  }, [selectedCategory, curriculum]);
+  }, [selectedCategory, curriculum, searchQuery, sessionInfo]);
 
   const fetchCurriculum = async (classId?: string) => {
     try {
@@ -180,13 +199,26 @@ export default function Curriculum() {
 
   const fetchClasses = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('classes')
         .select('id, name')
         .order('name', { ascending: true });
 
       if (error) throw error;
-      setClasses(data || []);
+      const classList = data || [];
+      setClasses(classList);
+
+      // Auto-select "WES Fellows" class if available
+      if (!selectedClass) {
+        const wesFellows = classList.find((c: Class) =>
+          c.name.toLowerCase().includes('wes fellow')
+        );
+        if (wesFellows) {
+          setSelectedClass(wesFellows.id);
+        } else if (classList.length > 0) {
+          setSelectedClass(classList[0].id);
+        }
+      }
     } catch (error) {
       console.error('Error fetching classes:', error);
       toast.error('Failed to load classes');
@@ -321,7 +353,22 @@ export default function Curriculum() {
         </div>
 
         {/* Filter Section */}
-        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end flex-wrap">
+          <div className="w-full sm:w-64">
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              Search
+            </label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search all columns..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+          </div>
+
           <div className="w-full sm:w-64">
             <label className="text-sm font-medium text-foreground mb-2 block">
               Filter by Category
@@ -359,8 +406,8 @@ export default function Curriculum() {
             </Select>
           </div>
 
-          {(selectedCategory !== 'all' || selectedClass !== '') && (
-            <div className="text-sm text-muted-foreground mt-2 sm:mt-0">
+          {(selectedCategory !== 'all' || selectedClass !== '' || searchQuery.trim()) && (
+            <div className="text-sm text-muted-foreground">
               Showing {filteredCurriculum.length} item{filteredCurriculum.length !== 1 ? 's' : ''}
             </div>
           )}
