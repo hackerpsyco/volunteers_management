@@ -152,14 +152,7 @@ export default function FeedbackSelection() {
     try {
       setLoadingCommitted(true);
       
-      // Get today's date at midnight in local timezone
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      // Convert to ISO string and get just the date part (YYYY-MM-DD)
-      const todayString = today.toISOString().split('T')[0];
-      
-      // Fetch only upcoming/scheduled sessions without feedback (session_date >= today)
+      // Fetch all sessions without feedback (past, current, and future)
       const { data: sessionsData, error: sessionsError } = await supabase
         .from('sessions')
         .select(`
@@ -168,21 +161,16 @@ export default function FeedbackSelection() {
         `)
         .in('status', ['pending', 'committed', 'created', 'available'])
         .is('recorded_at', null)
-        .gte('session_date', todayString)
-        .order('session_date', { ascending: true });
+        .order('session_date', { ascending: false });
 
       if (sessionsError) throw sessionsError;
 
-      // Transform sessions data and filter out any past sessions (double-check)
+      // Transform sessions data
       const transformedSessions = (sessionsData || [])
         .map((session: any) => ({
           ...session,
           coordinator_name: session.coordinators?.name || null,
-        }))
-        .filter((session: FeedbackSession) => {
-          const sessionDate = new Date(session.session_date);
-          return sessionDate >= today;
-        });
+        }));
 
       setCommittedSessions(transformedSessions as FeedbackSession[]);
       setIsAddFeedbackDialogOpen(true);
@@ -362,9 +350,9 @@ export default function FeedbackSelection() {
       <Dialog open={isAddFeedbackDialogOpen} onOpenChange={setIsAddFeedbackDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Select Upcoming Session to Add Feedback</DialogTitle>
+            <DialogTitle>Select Session to Add Feedback</DialogTitle>
             <DialogDescription>
-              Choose an upcoming scheduled session to add feedback and record session details. Only sessions from today onwards are shown.
+              Choose a session to add feedback and record session details. All sessions (past, current, and future) without feedback are shown.
             </DialogDescription>
           </DialogHeader>
 
@@ -386,11 +374,18 @@ export default function FeedbackSelection() {
                 const tomorrow = new Date(today);
                 tomorrow.setDate(tomorrow.getDate() + 1);
                 
+                const yesterday = new Date(today);
+                yesterday.setDate(yesterday.getDate() - 1);
+                
                 let dateLabel = '';
                 if (sessionDate.toDateString() === today.toDateString()) {
                   dateLabel = 'Today';
                 } else if (sessionDate.toDateString() === tomorrow.toDateString()) {
                   dateLabel = 'Tomorrow';
+                } else if (sessionDate.toDateString() === yesterday.toDateString()) {
+                  dateLabel = 'Yesterday';
+                } else if (sessionDate < today) {
+                  dateLabel = `${sessionDate.toLocaleDateString()} (Past)`;
                 } else {
                   dateLabel = sessionDate.toLocaleDateString();
                 }

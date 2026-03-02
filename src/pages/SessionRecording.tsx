@@ -458,64 +458,86 @@ export default function SessionRecording() {
     }
   };
 
-  const handleSaveStudentPerformanceField = async (studentId: string, fieldName: string, value: any) => {
+  const handleSaveStudentPerformanceField = (studentId: string, fieldName: string, value: any) => {
+    // Get the student object to get the name
+    const student = students.find(s => s.id === studentId);
+    if (!student) return;
+
+    const data = studentFormData[studentId] || {
+      student_name: student.name,
+      questions_asked: 0,
+      performance_rating: 5,
+      performance_comment: '',
+    };
+    
+    const updatedData = {
+      ...data,
+      student_name: student.name,
+      [fieldName]: value,
+    };
+
+    // Update local state immediately for UI responsiveness (no database call yet)
+    setStudentFormData({
+      ...studentFormData,
+      [studentId]: updatedData,
+    });
+  };
+
+  const handleBatchSaveStudentPerformance = async () => {
     try {
-      const data = studentFormData[studentId] || {
-        student_name: '',
-        questions_asked: 0,
-        performance_rating: 5,
-        performance_comment: '',
-      };
-      
-      const updatedData = {
-        ...data,
-        [fieldName]: value,
-      };
+      setSavingStudents(true);
 
-      // Update local state immediately for UI responsiveness
-      setStudentFormData({
-        ...studentFormData,
-        [studentId]: updatedData,
-      });
-
-      // Check if this student already has a performance record
-      const existingRecord = studentPerformance.find(sp => sp.id && sp.student_name === data.student_name);
-      
-      if (existingRecord && existingRecord.id) {
-        // Update existing record
-        const { error } = await supabase
-          .from('student_performance' as any)
-          .update({
-            questions_asked: updatedData.questions_asked || 0,
-            performance_rating: updatedData.performance_rating || 5,
-            performance_comment: updatedData.performance_comment || '',
-          })
-          .eq('id', existingRecord.id);
-
-        if (error) throw error;
-      } else {
-        // Insert new record only if not already in the list
+      // Process all student form data
+      for (const [studentId, data] of Object.entries(studentFormData)) {
         const student = students.find(s => s.id === studentId);
-        const recordToInsert = {
-          session_id: sessionId,
-          student_name: student?.name || '',
-          questions_asked: updatedData.questions_asked || 0,
-          performance_rating: updatedData.performance_rating || 5,
-          performance_comment: updatedData.performance_comment || '',
-        };
+        if (!student) continue;
 
-        const { error } = await supabase
-          .from('student_performance' as any)
-          .insert([recordToInsert]);
+        const existingRecord = studentPerformance.find(sp => sp.student_name === student.name);
 
-        if (error) throw error;
+        if (existingRecord && existingRecord.id) {
+          // Update existing record
+          const { error } = await supabase
+            .from('student_performance')
+            .update({
+              questions_asked: data.questions_asked || 0,
+              performance_rating: data.performance_rating || 5,
+              performance_comment: data.performance_comment || '',
+            })
+            .eq('id', existingRecord.id);
+
+          if (error) {
+            console.error('Error updating student performance:', error);
+            throw error;
+          }
+        } else {
+          // Insert new record
+          const { error } = await supabase
+            .from('student_performance')
+            .insert([
+              {
+                session_id: sessionId,
+                student_name: student.name,
+                questions_asked: data.questions_asked || 0,
+                performance_rating: data.performance_rating || 5,
+                performance_comment: data.performance_comment || '',
+              },
+            ]);
+
+          if (error) {
+            console.error('Error inserting student performance:', error);
+            throw error;
+          }
+        }
       }
 
-      // Refresh the list
+      toast.success('Student performance saved successfully');
+      setStudentFormData({});
       fetchStudentPerformance();
     } catch (error) {
       console.error('Error saving student performance:', error);
       toast.error('Failed to save performance data');
+    } finally {
+      setSavingStudents(false);
     }
   };
 
@@ -885,7 +907,19 @@ export default function SessionRecording() {
                 {/* Student Performance - All Students Visible in Compact Inline Format */}
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-base">Student Performance Feedback</CardTitle>
+                    <div className="flex justify-between items-center">
+                      <CardTitle className="text-base">Student Performance Feedback</CardTitle>
+                      {Object.keys(studentFormData).length > 0 && (
+                        <Button
+                          onClick={handleBatchSaveStudentPerformance}
+                          disabled={savingStudents}
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700"
+                        >
+                          {savingStudents ? 'Saving...' : 'Save All Changes'}
+                        </Button>
+                      )}
+                    </div>
                   </CardHeader>
                   <CardContent className="space-y-2">
                     {students.length === 0 ? (
@@ -913,7 +947,11 @@ export default function SessionRecording() {
 
                         {/* Student Rows */}
                         {students.map((student) => {
-                          const perfData = studentPerformance.find(sp => sp.student_name === student.name) || {
+                          // Use form data if available, otherwise use database data
+                          const formDataForStudent = studentFormData[student.id];
+                          const dbDataForStudent = studentPerformance.find(sp => sp.student_name === student.name);
+                          
+                          const perfData = formDataForStudent || dbDataForStudent || {
                             student_name: student.name,
                             questions_asked: 0,
                             performance_rating: 5,

@@ -49,7 +49,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { SessionTypeDialog } from '@/components/sessions/SessionTypeDialog';
 import { AddSessionDialog } from '@/components/sessions/AddSessionDialog';
-import { UnifiedImportDialog } from '@/components/sessions/UnifiedImportDialog';
+import { ImportSessionsDialog } from '@/components/sessions/ImportSessionsDialog';
 import { UpdateRecordingDialog } from '@/components/sessions/UpdateRecordingDialog';
 
 interface Session {
@@ -341,7 +341,7 @@ export default function Sessions() {
               className="w-full sm:w-auto gap-2"
             >
               <Upload className="h-4 w-4" />
-              <span className="hidden sm:inline">Import Data</span>
+              <span className="hidden sm:inline">Import Sessions</span>
               <span className="sm:hidden">Import</span>
             </Button>
             <Button
@@ -907,8 +907,8 @@ export default function Sessions() {
         onSuccess={fetchSessions}
       />
 
-      {/* Unified Import Dialog */}
-      <UnifiedImportDialog
+      {/* Import Sessions Dialog */}
+      <ImportSessionsDialog
         open={isImportOpen}
         onOpenChange={setIsImportOpen}
         onSuccess={fetchSessions}
