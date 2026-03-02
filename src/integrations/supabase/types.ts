@@ -14,334 +14,73 @@ export type Database = {
   }
   public: {
     Tables: {
-      curriculum: {
-        Row: {
-          id: string
-          content_category: string
-          module_no: number | null
-          module_name: string | null
-          topics_covered: string
-          videos: string | null
-          quiz_content_ppt: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          content_category: string
-          module_no?: number | null
-          module_name?: string | null
-          topics_covered: string
-          videos?: string | null
-          quiz_content_ppt?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          content_category?: string
-          module_no?: number | null
-          module_name?: string | null
-          topics_covered?: string
-          videos?: string | null
-          quiz_content_ppt?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      facilitators: {
-        Row: {
-          id: string
-          name: string
-          email: string | null
-          phone: string | null
-          location: string | null
-          status: string
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          name: string
-          email?: string | null
-          phone?: string | null
-          location?: string | null
-          status?: string
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          name?: string
-          email?: string | null
-          phone?: string | null
-          location?: string | null
-          status?: string
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      centres: {
-        Row: {
-          id: string
-          name: string
-          location: string
-          address: string | null
-          status: string
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          name: string
-          location: string
-          address?: string | null
-          status?: string
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          name?: string
-          location?: string
-          address?: string | null
-          status?: string
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      classes: {
-        Row: {
-          id: string
-          name: string
-          description: string | null
-          email: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          name: string
-          description?: string | null
-          email?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          name?: string
-          description?: string | null
-          email?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      students: {
-        Row: {
-          id: string
-          class_id: string
-          student_id: string
-          name: string
-          gender: string | null
-          dob: string | null
-          email: string | null
-          phone_number: string | null
-          roll_number: string | null
-          subject: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          class_id: string
-          student_id: string
-          name: string
-          gender?: string | null
-          dob?: string | null
-          email?: string | null
-          phone_number?: string | null
-          roll_number?: string | null
-          subject?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          class_id?: string
-          student_id?: string
-          name?: string
-          gender?: string | null
-          dob?: string | null
-          email?: string | null
-          phone_number?: string | null
-          roll_number?: string | null
-          subject?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "students_class_id_fkey"
-            columns: ["class_id"]
-            isOneToOne: false
-            referencedRelation: "classes"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
-
-      centre_time_slots: {
-        Row: {
-          id: string
-          centre_id: string
-          day: string
-          start_time: string
-          end_time: string
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          centre_id: string
-          day: string
-          start_time: string
-          end_time: string
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          centre_id?: string
-          day?: string
-          start_time?: string
-          end_time?: string
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "centre_time_slots_centre_id_fkey"
-            columns: ["centre_id"]
-            isOneToOne: false
-            referencedRelation: "centres"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
       sessions: {
         Row: {
+          content_category: string | null
+          created_at: string
+          final_content_ppt: string | null
           id: string
-          title: string
+          modules: string | null
+          quiz_content_ppt: string | null
+          s_no: number | null
           session_date: string
+          session_status: string | null
           session_time: string
           session_type: string
           status: string
-          content_category: string | null
-          module_name: string | null
+          title: string
           topics_covered: string | null
-          videos: string | null
-          quiz_content_ppt: string | null
-          facilitator_name: string | null
-          volunteer_name: string | null
-          coordinator_id: string | null
-          meeting_link: string | null
-          centre_id: string | null
-          centre_time_slot_id: string | null
-          session_objective: string | null
-          practical_activities: string | null
-          session_highlights: string | null
-          learning_outcomes: string | null
-          facilitator_reflection: string | null
-          best_performer: string | null
-          guest_teacher_feedback: string | null
-          incharge_reviewer_feedback: string | null
-          mic_sound_rating: number | null
-          seating_view_rating: number | null
-          session_strength: number | null
-          class_batch: string | null
-          guest_teacher_id: string | null
-          recorded_at: string | null
-          recorded_by: string | null
-          created_at: string
           updated_at: string
+          videos: string | null
+          volunteer_id: string | null
         }
         Insert: {
+          content_category?: string | null
+          created_at?: string
+          final_content_ppt?: string | null
           id?: string
-          title: string
+          modules?: string | null
+          quiz_content_ppt?: string | null
+          s_no?: number | null
           session_date: string
+          session_status?: string | null
           session_time: string
           session_type?: string
           status?: string
-          content_category?: string | null
-          module_name?: string | null
+          title: string
           topics_covered?: string | null
-          videos?: string | null
-          quiz_content_ppt?: string | null
-          facilitator_name?: string | null
-          volunteer_name?: string | null
-          coordinator_id?: string | null
-          meeting_link?: string | null
-          centre_id?: string | null
-          centre_time_slot_id?: string | null
-          session_objective?: string | null
-          practical_activities?: string | null
-          session_highlights?: string | null
-          learning_outcomes?: string | null
-          facilitator_reflection?: string | null
-          best_performer?: string | null
-          guest_teacher_feedback?: string | null
-          incharge_reviewer_feedback?: string | null
-          mic_sound_rating?: number | null
-          seating_view_rating?: number | null
-          session_strength?: number | null
-          class_batch?: string | null
-          guest_teacher_id?: string | null
-          recorded_at?: string | null
-          recorded_by?: string | null
-          created_at?: string
           updated_at?: string
+          videos?: string | null
+          volunteer_id?: string | null
         }
         Update: {
+          content_category?: string | null
+          created_at?: string
+          final_content_ppt?: string | null
           id?: string
-          title?: string
+          modules?: string | null
+          quiz_content_ppt?: string | null
+          s_no?: number | null
           session_date?: string
+          session_status?: string | null
           session_time?: string
           session_type?: string
           status?: string
-          content_category?: string | null
-          module_name?: string | null
+          title?: string
           topics_covered?: string | null
-          videos?: string | null
-          quiz_content_ppt?: string | null
-          facilitator_name?: string | null
-          volunteer_name?: string | null
-          coordinator_id?: string | null
-          meeting_link?: string | null
-          centre_id?: string | null
-          centre_time_slot_id?: string | null
-          session_objective?: string | null
-          practical_activities?: string | null
-          session_highlights?: string | null
-          learning_outcomes?: string | null
-          facilitator_reflection?: string | null
-          best_performer?: string | null
-          guest_teacher_feedback?: string | null
-          incharge_reviewer_feedback?: string | null
-          mic_sound_rating?: number | null
-          seating_view_rating?: number | null
-          session_strength?: number | null
-          class_batch?: string | null
-          guest_teacher_id?: string | null
-          recorded_at?: string | null
-          recorded_by?: string | null
-          created_at?: string
           updated_at?: string
+          videos?: string | null
+          volunteer_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "sessions_volunteer_id_fkey"
+            columns: ["volunteer_id"]
+            isOneToOne: false
+            referencedRelation: "volunteers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       volunteers: {
         Row: {
@@ -358,14 +97,6 @@ export type Database = {
           phone_number: string
           updated_at: string
           work_email: string
-          regular_volunteering: boolean | null
-          frequency_per_month: number | null
-          interested_area: string | null
-          interested_topic: string | null
-          preferred_day: string | null
-          preferred_class: string | null
-          remarks: string | null
-          volunteer_status: string | null
         }
         Insert: {
           city?: string | null
@@ -381,14 +112,6 @@ export type Database = {
           phone_number: string
           updated_at?: string
           work_email: string
-          regular_volunteering?: boolean | null
-          frequency_per_month?: number | null
-          interested_area?: string | null
-          interested_topic?: string | null
-          preferred_day?: string | null
-          preferred_class?: string | null
-          remarks?: string | null
-          volunteer_status?: string | null
         }
         Update: {
           city?: string | null
@@ -404,294 +127,8 @@ export type Database = {
           phone_number?: string
           updated_at?: string
           work_email?: string
-          regular_volunteering?: boolean | null
-          frequency_per_month?: number | null
-          interested_area?: string | null
-          interested_topic?: string | null
-          preferred_day?: string | null
-          preferred_class?: string | null
-          remarks?: string | null
-          volunteer_status?: string | null
         }
         Relationships: []
-      }
-      coordinators: {
-        Row: {
-          id: string
-          name: string
-          email: string | null
-          phone: string | null
-          location: string | null
-          status: string
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          name: string
-          email?: string | null
-          phone?: string | null
-          location?: string | null
-          status?: string
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          name?: string
-          email?: string | null
-          phone?: string | null
-          location?: string | null
-          status?: string
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      student_performance: {
-        Row: {
-          id: string
-          session_id: string
-          student_name: string
-          questions_asked: number
-          performance_rating: number
-          performance_comment: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          session_id: string
-          student_name: string
-          questions_asked?: number
-          performance_rating: number
-          performance_comment?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          session_id?: string
-          student_name?: string
-          questions_asked?: number
-          performance_rating?: number
-          performance_comment?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "student_performance_session_id_fkey"
-            columns: ["session_id"]
-            isOneToOne: false
-            referencedRelation: "sessions"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
-      session_hours_tracker: {
-        Row: {
-          id: string
-          session_id: string
-          volunteer_id: string | null
-          plan_coordinate_hours: number
-          preparation_hours: number
-          session_hours: number
-          reflection_feedback_followup_hours: number
-          total_volunteering_time: number
-          logged_hours_in_benevity: boolean
-          notes: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          session_id: string
-          volunteer_id?: string | null
-          plan_coordinate_hours?: number
-          preparation_hours?: number
-          session_hours?: number
-          reflection_feedback_followup_hours?: number
-          total_volunteering_time?: number
-          logged_hours_in_benevity?: boolean
-          notes?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          session_id?: string
-          volunteer_id?: string | null
-          plan_coordinate_hours?: number
-          preparation_hours?: number
-          session_hours?: number
-          reflection_feedback_followup_hours?: number
-          total_volunteering_time?: number
-          logged_hours_in_benevity?: boolean
-          notes?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "session_hours_tracker_session_id_fkey"
-            columns: ["session_id"]
-            isOneToOne: false
-            referencedRelation: "sessions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "session_hours_tracker_volunteer_id_fkey"
-            columns: ["volunteer_id"]
-            isOneToOne: false
-            referencedRelation: "volunteers"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
-      student_task_feedback: {
-        Row: {
-          id: string
-          session_id: string
-          student_id: string
-          feedback_type: string
-          task_name: string
-          task_description: string | null
-          deadline: string | null
-          submission_link: string | null
-          feedback_notes: string | null
-          status: string
-          created_by: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          session_id: string
-          student_id: string
-          feedback_type: string
-          task_name: string
-          task_description?: string | null
-          deadline?: string | null
-          submission_link?: string | null
-          feedback_notes?: string | null
-          status?: string
-          created_by?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          session_id?: string
-          student_id?: string
-          feedback_type?: string
-          task_name?: string
-          task_description?: string | null
-          deadline?: string | null
-          submission_link?: string | null
-          feedback_notes?: string | null
-          status?: string
-          created_by?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "student_task_feedback_session_id_fkey"
-            columns: ["session_id"]
-            isOneToOne: false
-            referencedRelation: "sessions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "student_task_feedback_student_id_fkey"
-            columns: ["student_id"]
-            isOneToOne: false
-            referencedRelation: "students"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
-      roles: {
-        Row: {
-          id: number
-          name: string
-          description: string | null
-          created_at: string
-        }
-        Insert: {
-          id: number
-          name: string
-          description?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: number
-          name?: string
-          description?: string | null
-          created_at?: string
-        }
-        Relationships: []
-      }
-      user_profiles: {
-        Row: {
-          id: string
-          email: string
-          full_name: string | null
-          phone: string | null
-          location: string | null
-          bio: string | null
-          profile_image_url: string | null
-          role_id: number | null
-          class_id: string | null
-          is_active: boolean
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id: string
-          email: string
-          full_name?: string | null
-          phone?: string | null
-          location?: string | null
-          bio?: string | null
-          profile_image_url?: string | null
-          role_id?: number | null
-          class_id?: string | null
-          is_active?: boolean
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          email?: string
-          full_name?: string | null
-          phone?: string | null
-          location?: string | null
-          bio?: string | null
-          profile_image_url?: string | null
-          role_id?: number | null
-          class_id?: string | null
-          is_active?: boolean
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "user_profiles_role_id_fkey"
-            columns: ["role_id"]
-            isOneToOne: false
-            referencedRelation: "roles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_profiles_class_id_fkey"
-            columns: ["class_id"]
-            isOneToOne: false
-            referencedRelation: "classes"
-            referencedColumns: ["id"]
-          }
-        ]
       }
     }
     Views: {
