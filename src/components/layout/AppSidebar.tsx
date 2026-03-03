@@ -1,4 +1,4 @@
-import { Home, Users, LogOut, CalendarDays, BookOpen, Menu, X, Users2, MapPin, FileText, GraduationCap, Shield } from 'lucide-react';
+import { Home, Users, LogOut, CalendarDays, BookOpen, Menu, X, Users2, MapPin, FileText, GraduationCap, Shield, ClipboardList } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -17,6 +17,7 @@ const navItems = [
   { title: 'Coordinators', url: '/coordinators', icon: Users2, requiredRole: null, studentVisible: false },
   { title: 'Centres & Slots', url: '/centres', icon: MapPin, requiredRole: null, studentVisible: false },
   { title: 'Classes & students', url: '/classes', icon: GraduationCap, requiredRole: null, studentVisible: false },
+  { title: 'Tasks & Projects', url: '/tasks', icon: ClipboardList, requiredRole: null, studentVisible: false },
   { title: 'Volunteer', url: '/volunteers', icon: Users, requiredRole: null, studentVisible: false },
   { title: 'Admin Panel', url: '/admin', icon: Shield, requiredRole: 1, studentVisible: false }, // 1 = Admin
 ];
