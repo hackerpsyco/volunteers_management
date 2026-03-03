@@ -27,6 +27,7 @@ import VolunteerList from "./pages/VolunteerList";
 import Settings from "./pages/Settings";
 import EditProfile from "./pages/EditProfile";
 import AdminPanel from "./pages/AdminPanel";
+import Tasks from "./pages/Tasks";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -62,6 +63,7 @@ const App = () => (
             <Route path="/volunteers/add" element={<AddVolunteer />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/profile/edit" element={<EditProfile />} />
+            <Route path="/tasks" element={<Tasks />} />
             <Route path="/admin" element={<AdminPanel />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
