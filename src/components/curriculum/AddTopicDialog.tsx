@@ -26,6 +26,11 @@ interface Class {
   name: string;
 }
 
+interface Subject {
+  id: string;
+  name: string;
+}
+
 interface AddTopicDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -34,9 +39,11 @@ interface AddTopicDialogProps {
 
 export function AddTopicDialog({ open, onOpenChange, onSuccess }: AddTopicDialogProps) {
   const [classes, setClasses] = useState<Class[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [modules, setModules] = useState<Array<{ no: number; name: string }>>([]);
   const [selectedClass, setSelectedClass] = useState('');
+  const [selectedSubject, setSelectedSubject] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedModule, setSelectedModule] = useState('');
   const [topicName, setTopicName] = useState('');
@@ -45,6 +52,7 @@ export function AddTopicDialog({ open, onOpenChange, onSuccess }: AddTopicDialog
   useEffect(() => {
     if (open) {
       fetchClasses();
+      fetchSubjects();
     }
   }, [open]);
 
@@ -75,6 +83,25 @@ export function AddTopicDialog({ open, onOpenChange, onSuccess }: AddTopicDialog
     } catch (error) {
       console.error('Error fetching classes:', error);
       toast.error('Failed to load classes');
+    }
+  };
+
+  const fetchSubjects = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('subjects')
+        .select('id, name')
+        .order('name', { ascending: true });
+
+      if (error) {
+        console.warn('Subjects table not available');
+        setSubjects([]);
+        return;
+      }
+      setSubjects(data || []);
+    } catch (error) {
+      console.warn('Error fetching subjects:', error);
+      setSubjects([]);
     }
   };
 
@@ -208,6 +235,26 @@ export function AddTopicDialog({ open, onOpenChange, onSuccess }: AddTopicDialog
               </SelectContent>
             </Select>
           </div>
+
+          {/* Subject Selection */}
+          {subjects.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="subject">Subject</Label>
+              <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a subject (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Subjects</SelectItem>
+                  {subjects.map((subject) => (
+                    <SelectItem key={subject.id} value={subject.id}>
+                      {subject.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* Category Selection */}
           <div className="space-y-2">

@@ -106,15 +106,18 @@ export default function Curriculum() {
   const [selectedItem, setSelectedItem] = useState<CurriculumItem | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedClass, setSelectedClass] = useState<string>('');
+  const [selectedSubject, setSelectedSubject] = useState<string>('');
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [newStatus, setNewStatus] = useState<string>('');
   const [categories, setCategories] = useState<string[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
+  const [subjects, setSubjects] = useState<any[]>([]);
   const [sessionInfo, setSessionInfo] = useState<Record<string, SessionInfo>>({});
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     fetchClasses();
+    fetchSubjects();
   }, []);
 
   useEffect(() => {
@@ -232,6 +235,25 @@ export default function Curriculum() {
     } catch (error) {
       console.error('Error fetching classes:', error);
       toast.error('Failed to load classes');
+    }
+  };
+
+  const fetchSubjects = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('subjects')
+        .select('id, name, description')
+        .order('name', { ascending: true });
+
+      if (error) {
+        console.warn('Subjects table not yet created. Run the migration first.');
+        setSubjects([]);
+        return;
+      }
+      setSubjects(data || []);
+    } catch (error) {
+      console.warn('Subjects table not available yet');
+      setSubjects([]);
     }
   };
 
@@ -448,7 +470,26 @@ export default function Curriculum() {
             </Select>
           </div>
 
-          {(selectedCategory !== 'all' || selectedClass !== '' || searchQuery.trim()) && (
+          <div className="w-full sm:w-64">
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              Filter by Subject
+            </label>
+            <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select a subject" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Subjects</SelectItem>
+                {subjects.map((subject) => (
+                  <SelectItem key={subject.id} value={subject.id}>
+                    {subject.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {(selectedCategory !== 'all' || selectedClass !== '' || selectedSubject !== '' || searchQuery.trim()) && (
             <div className="text-sm text-muted-foreground">
               Showing {filteredCurriculum.length} item{filteredCurriculum.length !== 1 ? 's' : ''}
             </div>
