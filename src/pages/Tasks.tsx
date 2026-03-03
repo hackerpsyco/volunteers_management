@@ -106,7 +106,10 @@ export default function Tasks() {
   useEffect(() => {
     let filtered = tasks;
     if (filterClass !== 'all') {
-      filtered = filtered.filter((t) => t.class_id === filterClass);
+      const cls = classes.find((c) => c.id === filterClass);
+      if (cls) {
+        filtered = filtered.filter((t) => t.class_name === cls.name);
+      }
     }
     if (filterSession !== 'all') {
       filtered = filtered.filter((t) => t.session_id === filterSession);
@@ -127,7 +130,7 @@ export default function Tasks() {
       );
     }
     setFilteredTasks(filtered);
-  }, [tasks, filterClass, filterSession, filterStatus, searchQuery]);
+  }, [tasks, filterClass, filterSession, filterStatus, searchQuery, classes]);
 
   const fetchClasses = async () => {
     try {
@@ -175,49 +178,39 @@ export default function Tasks() {
   const fetchTasks = async () => {
     try {
       setLoading(true);
-      const { data, error } = await (supabase as any)
-        .from('student_tasks')
-        .select('*')
+      const { data, error } = await supabase
+        .from('student_task_feedback')
+        .select(`
+          id,
+          task_name,
+          task_description,
+          deadline,
+          submission_link,
+          status,
+          student_id,
+          session_id,
+          students:student_id(name),
+          sessions:session_id(title, class_batch)
+        `)
         .order('created_at', { ascending: false });
+      
       if (error) throw error;
 
-      // Enrich with names
-      const enriched: TaskItem[] = [];
-      for (const task of data || []) {
-        const item: TaskItem = { ...task };
-
-        // Get class name
-        if (task.class_id) {
-          const { data: cls } = await (supabase as any)
-            .from('classes')
-            .select('name')
-            .eq('id', task.class_id)
-            .single();
-          item.class_name = cls?.name || '';
-        }
-
-        // Get session title
-        if (task.session_id) {
-          const { data: sess } = await (supabase as any)
-            .from('sessions')
-            .select('title')
-            .eq('id', task.session_id)
-            .single();
-          item.session_title = sess?.title || '';
-        }
-
-        // Get student name
-        if (task.student_id) {
-          const { data: stu } = await (supabase as any)
-            .from('students')
-            .select('name')
-            .eq('id', task.student_id)
-            .single();
-          item.student_name = stu?.name || '';
-        }
-
-        enriched.push(item);
-      }
+      const enriched: TaskItem[] = (data || []).map((task: any) => ({
+        id: task.id,
+        title: task.task_name || '',
+        description: task.task_description || '',
+        class_id: '',
+        session_id: task.session_id || '',
+        student_id: task.student_id || '',
+        status: task.status || 'pending',
+        submission_link: task.submission_link || '',
+        due_date: task.deadline || '',
+        created_at: '',
+        student_name: task.students?.name || '-',
+        session_title: task.sessions?.title || '-',
+        class_name: task.sessions?.class_batch || '-',
+      }));
 
       setTasks(enriched);
     } catch (e) {
@@ -235,21 +228,40 @@ export default function Tasks() {
     }
 
     try {
-      const insertData: any = {
-        title: formData.title,
-        description: formData.description,
-        class_id: formData.class_id,
-        status: 'pending',
-      };
-      if (formData.session_id) insertData.session_id = formData.session_id;
-      if (formData.student_id) insertData.student_id = formData.student_id;
-      if (formData.due_date) insertData.due_date = formData.due_date;
-      if (formData.submission_link) insertData.submission_link = formData.submission_link;
+      // Fetch students if not already loaded
+      let studentsToAssign = students;
+      if (studentsToAssign.length === 0) {
+        const { data: fetchedStudents, error: fetchError } = await supabase
+          .from('students')
+          .select('id, name')
+          .eq('class_id', formData.class_id)
+          .order('name');
+        
+        if (fetchError) throw fetchError;
+        studentsToAssign = fetchedStudents || [];
+      }
 
-      const { error } = await (supabase as any).from('student_tasks').insert(insertData);
+      if (studentsToAssign.length === 0) {
+        toast.error('No students found in this class');
+        return;
+      }
+
+      // Create task for each student in the class
+      const taskRecords = studentsToAssign.map(student => ({
+        session_id: formData.session_id || null,
+        student_id: student.id,
+        feedback_type: 'homework',
+        task_name: formData.title,
+        task_description: formData.description || null,
+        deadline: formData.due_date || null,
+        submission_link: formData.submission_link || null,
+        status: 'pending',
+      }));
+
+      const { error } = await supabase.from('student_task_feedback').insert(taskRecords);
       if (error) throw error;
 
-      toast.success('Task created successfully');
+      toast.success(`Task assigned to ${studentsToAssign.length} students`);
       setIsCreateOpen(false);
       setFormData({ title: '', description: '', class_id: '', session_id: '', student_id: '', due_date: '', submission_link: '' });
       fetchTasks();
@@ -541,22 +553,6 @@ export default function Tasks() {
                   <SelectContent>
                     {sessions.map((s) => (
                       <SelectItem key={s.id} value={s.id}>{s.title}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Student</Label>
-                <Select
-                  value={formData.student_id}
-                  onValueChange={(v) => setFormData({ ...formData, student_id: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select student" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {students.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
