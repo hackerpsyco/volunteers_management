@@ -28,6 +28,14 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -98,6 +106,8 @@ export default function Curriculum() {
   const [selectedItem, setSelectedItem] = useState<CurriculumItem | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedClass, setSelectedClass] = useState<string>('');
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const [newStatus, setNewStatus] = useState<string>('');
   const [categories, setCategories] = useState<string[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
   const [sessionInfo, setSessionInfo] = useState<Record<string, SessionInfo>>({});
@@ -318,6 +328,38 @@ export default function Curriculum() {
     } finally {
       setDeleteDialogOpen(false);
       setSelectedItem(null);
+    }
+  };
+
+  const handleEditStatus = async () => {
+    if (!selectedItem || !newStatus || !selectedClass) return;
+
+    try {
+      const selectedClassObj = classes.find(c => c.id === selectedClass);
+      if (!selectedClassObj) {
+        toast.error('Class not found');
+        return;
+      }
+
+      // Update all sessions with matching topic and class
+      const { error } = await supabase
+        .from('sessions')
+        .update({ status: newStatus })
+        .eq('topics_covered', selectedItem.topic_title)
+        .eq('class_batch', selectedClassObj.name);
+
+      if (error) throw error;
+
+      toast.success(`Updated status to "${newStatus}" for all sessions with this topic`);
+      setStatusDialogOpen(false);
+      setNewStatus('');
+      setSelectedItem(null);
+      
+      // Refresh session info
+      fetchSessionInfo(selectedClass);
+    } catch (error) {
+      console.error('Error updating session status:', error);
+      toast.error('Failed to update session status');
     }
   };
 
@@ -610,6 +652,14 @@ export default function Curriculum() {
                                 <DropdownMenuItem
                                   onClick={() => {
                                     setSelectedItem(item);
+                                    setStatusDialogOpen(true);
+                                  }}
+                                >
+                                  📊 Edit Status
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setSelectedItem(item);
                                     setDeleteDialogOpen(true);
                                   }}
                                   className="text-destructive focus:text-destructive"
@@ -828,6 +878,43 @@ export default function Curriculum() {
         item={selectedItem}
         onSuccess={fetchCurriculum}
       />
+
+      {/* Edit Status Dialog */}
+      <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Session Status</DialogTitle>
+            <DialogDescription>
+              Update the status for all sessions with topic "{selectedItem?.topic_title}" in {classes.find(c => c.id === selectedClass)?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium text-foreground mb-2 block">
+                New Status
+              </label>
+              <Select value={newStatus} onValueChange={setNewStatus}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="committed">Committed</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStatusDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleEditStatus} disabled={!newStatus}>
+              Update Status
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

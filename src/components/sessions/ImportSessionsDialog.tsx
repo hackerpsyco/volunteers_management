@@ -41,24 +41,23 @@ const DATABASE_COLUMNS = [
   { value: 'class_batch', label: 'Class/Batch' },
   { value: 'content_category', label: 'Content Category' },
   { value: 'session_type', label: 'Session Type' },
-  { value: 's_no', label: 'S.No' },
-  { value: 'modules', label: 'Modules' },
+  { value: 'module_no', label: 'Module Number' },
+  { value: 'module_name', label: 'Module Name' },
   { value: 'topics_covered', label: 'Topics Covered' },
   { value: 'videos', label: 'Videos (English)' },
-  { value: 'videos_hindi', label: 'Videos (Hindi)' },
-  { value: 'worksheets', label: 'Work Sheets' },
-  { value: 'practical_activity', label: 'Practical Activity' },
   { value: 'quiz_content_ppt', label: 'Quiz/Content PPT' },
   { value: 'final_content_ppt', label: 'Final Content PPT' },
   { value: 'session_objective', label: 'Session Objective' },
   { value: 'practical_activities', label: 'Practical Activities' },
   { value: 'session_highlights', label: 'Session Highlights' },
   { value: 'learning_outcomes', label: 'Learning Outcomes' },
+  { value: 'recording_url', label: 'Recording URL' },
+  { value: 'meeting_link', label: 'Meeting Link' },
   { value: 'skip', label: 'Skip this column' },
 ];
 
 // Parse Excel/CSV files properly
-function parseExcelFile(file: File): Promise<{ headers: string[]; rows: any[] }> {
+function parseExcelFile(file: File, sheetName?: string): Promise<{ headers: string[]; rows: any[]; sheetNames: string[] }> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     
@@ -68,21 +67,35 @@ function parseExcelFile(file: File): Promise<{ headers: string[]; rows: any[] }>
         
         // Parse Excel file
         const workbook = XLSX.read(data, { type: 'binary' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
+        const sheetNames = workbook.SheetNames;
         
-        // Convert to JSON
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+        // Use provided sheet name or first non-empty sheet
+        let selectedSheet = sheetName || sheetNames[0];
+        let worksheet = workbook.Sheets[selectedSheet];
+        let jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+        
+        // If first sheet is empty, find first non-empty sheet
+        if (jsonData.length === 0 && !sheetName) {
+          for (const name of sheetNames) {
+            const ws = workbook.Sheets[name];
+            const data = XLSX.utils.sheet_to_json(ws, { defval: '' });
+            if (data.length > 0) {
+              selectedSheet = name;
+              jsonData = data;
+              break;
+            }
+          }
+        }
         
         if (jsonData.length === 0) {
-          resolve({ headers: [], rows: [] });
+          resolve({ headers: [], rows: [], sheetNames });
           return;
         }
         
         // Get headers from first row
         const headers = Object.keys(jsonData[0]);
         
-        resolve({ headers, rows: jsonData });
+        resolve({ headers, rows: jsonData, sheetNames });
       } catch (error) {
         reject(error);
       }
@@ -103,8 +116,10 @@ export function ImportSessionsDialog({
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [columnMapping, setColumnMapping] = useState<ColumnMapping>({});
   const [isLoading, setIsLoading] = useState(false);
-  const [step, setStep] = useState<'upload' | 'preview' | 'mapping' | 'confirm'>('upload');
+  const [step, setStep] = useState<'upload' | 'sheet-select' | 'preview' | 'mapping' | 'confirm'>('upload');
   const [previewRows, setPreviewRows] = useState(5);
+  const [sheetNames, setSheetNames] = useState<string[]>([]);
+  const [selectedSheet, setSelectedSheet] = useState<string>('');
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -114,24 +129,27 @@ export function ImportSessionsDialog({
 
     // Parse Excel/CSV file
     parseExcelFile(selectedFile)
-      .then(({ headers, rows }) => {
+      .then(({ headers, rows, sheetNames: sheets }) => {
+        setSheetNames(sheets);
+        
         if (rows.length > 0) {
           setCsvData(rows);
           setCsvHeaders(headers);
+          setSelectedSheet(sheets[0]);
           
           // Auto-detect and map common column names
           const autoMapping: ColumnMapping = {};
           headers.forEach(header => {
             const headerLower = header.toLowerCase().trim();
             
-            // Match your exact Excel columns
-            if (headerLower.includes('topic')) {
-              autoMapping[header] = 'title';
-            } else if (headerLower.includes('category')) {
+            // Match your exact Excel columns - be more specific
+            if (headerLower === 'topics covered') {
+              autoMapping[header] = 'topics_covered';
+            } else if (headerLower === 'content category') {
               autoMapping[header] = 'content_category';
-            } else if (headerLower.includes('module')) {
-              autoMapping[header] = 'modules';
-            } else if (headerLower.includes('volunteer')) {
+            } else if (headerLower === 'modules') {
+              autoMapping[header] = 'module_name';
+            } else if (headerLower === 'session by' || headerLower.includes('volunteer')) {
               autoMapping[header] = 'volunteer_name';
             } else if (headerLower.includes('class')) {
               autoMapping[header] = 'class_batch';
@@ -139,21 +157,32 @@ export function ImportSessionsDialog({
               autoMapping[header] = 'skip';
             } else if (headerLower.includes('time slot') || headerLower.includes('time')) {
               autoMapping[header] = 'session_time';
-            } else if (headerLower.includes('date')) {
+            } else if (headerLower === 'session on' || headerLower.includes('date')) {
               autoMapping[header] = 'session_date';
             } else if (headerLower.includes('type')) {
               autoMapping[header] = 'session_type';
-            } else if (headerLower.includes('status')) {
+            } else if (headerLower === 'session status' || headerLower.includes('status')) {
               autoMapping[header] = 'status';
             } else if (headerLower.includes('recording')) {
               autoMapping[header] = 'recording_url';
             } else if (headerLower.includes('meeting')) {
               autoMapping[header] = 'meeting_link';
+            } else if (headerLower.includes('video')) {
+              autoMapping[header] = 'videos';
+            } else if (headerLower.includes('quiz') || headerLower.includes('ppt')) {
+              autoMapping[header] = 'quiz_content_ppt';
             }
           });
           
           setColumnMapping(autoMapping);
-          setStep('preview');
+          
+          // If multiple sheets, show sheet selection; otherwise go to preview
+          if (sheets.length > 1) {
+            setStep('sheet-select');
+          } else {
+            setStep('preview');
+          }
+          
           toast.success(`Loaded ${rows.length} rows from Excel`);
         } else {
           toast.error('No data found in file');
@@ -163,6 +192,63 @@ export function ImportSessionsDialog({
         console.error('Error parsing file:', error);
         toast.error(`Error parsing file: ${error.message}`);
       });
+  };
+
+  const handleSheetSelect = async (sheet: string) => {
+    if (!file) return;
+    
+    setIsLoading(true);
+    try {
+      const result = await parseExcelFile(file, sheet);
+      setCsvData(result.rows);
+      setCsvHeaders(result.headers);
+      setSelectedSheet(sheet);
+      
+      // Re-map columns for new sheet
+      const autoMapping: ColumnMapping = {};
+      result.headers.forEach(header => {
+        const headerLower = header.toLowerCase().trim();
+        
+        if (headerLower === 'topics covered') {
+          autoMapping[header] = 'topics_covered';
+        } else if (headerLower === 'content category') {
+          autoMapping[header] = 'content_category';
+        } else if (headerLower === 'modules') {
+          autoMapping[header] = 'module_name';
+        } else if (headerLower === 'session by' || headerLower.includes('volunteer')) {
+          autoMapping[header] = 'volunteer_name';
+        } else if (headerLower.includes('class')) {
+          autoMapping[header] = 'class_batch';
+        } else if (headerLower.includes('centre')) {
+          autoMapping[header] = 'skip';
+        } else if (headerLower.includes('time slot') || headerLower.includes('time')) {
+          autoMapping[header] = 'session_time';
+        } else if (headerLower === 'session on' || headerLower.includes('date')) {
+          autoMapping[header] = 'session_date';
+        } else if (headerLower.includes('type')) {
+          autoMapping[header] = 'session_type';
+        } else if (headerLower === 'session status' || headerLower.includes('status')) {
+          autoMapping[header] = 'status';
+        } else if (headerLower.includes('recording')) {
+          autoMapping[header] = 'recording_url';
+        } else if (headerLower.includes('meeting')) {
+          autoMapping[header] = 'meeting_link';
+        } else if (headerLower.includes('video')) {
+          autoMapping[header] = 'videos';
+        } else if (headerLower.includes('quiz') || headerLower.includes('ppt')) {
+          autoMapping[header] = 'quiz_content_ppt';
+        }
+      });
+      
+      setColumnMapping(autoMapping);
+      setStep('preview');
+      toast.success(`Switched to "${sheet}" sheet - ${result.rows.length} rows`);
+    } catch (error) {
+      console.error('Error loading sheet:', error);
+      toast.error('Failed to load sheet');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleMappingChange = (csvColumn: string, dbColumn: string) => {
@@ -178,13 +264,6 @@ export function ImportSessionsDialog({
       return;
     }
 
-    // Check if title is mapped
-    const hasTitleMapping = Object.values(columnMapping).includes('title');
-    if (!hasTitleMapping) {
-      toast.error('Please map a column to "Session Title"');
-      return;
-    }
-
     setIsLoading(true);
 
     try {
@@ -196,17 +275,36 @@ export function ImportSessionsDialog({
             let value: any = row[csvCol];
 
             // Type conversion
-            if (dbCol === 's_no') {
+            if (dbCol === 'module_no') {
               value = parseInt(value) || null;
             } else if (dbCol === 'session_date') {
-              // Try to parse date
-              const date = new Date(value);
-              if (!isNaN(date.getTime())) {
-                value = date.toISOString().split('T')[0];
+              // Handle Excel serial dates (numbers like 45603)
+              if (typeof value === 'number') {
+                // Excel date serial number - convert to date
+                const excelDate = new Date((value - 25569) * 86400 * 1000);
+                value = excelDate.toISOString().split('T')[0];
+              } else {
+                // Try to parse as regular date string
+                const dateStr = String(value).trim();
+                
+                // Handle DD/MM/YYYY format
+                if (dateStr.match(/^\d{1,2}\/\d{1,2}\/\d{4}/)) {
+                  const parts = dateStr.split('/');
+                  const date = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+                  if (!isNaN(date.getTime())) {
+                    value = date.toISOString().split('T')[0];
+                  }
+                } else {
+                  // Try standard parsing
+                  const date = new Date(dateStr);
+                  if (!isNaN(date.getTime())) {
+                    value = date.toISOString().split('T')[0];
+                  }
+                }
               }
             } else if (dbCol === 'status') {
               // Normalize status values
-              const statusLower = value.toLowerCase().trim();
+              const statusLower = String(value).toLowerCase().trim();
               if (statusLower.includes('complete') || statusLower.includes('done')) {
                 value = 'completed';
               } else if (statusLower.includes('commit') || statusLower.includes('scheduled')) {
@@ -220,7 +318,7 @@ export function ImportSessionsDialog({
           }
         });
 
-        // Set defaults
+        // Set defaults only for required fields if not already set
         if (!newRow.session_type) newRow.session_type = 'guest_teacher';
         if (!newRow.status) newRow.status = 'completed'; // Default to completed for past sessions
         if (!newRow.session_date) newRow.session_date = new Date().toISOString().split('T')[0];
@@ -235,13 +333,17 @@ export function ImportSessionsDialog({
         return newRow;
       });
 
-      // Validate required fields
+      // Validate required fields - skip rows with invalid dates only
       const validData = transformedData.filter((row, index) => {
-        const title = String(row.title || '').trim();
-        if (!title) {
-          console.warn(`Row ${index + 1} skipped: missing title`);
-          return false;
+        // Validate date format
+        if (row.session_date) {
+          const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+          if (!dateRegex.test(row.session_date)) {
+            console.warn(`Row ${index + 1} skipped: invalid date format "${row.session_date}"`);
+            return false;
+          }
         }
+        
         return true;
       });
 
@@ -267,8 +369,9 @@ export function ImportSessionsDialog({
         const cleanedBatch = batch.map(row => {
           const cleanedRow: any = {};
           
-          // Add all fields that have values
+          // Add all fields that have values (from the mapped Excel data)
           if (row.title) cleanedRow.title = String(row.title).trim();
+          if (row.topics_covered) cleanedRow.topics_covered = String(row.topics_covered).trim();
           if (row.session_date) cleanedRow.session_date = row.session_date;
           if (row.session_time) cleanedRow.session_time = row.session_time;
           if (row.status) cleanedRow.status = row.status;
@@ -276,13 +379,19 @@ export function ImportSessionsDialog({
           if (row.class_batch) cleanedRow.class_batch = row.class_batch;
           if (row.recorded_at) cleanedRow.recorded_at = row.recorded_at;
           if (row.content_category) cleanedRow.content_category = row.content_category;
-          if (row.modules) cleanedRow.modules = row.modules;
+          if (row.module_name) cleanedRow.module_name = row.module_name;
+          if (row.module_no) cleanedRow.module_no = row.module_no;
           if (row.volunteer_name) cleanedRow.volunteer_name = row.volunteer_name;
+          if (row.facilitator_name) cleanedRow.facilitator_name = row.facilitator_name;
+          if (row.coordinator_name) cleanedRow.coordinator_name = row.coordinator_name;
           if (row.recording_url) cleanedRow.recording_url = row.recording_url;
           if (row.meeting_link) cleanedRow.meeting_link = row.meeting_link;
+          if (row.videos) cleanedRow.videos = row.videos;
+          if (row.quiz_content_ppt) cleanedRow.quiz_content_ppt = row.quiz_content_ppt;
+          if (row.final_content_ppt) cleanedRow.final_content_ppt = row.final_content_ppt;
           
           // Always ensure these required fields exist
-          if (!cleanedRow.title) cleanedRow.title = 'Imported Session';
+          if (!cleanedRow.title) cleanedRow.title = cleanedRow.topics_covered || 'Imported Session';
           if (!cleanedRow.session_date) cleanedRow.session_date = new Date().toISOString().split('T')[0];
           if (!cleanedRow.session_time) cleanedRow.session_time = '09:00';
           if (!cleanedRow.session_type) cleanedRow.session_type = 'guest_teacher';
@@ -361,6 +470,31 @@ export function ImportSessionsDialog({
               <p className="text-xs text-muted-foreground">
                 Make sure your file has headers in the first row with all your session data
               </p>
+            </div>
+          )}
+
+          {step === 'sheet-select' && (
+            <div className="space-y-4 py-4">
+              <div>
+                <h3 className="font-medium mb-2">Select Sheet to Import</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Your Excel file has multiple sheets. Select which sheet contains your session data.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                {sheetNames.map((sheet) => (
+                  <button
+                    key={sheet}
+                    onClick={() => handleSheetSelect(sheet)}
+                    disabled={isLoading}
+                    className="w-full p-3 text-left border rounded-lg hover:bg-muted/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <div className="font-medium">{sheet}</div>
+                    <div className="text-xs text-muted-foreground">Click to load this sheet</div>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
@@ -465,9 +599,16 @@ export function ImportSessionsDialog({
           <Button variant="outline" onClick={handleClose}>
             Cancel
           </Button>
-          {step === 'preview' && (
+          {step === 'sheet-select' && (
             <>
               <Button variant="outline" onClick={() => setStep('upload')}>
+                Back
+              </Button>
+            </>
+          )}
+          {step === 'preview' && (
+            <>
+              <Button variant="outline" onClick={() => sheetNames.length > 1 ? setStep('sheet-select') : setStep('upload')}>
                 Back
               </Button>
               <Button onClick={() => setStep('mapping')}>
