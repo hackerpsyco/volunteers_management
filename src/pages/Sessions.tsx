@@ -572,9 +572,9 @@ export default function Sessions() {
                   <Table className="w-full">
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="min-w-[140px]">Topic</TableHead>
                         <TableHead className="min-w-[100px]">Category</TableHead>
                         <TableHead className="min-w-[100px]">Module</TableHead>
+                        <TableHead className="min-w-[140px]">Topic</TableHead>
                         <TableHead className="min-w-[100px]">Facilitator</TableHead>
                         <TableHead className="min-w-[100px]">Volunteer</TableHead>
                         <TableHead className="min-w-[100px]">Coordinator</TableHead>
@@ -592,11 +592,11 @@ export default function Sessions() {
                     <TableBody>
                       {filteredSessions.map((session) => (
                         <TableRow key={session.id} className="hover:bg-muted/50">
+                          <TableCell className="text-sm truncate">{session.content_category || '-'}</TableCell>
+                          <TableCell className="text-sm truncate">{session.module_name || '-'}</TableCell>
                           <TableCell className="font-medium truncate max-w-[140px]" title={session.topics_covered || ''}>
                             {session.topics_covered || '-'}
                           </TableCell>
-                          <TableCell className="text-sm truncate">{session.content_category || '-'}</TableCell>
-                          <TableCell className="text-sm truncate">{session.module_name || '-'}</TableCell>
                           <TableCell className="text-sm truncate">{session.facilitator_name || '-'}</TableCell>
                           <TableCell className="text-sm truncate">{session.volunteer_name || '-'}</TableCell>
                           <TableCell className="text-sm truncate">{session.coordinator_name || '-'}</TableCell>
