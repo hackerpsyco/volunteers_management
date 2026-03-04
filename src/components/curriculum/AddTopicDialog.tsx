@@ -91,8 +91,7 @@ export function AddTopicDialog({ open, onOpenChange, onSuccess }: AddTopicDialog
       const { data, error } = await (supabase as any)
         .from('subjects')
         .select('id, name')
-        .eq('name', 'AI')
-        .limit(1);
+        .order('name', { ascending: true });
 
       if (error) {
         console.warn('Subjects table not available');

@@ -205,14 +205,13 @@ export default function Curriculum() {
     try {
       setLoading(true);
 
-      // Filter by class_id and AI subject
+      // Filter by class_id - fetch all subjects
       let query: any = supabase
         .from('curriculum')
         .select(`
           *,
           subjects:subject_id(id, name)
         `)
-        .eq('subject_id', (await supabase.from('subjects').select('id').eq('name', 'AI').single()).data?.id)
         .order('content_category', { ascending: true })
         .order('module_no', { ascending: true });
 
@@ -294,8 +293,7 @@ export default function Curriculum() {
       const { data, error } = await supabase
         .from('subjects')
         .select('id, name, description')
-        .eq('name', 'AI')
-        .limit(1);
+        .order('name', { ascending: true });
 
       if (error) {
         console.warn('Subjects table not yet created. Run the migration first.');

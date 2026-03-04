@@ -10,13 +10,19 @@ CREATE TABLE IF NOT EXISTS subjects (
 -- Add subject_id column to curriculum table
 ALTER TABLE curriculum ADD COLUMN IF NOT EXISTS subject_id UUID REFERENCES subjects(id) ON DELETE SET NULL;
 
--- Insert default subjects
+-- Delete all old subjects first
+DELETE FROM subjects;
+
+-- Insert new subjects
 INSERT INTO subjects (name, description) VALUES
   ('AI', 'Artificial Intelligence'),
-  ('Computer', 'Computer Science'),
-  ('Eng & Com', 'English & Communication'),
-  ('Soft Skills', 'Soft Skills Development')
-ON CONFLICT (name) DO NOTHING;
+  ('Computers Fundamentals', 'Computer Fundamentals'),
+  ('Communication and Soft Skills', 'Communication and Soft Skills');
+
+-- Assign all curriculum items to AI subject
+UPDATE curriculum
+SET subject_id = (SELECT id FROM subjects WHERE name = 'AI')
+WHERE subject_id IS NULL;
 
 -- Create index for faster queries
 CREATE INDEX IF NOT EXISTS idx_curriculum_subject_id ON curriculum(subject_id);
