@@ -1,4 +1,4 @@
-import { Home, Users, LogOut, CalendarDays, BookOpen, Menu, X, Users2, MapPin, FileText, GraduationCap, Shield, ClipboardList } from 'lucide-react';
+import { Home, Users, LogOut, CalendarDays, BookOpen, Menu, X, Users2, MapPin, FileText, GraduationCap, Shield, ClipboardList, ChevronDown } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -6,20 +6,64 @@ import wesLogo from '@/assets/wes-logo.jpg';
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
-const navItems = [
-  { title: 'Student Dashboard', url: '/student-dashboard', icon: Home, requiredRole: null, studentVisible: true },
-  { title: 'Dashboard', url: '/dashboard', icon: Home, requiredRole: null, studentVisible: false },
-  { title: 'Calendar', url: '/calendar', icon: CalendarDays, requiredRole: null, studentVisible: false },
-  { title: 'Session', url: '/sessions', icon: BookOpen, requiredRole: null, studentVisible: false },
-  { title: 'Feedback & Record', url: '/feedback', icon: FileText, requiredRole: null, studentVisible: false },
-  { title: 'Curriculum', url: '/curriculum', icon: BookOpen, requiredRole: null, studentVisible: false },
-  { title: 'Facilitator', url: '/facilitators', icon: Users2, requiredRole: null, studentVisible: false },
-  { title: 'Coordinators', url: '/coordinators', icon: Users2, requiredRole: null, studentVisible: false },
-  { title: 'Centres & Slots', url: '/centres', icon: MapPin, requiredRole: null, studentVisible: false },
-  { title: 'Classes & students', url: '/classes', icon: GraduationCap, requiredRole: null, studentVisible: false },
-  { title: 'Tasks & Projects', url: '/tasks', icon: ClipboardList, requiredRole: null, studentVisible: false },
-  { title: 'Volunteer', url: '/volunteers', icon: Users, requiredRole: null, studentVisible: false },
-  { title: 'Admin Panel', url: '/admin', icon: Shield, requiredRole: 1, studentVisible: false }, // 1 = Admin
+interface NavItem {
+  title: string;
+  url: string;
+  icon: any;
+  requiredRole: number | null;
+  studentVisible: boolean;
+}
+
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+  studentVisible: boolean;
+}
+
+const navGroups: NavGroup[] = [
+  {
+    label: 'Main',
+    studentVisible: false,
+    items: [
+      { title: 'Dashboard', url: '/dashboard', icon: Home, requiredRole: null, studentVisible: false },
+      { title: 'Calendar', url: '/calendar', icon: CalendarDays, requiredRole: null, studentVisible: false },
+    ],
+  },
+  {
+    label: 'Session Management',
+    studentVisible: false,
+    items: [
+      { title: 'Session', url: '/sessions', icon: BookOpen, requiredRole: null, studentVisible: false },
+      { title: 'Feedback & Record', url: '/feedback', icon: FileText, requiredRole: null, studentVisible: false },
+      { title: 'Curriculum', url: '/curriculum', icon: BookOpen, requiredRole: null, studentVisible: false },
+      { title: 'Tasks & Projects', url: '/tasks', icon: ClipboardList, requiredRole: null, studentVisible: false },
+    ],
+  },
+  {
+    label: 'Users Management',
+    studentVisible: false,
+    items: [
+      { title: 'Facilitator', url: '/facilitators', icon: Users2, requiredRole: null, studentVisible: false },
+      { title: 'Coordinators', url: '/coordinators', icon: Users2, requiredRole: null, studentVisible: false },
+      { title: 'Volunteer', url: '/volunteers', icon: Users, requiredRole: null, studentVisible: false },
+    ],
+  },
+  {
+    label: 'Other',
+    studentVisible: false,
+    items: [
+      { title: 'Centres & Slots', url: '/centres', icon: MapPin, requiredRole: null, studentVisible: false },
+      { title: 'Classes & Students', url: '/classes', icon: GraduationCap, requiredRole: null, studentVisible: false },
+      { title: 'Admin Panel', url: '/admin', icon: Shield, requiredRole: 1, studentVisible: false },
+    ],
+  },
+  {
+    label: 'Student',
+    studentVisible: true,
+    items: [
+      { title: 'Student Dashboard', url: '/student-dashboard', icon: Home, requiredRole: null, studentVisible: true },
+    ],
+  },
 ];
 
 export function AppSidebar() {
