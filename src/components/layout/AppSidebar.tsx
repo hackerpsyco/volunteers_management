@@ -136,42 +136,47 @@ export function AppSidebar() {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-3 md:p-4 space-y-1 md:space-y-2">
-          {navItems.map((item) => {
-            // For students (role_id = 5), only show items marked as studentVisible
-            if (userRole === 5) {
-              if (!item.studentVisible) {
-                return null;
-              }
-            } else {
-              // For non-students (admin, facilitator, etc.), only show items marked as NOT studentVisible
-              if (item.studentVisible) {
-                return null;
-              }
-            }
+        <nav className="flex-1 p-3 md:p-4 space-y-3 overflow-y-auto">
+          {navGroups.map((group) => {
+            // Filter group visibility based on role
+            if (userRole === 5 && !group.studentVisible) return null;
+            if (userRole !== 5 && group.studentVisible) return null;
 
-            // Check if user has required role for this item
-            if (item.requiredRole !== null && userRole !== item.requiredRole) {
-              return null; // Don't show this item
-            }
+            const visibleItems = group.items.filter((item) => {
+              if (item.requiredRole !== null && userRole !== item.requiredRole) return false;
+              return true;
+            });
 
-            const isActive = location.pathname === item.url;
+            if (visibleItems.length === 0) return null;
+
             return (
-              <NavLink
-                key={item.title}
-                to={item.url}
-                onClick={() => setIsOpen(false)}
-                className={cn(
-                  'flex items-center gap-3 px-3 md:px-4 py-2 md:py-3 rounded-lg transition-colors',
-                  'text-sm md:text-base font-medium',
-                  isActive 
-                    ? 'bg-primary text-primary-foreground' 
-                    : 'text-muted-foreground hover:bg-accent hover:text-foreground'
-                )}
-              >
-                <item.icon className="h-5 w-5 flex-shrink-0" />
-                <span className="truncate">{item.title}</span>
-              </NavLink>
+              <div key={group.label}>
+                <p className="px-3 md:px-4 mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                  {group.label}
+                </p>
+                <div className="space-y-0.5">
+                  {visibleItems.map((item) => {
+                    const isActive = location.pathname === item.url;
+                    return (
+                      <NavLink
+                        key={item.title}
+                        to={item.url}
+                        onClick={() => setIsOpen(false)}
+                        className={cn(
+                          'flex items-center gap-3 px-3 md:px-4 py-2 rounded-lg transition-colors',
+                          'text-sm font-medium',
+                          isActive
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                        )}
+                      >
+                        <item.icon className="h-4 w-4 flex-shrink-0" />
+                        <span className="truncate">{item.title}</span>
+                      </NavLink>
+                    );
+                  })}
+                </div>
+              </div>
             );
           })}
         </nav>
