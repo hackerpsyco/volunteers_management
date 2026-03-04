@@ -38,6 +38,16 @@ interface ColumnMapping {
   [key: string]: string;
 }
 
+interface Class {
+  id: string;
+  name: string;
+}
+
+interface Subject {
+  id: string;
+  name: string;
+}
+
 const CURRICULUM_COLUMNS = [
   { value: 'content_category', label: 'Content Category' },
   { value: 'module_no', label: 'Module No. / S.No' },
@@ -185,11 +195,6 @@ async function parseExcelSheet(file: File, sheetName: string): Promise<{ headers
   }
 }
 
-interface Class {
-  id: string;
-  name: string;
-}
-
 export function UnifiedImportDialog({
   open,
   onOpenChange,
@@ -200,11 +205,13 @@ export function UnifiedImportDialog({
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [columnMapping, setColumnMapping] = useState<ColumnMapping>({});
   const [isLoading, setIsLoading] = useState(false);
-  const [step, setStep] = useState<'upload' | 'sheet-select' | 'mapping' | 'class-select'>('upload');
+  const [step, setStep] = useState<'upload' | 'sheet-select' | 'mapping' | 'subject-select' | 'class-select'>('upload');
   const [availableSheets, setAvailableSheets] = useState<string[]>([]);
   const [selectedSheet, setSelectedSheet] = useState<string>('');
   const [classes, setClasses] = useState<Class[]>([]);
   const [selectedClass, setSelectedClass] = useState<string>('');
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [selectedSubject, setSelectedSubject] = useState<string>('');
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -321,9 +328,35 @@ export function UnifiedImportDialog({
     }
   };
 
-  const handleProceedToClassSelect = async () => {
+  const fetchSubjects = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('subjects')
+        .select('id, name')
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setSubjects(data || []);
+    } catch (error) {
+      console.error('Error fetching subjects:', error);
+      toast.error('Failed to load subjects');
+    }
+  };
+
+  const handleProceedToSubjectSelect = async () => {
     if (Object.keys(columnMapping).length === 0) {
       toast.error('Please map at least one column');
+      return;
+    }
+
+    // Fetch subjects before proceeding
+    await fetchSubjects();
+    setStep('subject-select');
+  };
+
+  const handleProceedToClassSelect = async () => {
+    if (!selectedSubject) {
+      toast.error('Please select a subject');
       return;
     }
 
@@ -333,6 +366,11 @@ export function UnifiedImportDialog({
   };
 
   const handleImport = async () => {
+    if (!selectedSubject) {
+      toast.error('Please select a subject');
+      return;
+    }
+
     if (!selectedClass) {
       toast.error('Please select a class');
       return;
@@ -350,6 +388,7 @@ export function UnifiedImportDialog({
       console.log('Total CSV rows:', csvData.length);
       console.log('Column mapping:', columnMapping);
       console.log('Selected class:', selectedClass);
+      console.log('Selected subject:', selectedSubject);
 
       // Track last seen values for grouped columns
       let lastContentCategory = '';
@@ -358,7 +397,8 @@ export function UnifiedImportDialog({
 
       const transformedData = csvData.map((row, index) => {
         const newRow: any = {
-          class_id: selectedClass, // Add class_id to every row
+          class_id: selectedClass,
+          subject_id: selectedSubject,
         };
         Object.entries(columnMapping).forEach(([csvCol, dbCol]) => {
           if (dbCol && dbCol !== 'skip') {
@@ -415,7 +455,7 @@ export function UnifiedImportDialog({
         return;
       }
 
-      console.log(`Importing ${validData.length} curriculum items for class ${selectedClass}...`);
+      console.log(`Importing ${validData.length} curriculum items for class ${selectedClass} and subject ${selectedSubject}...`);
       console.log('Sample data:', validData.slice(0, 3));
 
       const batchSize = 50;
@@ -444,7 +484,7 @@ export function UnifiedImportDialog({
       if (failureCount > 0) {
         toast.error(`Import partially failed: ${successCount} imported, ${failureCount} failed`);
       } else {
-        toast.success(`Successfully imported ${successCount} curriculum items for selected class`);
+        toast.success(`Successfully imported ${successCount} curriculum items for selected class and subject`);
       }
 
       handleClose();
@@ -464,6 +504,8 @@ export function UnifiedImportDialog({
     setColumnMapping({});
     setAvailableSheets([]);
     setSelectedSheet('');
+    setSelectedClass('');
+    setSelectedSubject('');
     setStep('upload');
     onOpenChange(false);
   };
@@ -597,7 +639,40 @@ export function UnifiedImportDialog({
 
             {selectedClass && (
               <div className="p-3 bg-blue-50 border border-blue-200 rounded text-sm text-blue-800">
-                ✓ Ready to import {csvData.length} curriculum items to selected class
+                ✓ Class selected
+              </div>
+            )}
+          </div>
+        )}
+
+        {step === 'subject-select' && (
+          <div className="space-y-4 py-4">
+            <div>
+              <h3 className="font-medium mb-3">Select Subject for Import</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Choose which subject this curriculum content should be assigned to.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="subject-select">Subject *</Label>
+              <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a subject" />
+                </SelectTrigger>
+                <SelectContent>
+                  {subjects.map((subj) => (
+                    <SelectItem key={subj.id} value={subj.id}>
+                      {subj.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {selectedSubject && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded text-sm text-blue-800">
+                ✓ Ready to import {csvData.length} curriculum items to selected class and subject
               </div>
             )}
           </div>
@@ -625,7 +700,20 @@ export function UnifiedImportDialog({
               >
                 Back
               </Button>
-              <Button onClick={handleProceedToClassSelect} disabled={isLoading}>
+              <Button onClick={handleProceedToSubjectSelect} disabled={isLoading}>
+                Next: Select Subject
+              </Button>
+            </>
+          )}
+          {step === 'subject-select' && (
+            <>
+              <Button 
+                variant="outline" 
+                onClick={() => setStep('mapping')}
+              >
+                Back
+              </Button>
+              <Button onClick={handleProceedToClassSelect} disabled={isLoading || !selectedSubject}>
                 Next: Select Class
               </Button>
             </>
@@ -634,7 +722,7 @@ export function UnifiedImportDialog({
             <>
               <Button 
                 variant="outline" 
-                onClick={() => setStep('mapping')}
+                onClick={() => setStep('subject-select')}
               >
                 Back
               </Button>
