@@ -77,6 +77,8 @@ interface CurriculumItem {
   created_at?: string;
   updated_at?: string;
   class_id?: string;
+  subject_id?: string;
+  subject_name?: string;
 }
 
 interface Class {
@@ -139,6 +141,10 @@ export default function Curriculum() {
       filtered = filtered.filter((item) => item.content_category === selectedCategory);
     }
 
+    if (selectedSubject && selectedSubject !== 'all') {
+      filtered = filtered.filter((item) => item.subject_id === selectedSubject);
+    }
+
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       filtered = filtered.filter((item) => {
@@ -150,6 +156,7 @@ export default function Curriculum() {
           item.topic_title?.toLowerCase().includes(q) ||
           item.videos?.toLowerCase().includes(q) ||
           item.quiz_content_ppt?.toLowerCase().includes(q) ||
+          item.subject_name?.toLowerCase().includes(q) ||
           info?.volunteer_name?.toLowerCase().includes(q) ||
           info?.fresh_status?.toLowerCase().includes(q) ||
           info?.revision_status?.toLowerCase().includes(q)
@@ -158,16 +165,20 @@ export default function Curriculum() {
     }
     
     setFilteredCurriculum(filtered);
-  }, [selectedCategory, curriculum, searchQuery, sessionInfo]);
+  }, [selectedCategory, selectedSubject, curriculum, searchQuery, sessionInfo]);
 
   const fetchCurriculum = async (classId?: string) => {
     try {
       setLoading(true);
 
-      // Filter by class_id if provided
+      // Filter by class_id and AI subject
       let query: any = supabase
         .from('curriculum')
-        .select('*')
+        .select(`
+          *,
+          subjects:subject_id(id, name)
+        `)
+        .eq('subject_id', (await supabase.from('subjects').select('id').eq('name', 'AI').single()).data?.id)
         .order('content_category', { ascending: true })
         .order('module_no', { ascending: true });
 
@@ -182,7 +193,7 @@ export default function Curriculum() {
         throw error;
       }
 
-      const formattedData = (data as RawCurriculumData[] || []).map((item) => ({
+      const formattedData = (data as any[] || []).map((item) => ({
         id: item.id,
         content_category: item.content_category || '',
         module_code: item.module_no?.toString() || '',
@@ -194,7 +205,9 @@ export default function Curriculum() {
         revision_session: item.revision_session || '',
         created_at: item.created_at,
         updated_at: item.updated_at,
-        class_id: (item as any).class_id,
+        class_id: item.class_id,
+        subject_id: item.subject_id,
+        subject_name: item.subjects?.name || 'AI',
       }));
 
       setCurriculum(formattedData);
@@ -243,7 +256,8 @@ export default function Curriculum() {
       const { data, error } = await supabase
         .from('subjects')
         .select('id, name, description')
-        .order('name', { ascending: true });
+        .eq('name', 'AI')
+        .limit(1);
 
       if (error) {
         console.warn('Subjects table not yet created. Run the migration first.');
@@ -535,6 +549,7 @@ export default function Curriculum() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead>Subject</TableHead>
                         <TableHead>Category</TableHead>
                         <TableHead>Module No & Module Name</TableHead>
                         <TableHead>Topics Covered</TableHead>
@@ -542,15 +557,15 @@ export default function Curriculum() {
                         <TableHead>PPT/Quiz</TableHead>
                         <TableHead>Fresh Session</TableHead>
                         <TableHead>Revision Session</TableHead>
-                        <TableHead>Session Date</TableHead>
-                        <TableHead>Volunteer Name</TableHead>
-                        <TableHead>Session Status</TableHead>
                         <TableHead className="w-[60px]">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredCurriculum.map((item) => (
                         <TableRow key={item.id}>
+                          <TableCell>
+                            <Badge variant="secondary">{item.subject_name || 'Unassigned'}</Badge>
+                          </TableCell>
                           <TableCell>
                             <Badge variant="outline">{item.content_category}</Badge>
                           </TableCell>
@@ -622,54 +637,6 @@ export default function Curriculum() {
                                       </Badge>
                                     </div>
                                   ))}
-                                </div>
-                              );
-                            })()}
-                          </TableCell>
-                          <TableCell>
-                            {(() => {
-                              const info = sessionInfo[item.topic_title];
-                              if (!info?.session_date) {
-                                return <span className="text-muted-foreground text-xs">-</span>;
-                              }
-                              return (
-                                <span className="text-sm">
-                                  {new Date(info.session_date).toLocaleDateString()}
-                                </span>
-                              );
-                            })()}
-                          </TableCell>
-                          <TableCell>
-                            {(() => {
-                              const info = sessionInfo[item.topic_title];
-                              if (!info?.volunteer_name) {
-                                return <span className="text-muted-foreground text-xs">-</span>;
-                              }
-                              return <span className="text-sm">{info.volunteer_name}</span>;
-                            })()}
-                          </TableCell>
-                          <TableCell>
-                            {(() => {
-                              const info = sessionInfo[item.topic_title];
-                              if (!info || (info.fresh_count === 0 && info.revision_count === 0)) {
-                                return <span className="text-muted-foreground text-xs">No sessions</span>;
-                              }
-                              return (
-                                <div className="space-y-1">
-                                  {info.fresh_count > 0 && (
-                                    <div className="text-xs">
-                                      <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                                        🆕 Fresh: {info.fresh_count} ({info.fresh_status || 'pending'})
-                                      </Badge>
-                                    </div>
-                                  )}
-                                  {info.revision_count > 0 && (
-                                    <div className="text-xs">
-                                      <Badge variant="secondary" className="bg-purple-100 text-purple-800">
-                                        🔄 Revision: {info.revision_count} ({info.revision_status || 'pending'})
-                                      </Badge>
-                                    </div>
-                                  )}
                                 </div>
                               );
                             })()}

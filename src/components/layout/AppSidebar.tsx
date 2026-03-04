@@ -33,7 +33,7 @@ const navGroups: NavGroup[] = [
     label: 'Session Management',
     studentVisible: false,
     items: [
-      { title: 'Session', url: '/sessions', icon: BookOpen, requiredRole: null, studentVisible: false },
+      { title: 'Session Planner', url: '/sessions', icon: BookOpen, requiredRole: null, studentVisible: false },
       { title: 'Feedback & Record', url: '/feedback', icon: FileText, requiredRole: null, studentVisible: false },
       { title: 'Curriculum', url: '/curriculum', icon: BookOpen, requiredRole: null, studentVisible: false },
       { title: 'Tasks & Projects', url: '/tasks', icon: ClipboardList, requiredRole: null, studentVisible: false },
@@ -45,16 +45,16 @@ const navGroups: NavGroup[] = [
     items: [
       { title: 'Facilitator', url: '/facilitators', icon: Users2, requiredRole: null, studentVisible: false },
       { title: 'Coordinators', url: '/coordinators', icon: Users2, requiredRole: null, studentVisible: false },
-      { title: 'Volunteer', url: '/volunteers', icon: Users, requiredRole: null, studentVisible: false },
+      { title: 'Guest Teacher & Speaker', url: '/volunteers', icon: Users, requiredRole: null, studentVisible: false },
     ],
   },
   {
-    label: 'Other',
+    label: 'Logic Action',
     studentVisible: false,
     items: [
       { title: 'Centres & Slots', url: '/centres', icon: MapPin, requiredRole: null, studentVisible: false },
       { title: 'Classes & Students', url: '/classes', icon: GraduationCap, requiredRole: null, studentVisible: false },
-      { title: 'Admin Panel', url: '/admin', icon: Shield, requiredRole: 1, studentVisible: false },
+      { title: 'Admin Action', url: '/admin', icon: Shield, requiredRole: 1, studentVisible: false },
     ],
   },
   {

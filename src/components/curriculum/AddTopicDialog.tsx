@@ -91,7 +91,8 @@ export function AddTopicDialog({ open, onOpenChange, onSuccess }: AddTopicDialog
       const { data, error } = await (supabase as any)
         .from('subjects')
         .select('id, name')
-        .order('name', { ascending: true });
+        .eq('name', 'AI')
+        .limit(1);
 
       if (error) {
         console.warn('Subjects table not available');
@@ -184,6 +185,7 @@ export function AddTopicDialog({ open, onOpenChange, onSuccess }: AddTopicDialog
           topics_covered: topicName.trim(),
           videos: '',
           quiz_content_ppt: '',
+          subject_id: selectedSubject && selectedSubject !== 'all' ? selectedSubject : null,
         });
 
       if (insertError) throw insertError;
@@ -193,6 +195,7 @@ export function AddTopicDialog({ open, onOpenChange, onSuccess }: AddTopicDialog
       setSelectedClass('');
       setSelectedCategory('');
       setSelectedModule('');
+      setSelectedSubject('');
       onOpenChange(false);
       onSuccess();
     } catch (error) {

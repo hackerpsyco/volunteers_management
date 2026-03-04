@@ -56,6 +56,47 @@ const DATABASE_COLUMNS = [
   { value: 'skip', label: 'Skip this column' },
 ];
 
+// Convert Excel serial date to YYYY-MM-DD format
+function excelDateToISO(excelDate: number | string): string | null {
+  try {
+    if (typeof excelDate === 'string') {
+      // Try parsing as regular date string first
+      const dateStr = excelDate.trim();
+      
+      // Handle DD/MM/YYYY format
+      if (dateStr.match(/^\d{1,2}\/\d{1,2}\/\d{4}/)) {
+        const parts = dateStr.split('/');
+        const date = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+        if (!isNaN(date.getTime())) {
+          return date.toISOString().split('T')[0];
+        }
+      }
+      
+      // Try standard parsing
+      const date = new Date(dateStr);
+      if (!isNaN(date.getTime())) {
+        return date.toISOString().split('T')[0];
+      }
+      
+      return null;
+    }
+    
+    // Handle Excel serial numbers
+    if (typeof excelDate === 'number') {
+      // Excel date serial number - convert to date
+      // Excel epoch is December 30, 1899
+      const excelEpoch = new Date(1899, 11, 30);
+      const date = new Date(excelEpoch.getTime() + excelDate * 86400000);
+      return date.toISOString().split('T')[0];
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error converting date:', error);
+    return null;
+  }
+}
+
 // Parse Excel/CSV files properly
 function parseExcelFile(file: File, sheetName?: string): Promise<{ headers: string[]; rows: any[]; sheetNames: string[] }> {
   return new Promise((resolve, reject) => {
@@ -66,17 +107,23 @@ function parseExcelFile(file: File, sheetName?: string): Promise<{ headers: stri
         const data = event.target?.result;
         
         // Parse Excel file
-        const workbook = XLSX.read(data, { type: 'binary' });
+        const workbook = XLSX.read(data, { type: 'array' });
         const sheetNames = workbook.SheetNames;
         
-        // Use provided sheet name or first non-empty sheet
-        let selectedSheet = sheetName || sheetNames[0];
+        // Filter to session-related sheets
+        const sessionSheets = sheetNames.filter(name => 
+          name.toLowerCase().includes('session') || 
+          name.toLowerCase().includes('past')
+        );
+        
+        // Use provided sheet name or first session sheet
+        let selectedSheet = sheetName || sessionSheets[0] || sheetNames[0];
         let worksheet = workbook.Sheets[selectedSheet];
         let jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
         
         // If first sheet is empty, find first non-empty sheet
         if (jsonData.length === 0 && !sheetName) {
-          for (const name of sheetNames) {
+          for (const name of sessionSheets.length > 0 ? sessionSheets : sheetNames) {
             const ws = workbook.Sheets[name];
             const data = XLSX.utils.sheet_to_json(ws, { defval: '' });
             if (data.length > 0) {
@@ -88,21 +135,21 @@ function parseExcelFile(file: File, sheetName?: string): Promise<{ headers: stri
         }
         
         if (jsonData.length === 0) {
-          resolve({ headers: [], rows: [], sheetNames });
+          resolve({ headers: [], rows: [], sheetNames: sessionSheets.length > 0 ? sessionSheets : sheetNames });
           return;
         }
         
         // Get headers from first row
         const headers = Object.keys(jsonData[0]);
         
-        resolve({ headers, rows: jsonData, sheetNames });
+        resolve({ headers, rows: jsonData, sheetNames: sessionSheets.length > 0 ? sessionSheets : sheetNames });
       } catch (error) {
         reject(error);
       }
     };
     
     reader.onerror = () => reject(new Error('Failed to read file'));
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
   });
 }
 
@@ -142,14 +189,14 @@ export function ImportSessionsDialog({
           headers.forEach(header => {
             const headerLower = header.toLowerCase().trim();
             
-            // Match your exact Excel columns - be more specific
+            // Match exact Excel columns from the file
             if (headerLower === 'topics covered') {
               autoMapping[header] = 'topics_covered';
             } else if (headerLower === 'content category') {
               autoMapping[header] = 'content_category';
-            } else if (headerLower === 'modules') {
+            } else if (headerLower === 'modules' || headerLower === 'module no & module name') {
               autoMapping[header] = 'module_name';
-            } else if (headerLower === 'session by' || headerLower.includes('volunteer')) {
+            } else if (headerLower === 'session by' || headerLower === 'session by_1') {
               autoMapping[header] = 'volunteer_name';
             } else if (headerLower.includes('class')) {
               autoMapping[header] = 'class_batch';
@@ -157,19 +204,19 @@ export function ImportSessionsDialog({
               autoMapping[header] = 'skip';
             } else if (headerLower.includes('time slot') || headerLower.includes('time')) {
               autoMapping[header] = 'session_time';
-            } else if (headerLower === 'session on' || headerLower.includes('date')) {
+            } else if (headerLower === 'session on' || headerLower === 'session on_1' || headerLower.includes('date')) {
               autoMapping[header] = 'session_date';
             } else if (headerLower.includes('type')) {
               autoMapping[header] = 'session_type';
-            } else if (headerLower === 'session status' || headerLower.includes('status')) {
+            } else if (headerLower === 'session status' || headerLower === 'revision session status' || headerLower.includes('status')) {
               autoMapping[header] = 'status';
             } else if (headerLower.includes('recording')) {
               autoMapping[header] = 'recording_url';
             } else if (headerLower.includes('meeting')) {
               autoMapping[header] = 'meeting_link';
-            } else if (headerLower.includes('video')) {
+            } else if (headerLower === 'videos' || headerLower.includes('video')) {
               autoMapping[header] = 'videos';
-            } else if (headerLower.includes('quiz') || headerLower.includes('ppt')) {
+            } else if (headerLower === 'quiz/content ppt' || headerLower.includes('quiz') || headerLower.includes('ppt')) {
               autoMapping[header] = 'quiz_content_ppt';
             }
           });
@@ -213,9 +260,9 @@ export function ImportSessionsDialog({
           autoMapping[header] = 'topics_covered';
         } else if (headerLower === 'content category') {
           autoMapping[header] = 'content_category';
-        } else if (headerLower === 'modules') {
+        } else if (headerLower === 'modules' || headerLower === 'module no & module name') {
           autoMapping[header] = 'module_name';
-        } else if (headerLower === 'session by' || headerLower.includes('volunteer')) {
+        } else if (headerLower === 'session by' || headerLower === 'session by_1') {
           autoMapping[header] = 'volunteer_name';
         } else if (headerLower.includes('class')) {
           autoMapping[header] = 'class_batch';
@@ -223,19 +270,19 @@ export function ImportSessionsDialog({
           autoMapping[header] = 'skip';
         } else if (headerLower.includes('time slot') || headerLower.includes('time')) {
           autoMapping[header] = 'session_time';
-        } else if (headerLower === 'session on' || headerLower.includes('date')) {
+        } else if (headerLower === 'session on' || headerLower === 'session on_1' || headerLower.includes('date')) {
           autoMapping[header] = 'session_date';
         } else if (headerLower.includes('type')) {
           autoMapping[header] = 'session_type';
-        } else if (headerLower === 'session status' || headerLower.includes('status')) {
+        } else if (headerLower === 'session status' || headerLower === 'revision session status' || headerLower.includes('status')) {
           autoMapping[header] = 'status';
         } else if (headerLower.includes('recording')) {
           autoMapping[header] = 'recording_url';
         } else if (headerLower.includes('meeting')) {
           autoMapping[header] = 'meeting_link';
-        } else if (headerLower.includes('video')) {
+        } else if (headerLower === 'videos' || headerLower.includes('video')) {
           autoMapping[header] = 'videos';
-        } else if (headerLower.includes('quiz') || headerLower.includes('ppt')) {
+        } else if (headerLower === 'quiz/content ppt' || headerLower.includes('quiz') || headerLower.includes('ppt')) {
           autoMapping[header] = 'quiz_content_ppt';
         }
       });
@@ -278,29 +325,21 @@ export function ImportSessionsDialog({
             if (dbCol === 'module_no') {
               value = parseInt(value) || null;
             } else if (dbCol === 'session_date') {
-              // Handle Excel serial dates (numbers like 45603)
-              if (typeof value === 'number') {
-                // Excel date serial number - convert to date
-                const excelDate = new Date((value - 25569) * 86400 * 1000);
-                value = excelDate.toISOString().split('T')[0];
+              // Handle Excel serial dates and date strings
+              const convertedDate = excelDateToISO(value);
+              if (convertedDate) {
+                value = convertedDate;
               } else {
-                // Try to parse as regular date string
-                const dateStr = String(value).trim();
-                
-                // Handle DD/MM/YYYY format
-                if (dateStr.match(/^\d{1,2}\/\d{1,2}\/\d{4}/)) {
-                  const parts = dateStr.split('/');
-                  const date = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
-                  if (!isNaN(date.getTime())) {
-                    value = date.toISOString().split('T')[0];
-                  }
-                } else {
-                  // Try standard parsing
-                  const date = new Date(dateStr);
-                  if (!isNaN(date.getTime())) {
-                    value = date.toISOString().split('T')[0];
-                  }
-                }
+                console.warn(`Row skipped: invalid date "${value}"`);
+                return null; // Skip this row
+              }
+            } else if (dbCol === 'volunteer_name') {
+              // Handle email addresses and names
+              value = String(value).trim();
+              // If it's an email, keep it as is or extract name
+              if (value.includes('@')) {
+                // Keep email as volunteer identifier
+                value = value;
               }
             } else if (dbCol === 'status') {
               // Normalize status values
@@ -318,22 +357,10 @@ export function ImportSessionsDialog({
           }
         });
 
-        // Set defaults only for required fields if not already set
-        if (!newRow.session_type) newRow.session_type = 'guest_teacher';
-        if (!newRow.status) newRow.status = 'completed'; // Default to completed for past sessions
-        if (!newRow.session_date) newRow.session_date = new Date().toISOString().split('T')[0];
-        if (!newRow.session_time) newRow.session_time = '09:00';
-        if (!newRow.class_batch) newRow.class_batch = 'WES Fellow'; // Default class
-        
-        // Mark as recorded if status is completed
-        if (newRow.status === 'completed') {
-          newRow.recorded_at = new Date().toISOString();
-        }
-
         return newRow;
-      });
+      }).filter(row => row !== null); // Remove rows that failed conversion
 
-      // Validate required fields - skip rows with invalid dates only
+      // Validate required fields
       const validData = transformedData.filter((row, index) => {
         // Validate date format
         if (row.session_date) {
@@ -354,7 +381,7 @@ export function ImportSessionsDialog({
       }
 
       if (validData.length < transformedData.length) {
-        toast.warning(`Importing ${validData.length} of ${transformedData.length} rows (some rows were skipped due to missing title)`);
+        toast.warning(`Importing ${validData.length} of ${transformedData.length} rows (some rows were skipped due to invalid dates)`);
       }
 
       // Insert into database in batches to avoid large payloads

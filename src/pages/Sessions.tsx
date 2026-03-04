@@ -576,21 +576,20 @@ export default function Sessions() {
                         <TableHead className="min-w-[100px]">Module</TableHead>
                         <TableHead className="min-w-[140px]">Topic</TableHead>
                         <TableHead className="min-w-[100px]">Facilitator</TableHead>
-                        <TableHead className="min-w-[100px]">Volunteer</TableHead>
                         <TableHead className="min-w-[100px]">Coordinator</TableHead>
                         <TableHead className="min-w-[80px]">Class</TableHead>
                         <TableHead className="min-w-[100px]">Centre</TableHead>
                         <TableHead className="min-w-[110px]">Time Slot</TableHead>
-                        <TableHead className="min-w-[90px]">Date</TableHead>
                         <TableHead className="min-w-[70px]">Type</TableHead>
-                        <TableHead className="min-w-[80px]">Status</TableHead>
                         <TableHead className="min-w-[100px]">Recording</TableHead>
                         <TableHead className="min-w-[100px]">Meeting</TableHead>
                         <TableHead className="min-w-[60px]">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredSessions.map((session) => (
+                      {filteredSessions.map((session) => {
+                        const isPastSession = new Date(session.session_date) < new Date();
+                        return (
                         <TableRow key={session.id} className="hover:bg-muted/50">
                           <TableCell className="text-sm truncate">{session.content_category || '-'}</TableCell>
                           <TableCell className="text-sm truncate">{session.module_name || '-'}</TableCell>
@@ -598,7 +597,6 @@ export default function Sessions() {
                             {session.topics_covered || '-'}
                           </TableCell>
                           <TableCell className="text-sm truncate">{session.facilitator_name || '-'}</TableCell>
-                          <TableCell className="text-sm truncate">{session.volunteer_name || '-'}</TableCell>
                           <TableCell className="text-sm truncate">{session.coordinator_name || '-'}</TableCell>
                           <TableCell className="text-sm truncate">{session.class_batch || '-'}</TableCell>
                           <TableCell className="text-sm truncate">{session.centre_name || '-'}</TableCell>
@@ -607,21 +605,9 @@ export default function Sessions() {
                               ? `${session.slot_start_time.slice(0, 5)} - ${session.slot_end_time.slice(0, 5)}` 
                               : '-'}
                           </TableCell>
-                          <TableCell className="text-sm whitespace-nowrap">
-                            {new Date(session.session_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                          </TableCell>
                           <TableCell>
                             <Badge variant="outline" className="text-xs whitespace-nowrap">
                               {session.session_type === 'guest_teacher' ? 'GT' : 'GS'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={
-                              session.status === 'completed' ? 'default' :
-                              session.status === 'pending' ? 'secondary' :
-                              'outline'
-                            } className="text-xs whitespace-nowrap">
-                              {session.status}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-xs">
@@ -661,40 +647,43 @@ export default function Sessions() {
                             )}
                           </TableCell>
                           <TableCell>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                  <MoreVertical className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="bg-popover">
-                                <DropdownMenuItem 
-                                  onClick={() => handleEditStatus(session)}
-                                >
-                                  <Edit className="h-4 w-4 mr-2" />
-                                  Edit Status
-                                </DropdownMenuItem>
-                                <DropdownMenuItem 
-                                  onClick={() => navigate(`/sessions/${session.id}/recording`)}
-                                >
-                                  <FileText className="h-4 w-4 mr-2" />
-                                  Record feedback Session
-                                </DropdownMenuItem>
-                                <DropdownMenuItem 
-                                  onClick={() => {
-                                    setSelectedSession(session);
-                                    setDeleteDialogOpen(true);
-                                  }}
-                                  className="text-destructive focus:text-destructive"
-                                >
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  Delete
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                            {isPastSession && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="bg-popover">
+                                  <DropdownMenuItem 
+                                    onClick={() => handleEditStatus(session)}
+                                  >
+                                    <Edit className="h-4 w-4 mr-2" />
+                                    Edit
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem 
+                                    onClick={() => navigate(`/sessions/${session.id}/recording`)}
+                                  >
+                                    <FileText className="h-4 w-4 mr-2" />
+                                    Record feedback Session
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem 
+                                    onClick={() => {
+                                      setSelectedSession(session);
+                                      setDeleteDialogOpen(true);
+                                    }}
+                                    className="text-destructive focus:text-destructive"
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
                           </TableCell>
                         </TableRow>
-                      ))}
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
