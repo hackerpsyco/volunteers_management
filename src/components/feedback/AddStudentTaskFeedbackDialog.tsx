@@ -33,6 +33,7 @@ interface AddStudentTaskFeedbackDialogProps {
 interface Student {
   id: string;
   name: string;
+  student_id?: string;
   roll_number?: string;
 }
 
@@ -57,7 +58,6 @@ export function AddStudentTaskFeedbackDialog({
     feedback_notes: '',
   });
 
-  // Fetch students from session's class
   useEffect(() => {
     if (isOpen && sessionId) {
       fetchStudents();
@@ -68,8 +68,7 @@ export function AddStudentTaskFeedbackDialog({
     try {
       setLoading(true);
 
-      // First, get the session to find its class
-      const { data: sessionData, error: sessionError } = await supabase
+      const { data: sessionData, error: sessionError } = await (supabase as any)
         .from('sessions')
         .select('class_id, class_batch')
         .eq('id', sessionId)
@@ -77,14 +76,10 @@ export function AddStudentTaskFeedbackDialog({
 
       if (sessionError) throw sessionError;
 
-      console.log('📍 Session data:', sessionData);
-
-      // Use class_id if available, otherwise try to match by class_batch name
-      let classId = sessionData?.class_id;
+      let resolvedClassId = sessionData?.class_id;
       
-      if (!classId && sessionData?.class_batch) {
-        // Try to find class by name matching class_batch
-        const { data: classData, error: classError } = await supabase
+      if (!resolvedClassId && sessionData?.class_batch) {
+        const { data: classData, error: classError } = await (supabase as any)
           .from('classes')
           .select('id')
           .ilike('name', `%${sessionData.class_batch}%`)
@@ -93,25 +88,23 @@ export function AddStudentTaskFeedbackDialog({
         if (classError) {
           console.warn('Could not find class by name:', sessionData.class_batch);
         } else {
-          classId = classData?.id;
+          resolvedClassId = classData?.id;
         }
       }
 
-      if (!classId) {
+      if (!resolvedClassId) {
         toast.error('Session has no class assigned');
         return;
       }
 
-      // Then fetch students from that class
-      const { data: studentsData, error: studentsError } = await supabase
+      const { data: studentsData, error: studentsError } = await (supabase as any)
         .from('students')
         .select('id, name, student_id')
-        .eq('class_id', classId)
+        .eq('class_id', resolvedClassId)
         .order('name', { ascending: true });
 
       if (studentsError) throw studentsError;
 
-      console.log('👥 Students fetched:', studentsData?.length || 0);
       setStudents(studentsData || []);
     } catch (error) {
       console.error('Error fetching students:', error);
@@ -132,7 +125,7 @@ export function AddStudentTaskFeedbackDialog({
     try {
       setSubmitting(true);
 
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('student_task_feedback')
         .insert({
           session_id: sessionId,
@@ -179,7 +172,6 @@ export function AddStudentTaskFeedbackDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Student Selection */}
           <div className="space-y-2">
             <Label htmlFor="student">Student *</Label>
             <Select
@@ -202,7 +194,6 @@ export function AddStudentTaskFeedbackDialog({
             </Select>
           </div>
 
-          {/* Feedback Type */}
           <div className="space-y-2">
             <Label htmlFor="feedback-type">Feedback Type</Label>
             <Select
@@ -224,7 +215,6 @@ export function AddStudentTaskFeedbackDialog({
             </Select>
           </div>
 
-          {/* Task Name */}
           <div className="space-y-2">
             <Label htmlFor="task-name">Task Name *</Label>
             <Input
@@ -238,7 +228,6 @@ export function AddStudentTaskFeedbackDialog({
             />
           </div>
 
-          {/* Task Description */}
           <div className="space-y-2">
             <Label htmlFor="task-description">Description</Label>
             <Textarea
@@ -252,7 +241,6 @@ export function AddStudentTaskFeedbackDialog({
             />
           </div>
 
-          {/* Deadline */}
           <div className="space-y-2">
             <Label htmlFor="deadline">Deadline</Label>
             <Input
@@ -265,7 +253,6 @@ export function AddStudentTaskFeedbackDialog({
             />
           </div>
 
-          {/* Submission Link */}
           <div className="space-y-2">
             <Label htmlFor="submission-link">Submission Link</Label>
             <Input
@@ -279,7 +266,6 @@ export function AddStudentTaskFeedbackDialog({
             />
           </div>
 
-          {/* Feedback Notes */}
           <div className="space-y-2">
             <Label htmlFor="feedback-notes">Feedback Notes</Label>
             <Textarea

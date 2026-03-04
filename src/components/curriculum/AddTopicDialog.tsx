@@ -73,7 +73,7 @@ export function AddTopicDialog({ open, onOpenChange, onSuccess }: AddTopicDialog
 
   const fetchClasses = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('classes')
         .select('id, name')
         .order('name', { ascending: true });
@@ -88,7 +88,7 @@ export function AddTopicDialog({ open, onOpenChange, onSuccess }: AddTopicDialog
 
   const fetchSubjects = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('subjects')
         .select('id, name')
         .order('name', { ascending: true });
@@ -107,7 +107,7 @@ export function AddTopicDialog({ open, onOpenChange, onSuccess }: AddTopicDialog
 
   const fetchCategories = async (classId: string) => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('curriculum')
         .select('content_category')
         .eq('class_id', classId)
@@ -115,7 +115,7 @@ export function AddTopicDialog({ open, onOpenChange, onSuccess }: AddTopicDialog
 
       if (error) throw error;
 
-      const uniqueCategories = [...new Set(data?.map(item => item.content_category) || [])].sort();
+      const uniqueCategories = [...new Set(data?.map((item: any) => item.content_category) || [])].sort();
       setCategories(uniqueCategories as string[]);
     } catch (error) {
       console.error('Error fetching categories:', error);
@@ -125,7 +125,7 @@ export function AddTopicDialog({ open, onOpenChange, onSuccess }: AddTopicDialog
 
   const fetchModules = async (category: string, classId: string) => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('curriculum')
         .select('module_no, module_name')
         .eq('class_id', classId)
@@ -171,12 +171,10 @@ export function AddTopicDialog({ open, onOpenChange, onSuccess }: AddTopicDialog
     setIsLoading(true);
 
     try {
-      // Find the module_no for the selected module
       const selectedModuleObj = modules.find(m => m.name === selectedModule);
       const moduleNo = selectedModuleObj?.no || null;
 
-      // Insert topic for the selected class
-      const { error: insertError } = await supabase
+      const { error: insertError } = await (supabase as any)
         .from('curriculum')
         .insert({
           class_id: selectedClass,
