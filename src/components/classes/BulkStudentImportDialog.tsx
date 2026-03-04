@@ -63,7 +63,7 @@ export function BulkStudentImportDialog({ open, onOpenChange, onSuccess }: BulkS
   const fetchClasses = async () => {
     try {
       setLoadingClasses(true);
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('classes')
         .select('id, name')
         .order('name', { ascending: true });

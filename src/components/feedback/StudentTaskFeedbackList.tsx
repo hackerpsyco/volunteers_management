@@ -45,7 +45,7 @@ export function StudentTaskFeedbackList({
     try {
       setLoading(true);
 
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('student_task_feedback')
         .select(`
           id,
@@ -81,7 +81,7 @@ export function StudentTaskFeedbackList({
     if (!confirm('Are you sure you want to delete this feedback?')) return;
 
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('student_task_feedback')
         .delete()
         .eq('id', id);

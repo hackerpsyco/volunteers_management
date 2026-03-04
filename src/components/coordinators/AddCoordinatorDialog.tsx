@@ -54,7 +54,7 @@ export function AddCoordinatorDialog({
 
     try {
       setLoading(true);
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('coordinators')
         .insert([formData]);
 

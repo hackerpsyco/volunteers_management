@@ -46,7 +46,7 @@ function buildAttendees(body: CalendarSyncRequest) {
 
   return emails
     .filter(email => email && typeof email === 'string' && email.trim().length > 0)   // ✅ Skip NULL / empty / undefined
-    .map((email: string) => ({
+    .map((email) => ({
       email: email!.trim(),
       responseStatus: "needsAction",
     }));

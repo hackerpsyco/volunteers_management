@@ -54,7 +54,7 @@ export function AddStudentDialog({
 
     try {
       setSaving(true);
-      const { error } = await supabase.from('students').insert([
+      const { error } = await (supabase as any).from('students').insert([
         {
           class_id: classId,
           student_id: newStudent.student_id.trim() || `STU-${Date.now()}`,

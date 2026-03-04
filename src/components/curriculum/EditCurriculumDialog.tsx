@@ -63,7 +63,7 @@ export function EditCurriculumDialog({
     try {
       setLoading(true);
 
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('curriculum')
         .update({
           videos: formData.videos || null,
