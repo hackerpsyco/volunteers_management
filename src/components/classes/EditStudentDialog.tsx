@@ -63,7 +63,7 @@ export function EditStudentDialog({
 
     try {
       setSaving(true);
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('students')
         .update({
           name: editedStudent.name.trim(),

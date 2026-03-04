@@ -53,7 +53,7 @@ export function EditClassDialog({
     try {
       setSaving(true);
 
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('classes')
         .update({
           name: className.trim(),

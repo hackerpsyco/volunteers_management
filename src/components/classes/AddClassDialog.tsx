@@ -58,7 +58,7 @@ export function AddClassDialog({ open, onOpenChange, onSuccess }: AddClassDialog
     try {
       setSaving(true);
 
-      const { error } = await supabase.from('classes').insert([
+      const { error } = await (supabase as any).from('classes').insert([
         {
           name: className,
           description: className,
