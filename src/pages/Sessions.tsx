@@ -51,6 +51,7 @@ import { SessionTypeDialog } from '@/components/sessions/SessionTypeDialog';
 import { AddSessionDialog } from '@/components/sessions/AddSessionDialog';
 import { ImportSessionsDialog } from '@/components/sessions/ImportSessionsDialog';
 import { UpdateRecordingDialog } from '@/components/sessions/UpdateRecordingDialog';
+import { EditSessionDialog } from '@/components/sessions/EditSessionDialog';
 
 interface Session {
   id: string;
@@ -96,6 +97,7 @@ export default function Sessions() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [updateRecordingDialogOpen, setUpdateRecordingDialogOpen] = useState(false);
+  const [editSessionDialogOpen, setEditSessionDialogOpen] = useState(false);
   const [selectedSessionType, setSelectedSessionType] = useState<'guest_teacher' | 'guest_speaker' | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
@@ -569,40 +571,42 @@ export default function Sessions() {
                   <>
                 {/* Desktop Table View - Single Table with Horizontal Scroll */}
                 <div className="hidden md:block overflow-x-auto border border-border rounded-lg">
-                  <Table className="w-full">
+                  <Table className="w-full text-sm">
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="min-w-[100px]">Category</TableHead>
+                        <TableHead className="min-w-[80px]">Category</TableHead>
                         <TableHead className="min-w-[100px]">Module</TableHead>
-                        <TableHead className="min-w-[140px]">Topic</TableHead>
-                        <TableHead className="min-w-[100px]">Facilitator</TableHead>
-                        <TableHead className="min-w-[100px]">Coordinator</TableHead>
-                        <TableHead className="min-w-[80px]">Class</TableHead>
-                        <TableHead className="min-w-[100px]">Centre</TableHead>
-                        <TableHead className="min-w-[110px]">Time Slot</TableHead>
-                        <TableHead className="min-w-[70px]">Type</TableHead>
-                        <TableHead className="min-w-[100px]">Recording</TableHead>
-                        <TableHead className="min-w-[100px]">Meeting</TableHead>
-                        <TableHead className="min-w-[60px]">Actions</TableHead>
+                        <TableHead className="min-w-[100px]">Topic</TableHead>
+                        <TableHead className="min-w-[80px]">Facilitator</TableHead>
+                        <TableHead className="min-w-[80px]">Coordinator</TableHead>
+                        <TableHead className="min-w-[70px]">Class</TableHead>
+                        <TableHead className="min-w-[80px]">Centre</TableHead>
+                        <TableHead className="min-w-[80px]">Date</TableHead>
+                        <TableHead className="min-w-[80px]">Time</TableHead>
+                        <TableHead className="min-w-[50px]">Type</TableHead>
+                        <TableHead className="min-w-[70px]">Recording</TableHead>
+                        <TableHead className="min-w-[60px]">Meeting</TableHead>
+                        <TableHead className="min-w-[50px]">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredSessions.map((session) => {
                         const isPastSession = new Date(session.session_date) < new Date();
                         return (
-                        <TableRow key={session.id} className="hover:bg-muted/50">
-                          <TableCell className="text-sm truncate">{session.content_category || '-'}</TableCell>
-                          <TableCell className="text-sm truncate">{session.module_name || '-'}</TableCell>
-                          <TableCell className="font-medium truncate max-w-[140px]" title={session.topics_covered || ''}>
-                            {session.topics_covered || '-'}
+                        <TableRow key={session.id} className="hover:bg-muted/50 text-xs">
+                          <TableCell className="truncate text-xs">{session.content_category || '-'}</TableCell>
+                          <TableCell className="truncate text-xs max-w-[100px]">{session.module_name || '-'}</TableCell>
+                          <TableCell className="truncate text-xs max-w-[100px]">{session.topics_covered || '-'}</TableCell>
+                          <TableCell className="truncate text-xs">{session.facilitator_name || '-'}</TableCell>
+                          <TableCell className="truncate text-xs">{session.coordinator_name || '-'}</TableCell>
+                          <TableCell className="truncate text-xs">{session.class_batch || '-'}</TableCell>
+                          <TableCell className="truncate text-xs">{session.centre_name || '-'}</TableCell>
+                          <TableCell className="text-xs whitespace-nowrap">
+                            {new Date(session.session_date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                           </TableCell>
-                          <TableCell className="text-sm truncate">{session.facilitator_name || '-'}</TableCell>
-                          <TableCell className="text-sm truncate">{session.coordinator_name || '-'}</TableCell>
-                          <TableCell className="text-sm truncate">{session.class_batch || '-'}</TableCell>
-                          <TableCell className="text-sm truncate">{session.centre_name || '-'}</TableCell>
                           <TableCell className="text-xs whitespace-nowrap">
                             {session.slot_start_time && session.slot_end_time 
-                              ? `${session.slot_start_time.slice(0, 5)} - ${session.slot_end_time.slice(0, 5)}` 
+                              ? `${session.slot_start_time.slice(0, 5)}-${session.slot_end_time.slice(0, 5)}` 
                               : '-'}
                           </TableCell>
                           <TableCell>
@@ -616,18 +620,14 @@ export default function Sessions() {
                                 href={session.recording_url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-primary hover:underline whitespace-nowrap"
+                                className="text-primary hover:underline whitespace-nowrap text-xs"
                               >
-                                📹 View
+                                📹
                               </a>
                             ) : session.recording_status === 'pending' ? (
-                              <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 text-xs">
-                                ⏳
-                              </Badge>
+                              <span className="text-xs">⏳</span>
                             ) : session.recording_status === 'failed' ? (
-                              <Badge variant="secondary" className="bg-red-100 text-red-800 text-xs">
-                                ❌
-                              </Badge>
+                              <span className="text-xs">❌</span>
                             ) : (
                               <span className="text-muted-foreground">-</span>
                             )}
@@ -638,48 +638,55 @@ export default function Sessions() {
                                 href={session.meeting_link}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-primary hover:underline whitespace-nowrap"
+                                className="text-primary hover:underline whitespace-nowrap text-xs"
                               >
-                                Join
+                                🔗
                               </a>
                             ) : (
                               <span className="text-muted-foreground">-</span>
                             )}
                           </TableCell>
                           <TableCell>
-                            {isPastSession && (
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                                    <MoreVertical className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="bg-popover">
-                                  <DropdownMenuItem 
-                                    onClick={() => handleEditStatus(session)}
-                                  >
-                                    <Edit className="h-4 w-4 mr-2" />
-                                    Edit
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem 
-                                    onClick={() => navigate(`/sessions/${session.id}/recording`)}
-                                  >
-                                    <FileText className="h-4 w-4 mr-2" />
-                                    Record feedback Session
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem 
-                                    onClick={() => {
-                                      setSelectedSession(session);
-                                      setDeleteDialogOpen(true);
-                                    }}
-                                    className="text-destructive focus:text-destructive"
-                                  >
-                                    <Trash2 className="h-4 w-4 mr-2" />
-                                    Delete
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            )}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-6 w-6">
+                                  <MoreVertical className="h-3 w-3" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="bg-popover">
+                                <DropdownMenuItem 
+                                  onClick={() => {
+                                    setSelectedSession(session);
+                                    setEditSessionDialogOpen(true);
+                                  }}
+                                >
+                                  <Edit className="h-3 w-3 mr-1" />
+                                  Edit Full
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  onClick={() => handleEditStatus(session)}
+                                >
+                                  <Edit className="h-3 w-3 mr-1" />
+                                  Edit Status
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  onClick={() => navigate(`/sessions/${session.id}/recording`)}
+                                >
+                                  <FileText className="h-3 w-3 mr-1" />
+                                  Record
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  onClick={() => {
+                                    setSelectedSession(session);
+                                    setDeleteDialogOpen(true);
+                                  }}
+                                  className="text-destructive focus:text-destructive"
+                                >
+                                  <Trash2 className="h-3 w-3 mr-1" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </TableCell>
                         </TableRow>
                         );
@@ -961,6 +968,14 @@ export default function Sessions() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Session Dialog */}
+      <EditSessionDialog
+        open={editSessionDialogOpen}
+        onOpenChange={setEditSessionDialogOpen}
+        session={selectedSession}
+        onSuccess={fetchSessions}
+      />
 
       {/* Update Recording Dialog */}
       <UpdateRecordingDialog

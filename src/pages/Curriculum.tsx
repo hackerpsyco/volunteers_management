@@ -81,6 +81,11 @@ interface CurriculumItem {
   subject_name?: string;
 }
 
+interface ExpandedSession {
+  itemId: string;
+  type: 'fresh' | 'revision';
+}
+
 interface Class {
   id: string;
   name: string;
@@ -116,6 +121,9 @@ export default function Curriculum() {
   const [subjects, setSubjects] = useState<any[]>([]);
   const [sessionInfo, setSessionInfo] = useState<Record<string, SessionInfo>>({});
   const [searchQuery, setSearchQuery] = useState('');
+  const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set());
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [sessionTypeFilter, setSessionTypeFilter] = useState<string>('all');
 
   useEffect(() => {
     fetchClasses();
@@ -145,6 +153,32 @@ export default function Curriculum() {
       filtered = filtered.filter((item) => item.subject_id === selectedSubject);
     }
 
+    // Filter by status
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter((item) => {
+        const info = sessionInfo[item.topic_title];
+        if (statusFilter === 'fresh') {
+          return info?.fresh_status === statusFilter || info?.fresh_count > 0;
+        } else if (statusFilter === 'revision') {
+          return info?.revision_status === statusFilter || info?.revision_count > 0;
+        }
+        return info?.fresh_status === statusFilter || info?.revision_status === statusFilter;
+      });
+    }
+
+    // Filter by session type (Fresh or Revision)
+    if (sessionTypeFilter !== 'all') {
+      filtered = filtered.filter((item) => {
+        const info = sessionInfo[item.topic_title];
+        if (sessionTypeFilter === 'fresh') {
+          return info?.fresh_count > 0;
+        } else if (sessionTypeFilter === 'revision') {
+          return info?.revision_count > 0;
+        }
+        return true;
+      });
+    }
+
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       filtered = filtered.filter((item) => {
@@ -165,7 +199,7 @@ export default function Curriculum() {
     }
     
     setFilteredCurriculum(filtered);
-  }, [selectedCategory, selectedSubject, curriculum, searchQuery, sessionInfo]);
+  }, [selectedCategory, selectedSubject, curriculum, searchQuery, sessionInfo, statusFilter, sessionTypeFilter]);
 
   const fetchCurriculum = async (classId?: string) => {
     try {
@@ -193,22 +227,26 @@ export default function Curriculum() {
         throw error;
       }
 
-      const formattedData = (data as any[] || []).map((item) => ({
-        id: item.id,
-        content_category: item.content_category || '',
-        module_code: item.module_no?.toString() || '',
-        module_title: item.module_name || '',
-        topic_title: item.topics_covered || '',
-        videos: item.videos || '',
-        quiz_content_ppt: item.quiz_content_ppt || '',
-        fresh_session: item.fresh_session || '',
-        revision_session: item.revision_session || '',
-        created_at: item.created_at,
-        updated_at: item.updated_at,
-        class_id: item.class_id,
-        subject_id: item.subject_id,
-        subject_name: item.subjects?.name || 'AI',
-      }));
+      const formattedData = (data as any[] || []).map((item) => {
+        // Remove leading "- " from module_name if present
+        const cleanModuleTitle = item.module_name?.replace(/^-\s+/, '') || '';
+        return {
+          id: item.id,
+          content_category: item.content_category || '',
+          module_code: item.module_no?.toString() || '',
+          module_title: cleanModuleTitle,
+          topic_title: item.topics_covered || '',
+          videos: item.videos || '',
+          quiz_content_ppt: item.quiz_content_ppt || '',
+          fresh_session: item.fresh_session || '',
+          revision_session: item.revision_session || '',
+          created_at: item.created_at,
+          updated_at: item.updated_at,
+          class_id: item.class_id,
+          subject_id: item.subject_id,
+          subject_name: item.subjects?.name || 'AI',
+        };
+      });
 
       setCurriculum(formattedData);
 
@@ -503,7 +541,40 @@ export default function Curriculum() {
             </Select>
           </div>
 
-          {(selectedCategory !== 'all' || selectedClass !== '' || selectedSubject !== '' || searchQuery.trim()) && (
+          <div className="w-full sm:w-64">
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              Filter by Status
+            </label>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select a status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="committed">Committed</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="w-full sm:w-64">
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              Filter by Session Type
+            </label>
+            <Select value={sessionTypeFilter} onValueChange={setSessionTypeFilter}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select session type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="fresh">Fresh Sessions</SelectItem>
+                <SelectItem value="revision">Revision Sessions</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {(selectedCategory !== 'all' || selectedClass !== '' || selectedSubject !== '' || statusFilter !== 'all' || sessionTypeFilter !== 'all' || searchQuery.trim()) && (
             <div className="text-sm text-muted-foreground">
               Showing {filteredCurriculum.length} item{filteredCurriculum.length !== 1 ? 's' : ''}
             </div>
@@ -569,7 +640,7 @@ export default function Curriculum() {
                           <TableCell>
                             <Badge variant="outline">{item.content_category}</Badge>
                           </TableCell>
-                          <TableCell className="font-medium">{item.module_code} - {item.module_title}</TableCell>
+                          <TableCell className="font-medium">{item.module_title}</TableCell>
                           <TableCell className="max-w-[200px] truncate">{item.topic_title}</TableCell>
                           <TableCell>
                             {item.videos ? (
@@ -605,17 +676,40 @@ export default function Curriculum() {
                               if (!info?.fresh_sessions || info.fresh_sessions.length === 0) {
                                 return <span className="text-muted-foreground text-xs">-</span>;
                               }
+                              const isExpanded = expandedSessions.has(`${item.id}-fresh`);
+                              const displaySessions = isExpanded ? info.fresh_sessions : info.fresh_sessions.slice(0, 1);
                               return (
                                 <div className="space-y-1">
-                                  {info.fresh_sessions.map((session, idx) => (
+                                  {displaySessions.map((session, idx) => (
                                     <div key={idx} className="text-xs bg-blue-50 p-1 rounded border border-blue-200">
                                       <div className="font-medium">📅 {session.date}</div>
-                                      <div className="text-muted-foreground">{session.volunteer}</div>
+                                      <div className="text-muted-foreground text-xs">{session.volunteer}</div>
                                       <Badge variant="outline" className="text-xs mt-1">
                                         {session.status}
                                       </Badge>
                                     </div>
                                   ))}
+                                  {info.fresh_sessions.length > 1 && (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="text-xs h-6 p-1"
+                                      onClick={() => {
+                                        const key = `${item.id}-fresh`;
+                                        setExpandedSessions(prev => {
+                                          const newSet = new Set(prev);
+                                          if (newSet.has(key)) {
+                                            newSet.delete(key);
+                                          } else {
+                                            newSet.add(key);
+                                          }
+                                          return newSet;
+                                        });
+                                      }}
+                                    >
+                                      {isExpanded ? 'Show Less' : `+${info.fresh_sessions.length - 1} More`}
+                                    </Button>
+                                  )}
                                 </div>
                               );
                             })()}
@@ -626,17 +720,40 @@ export default function Curriculum() {
                               if (!info?.revision_sessions || info.revision_sessions.length === 0) {
                                 return <span className="text-muted-foreground text-xs">-</span>;
                               }
+                              const isExpanded = expandedSessions.has(`${item.id}-revision`);
+                              const displaySessions = isExpanded ? info.revision_sessions : info.revision_sessions.slice(0, 1);
                               return (
                                 <div className="space-y-1">
-                                  {info.revision_sessions.map((session, idx) => (
+                                  {displaySessions.map((session, idx) => (
                                     <div key={idx} className="text-xs bg-purple-50 p-1 rounded border border-purple-200">
                                       <div className="font-medium">📅 {session.date}</div>
-                                      <div className="text-muted-foreground">{session.volunteer}</div>
+                                      <div className="text-muted-foreground text-xs">{session.volunteer}</div>
                                       <Badge variant="outline" className="text-xs mt-1">
                                         {session.status}
                                       </Badge>
                                     </div>
                                   ))}
+                                  {info.revision_sessions.length > 1 && (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="text-xs h-6 p-1"
+                                      onClick={() => {
+                                        const key = `${item.id}-revision`;
+                                        setExpandedSessions(prev => {
+                                          const newSet = new Set(prev);
+                                          if (newSet.has(key)) {
+                                            newSet.delete(key);
+                                          } else {
+                                            newSet.add(key);
+                                          }
+                                          return newSet;
+                                        });
+                                      }}
+                                    >
+                                      {isExpanded ? 'Show Less' : `+${info.revision_sessions.length - 1} More`}
+                                    </Button>
+                                  )}
                                 </div>
                               );
                             })()}
@@ -692,7 +809,7 @@ export default function Curriculum() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
                           <Badge variant="outline" className="mb-2">{item.content_category}</Badge>
-                          <h3 className="font-semibold text-foreground break-words">{item.module_code} - {item.module_title}</h3>
+                          <h3 className="font-semibold text-foreground break-words">{item.module_title}</h3>
                           <p className="text-xs text-muted-foreground mt-1">Module No & Module Name</p>
                         </div>
                       </div>
