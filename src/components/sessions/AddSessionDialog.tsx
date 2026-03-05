@@ -1053,6 +1053,7 @@ For any questions, contact the coordinator.
                   </SelectContent>
                 </Select>
               </div>
+              )}
 
               {/* Module Selection */}
               {selectedCategory && modules.length > 0 && (
