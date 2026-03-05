@@ -145,15 +145,29 @@ export default function Curriculum() {
     }
   }, [selectedClass]);
 
+  // Update categories when subject filter changes
+  useEffect(() => {
+    let source = curriculum;
+    if (selectedSubject && selectedSubject !== 'all') {
+      source = source.filter((item) => item.subject_id === selectedSubject);
+    }
+    const uniqueCategories = [...new Set(source.map((item) => item.content_category))].sort();
+    setCategories(uniqueCategories as string[]);
+    // Reset category if current selection is no longer valid
+    if (selectedCategory !== 'all' && !uniqueCategories.includes(selectedCategory)) {
+      setSelectedCategory('all');
+    }
+  }, [selectedSubject, curriculum]);
+
   useEffect(() => {
     let filtered = curriculum;
     
-    if (selectedCategory !== 'all') {
-      filtered = filtered.filter((item) => item.content_category === selectedCategory);
-    }
-
     if (selectedSubject && selectedSubject !== 'all') {
       filtered = filtered.filter((item) => item.subject_id === selectedSubject);
+    }
+
+    if (selectedCategory !== 'all') {
+      filtered = filtered.filter((item) => item.content_category === selectedCategory);
     }
 
     // Filter by status
