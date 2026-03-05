@@ -153,17 +153,29 @@ export function AddSessionDialog({
     }
   }, [open]);
 
-  // Load categories when class changes
+  // Load subjects when class changes
   useEffect(() => {
-    console.log('useEffect: selectedClass changed to:', selectedClass);
     if (selectedClass) {
-      console.log('Calling fetchCategories with:', selectedClass);
-      fetchCategories(selectedClass);
+      fetchSubjects(selectedClass);
+      setSelectedSubject('');
       setSelectedCategory('');
       setSelectedModule('');
       setTopics([]);
+      setCategories([]);
+      setModules([]);
     }
   }, [selectedClass]);
+
+  // Load categories when subject changes
+  useEffect(() => {
+    if (selectedSubject && selectedClass) {
+      fetchCategories(selectedClass, selectedSubject);
+      setSelectedCategory('');
+      setSelectedModule('');
+      setTopics([]);
+      setModules([]);
+    }
+  }, [selectedSubject]);
 
   // Load modules when category changes
   useEffect(() => {
