@@ -107,6 +107,7 @@ export function AddSessionDialog({
   const [centres, setCentres] = useState<Centre[]>([]);
   const [centreSlots, setCentreSlots] = useState<CentreTimeSlot[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
+  const [subjects, setSubjects] = useState<Array<{ id: string; name: string }>>([]);
   const [selectedVolunteer, setSelectedVolunteer] = useState<string>('');
   const [selectedFacilitator, setSelectedFacilitator] = useState<string>('');
   const [selectedCoordinator, setSelectedCoordinator] = useState<string>('');
@@ -116,6 +117,7 @@ export function AddSessionDialog({
   const [selectedCentre, setSelectedCentre] = useState<string>('');
   const [selectedSlot, setSelectedSlot] = useState<string>('');
   const [selectedClass, setSelectedClass] = useState<string>('');
+  const [selectedSubject, setSelectedSubject] = useState<string>('');
   const [formData, setFormData] = useState({
     title: '',
     custom_title: '',
@@ -151,17 +153,29 @@ export function AddSessionDialog({
     }
   }, [open]);
 
-  // Load categories when class changes
+  // Load subjects when class changes
   useEffect(() => {
-    console.log('useEffect: selectedClass changed to:', selectedClass);
     if (selectedClass) {
-      console.log('Calling fetchCategories with:', selectedClass);
-      fetchCategories(selectedClass);
+      fetchSubjects(selectedClass);
+      setSelectedSubject('');
       setSelectedCategory('');
       setSelectedModule('');
       setTopics([]);
+      setCategories([]);
+      setModules([]);
     }
   }, [selectedClass]);
+
+  // Load categories when subject changes
+  useEffect(() => {
+    if (selectedSubject && selectedClass) {
+      fetchCategories(selectedClass, selectedSubject);
+      setSelectedCategory('');
+      setSelectedModule('');
+      setTopics([]);
+      setModules([]);
+    }
+  }, [selectedSubject]);
 
   // Load modules when category changes
   useEffect(() => {
@@ -239,29 +253,40 @@ export function AddSessionDialog({
     }
   };
 
-  const fetchCategories = async (classId?: string) => {
+  const fetchSubjects = async (classId: string) => {
     try {
-      console.log('fetchCategories called with classId:', classId);
-      // Fetch categories for the selected class
+      const { data, error } = await (supabase as any)
+        .from('subjects')
+        .select('id, name')
+        .eq('class_id', classId)
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setSubjects(data || []);
+    } catch (error) {
+      console.error('Error fetching subjects:', error);
+      // Fallback: fetch all subjects
+      const { data } = await (supabase as any)
+        .from('subjects')
+        .select('id, name')
+        .order('name', { ascending: true });
+      setSubjects(data || []);
+    }
+  };
+
+  const fetchCategories = async (classId?: string, subjectId?: string) => {
+    try {
       let query: any = supabase
         .from('curriculum')
         .select('content_category')
         .not('content_category', 'is', null);
 
-      // Filter by class if provided
-      if (classId) {
-        query = query.eq('class_id', classId);
-      }
+      if (classId) query = query.eq('class_id', classId);
+      if (subjectId) query = query.eq('subject_id', subjectId);
 
       const { data, error } = await query;
-
-      if (error) {
-        console.error('fetchCategories error:', error);
-        throw error;
-      }
-      console.log('fetchCategories data length:', data?.length);
-      const uniqueCategories = [...new Set(data?.map(item => item.content_category) || [])];
-      console.log('uniqueCategories:', uniqueCategories);
+      if (error) throw error;
+      const uniqueCategories = [...new Set(data?.map((item: any) => item.content_category) || [])];
       setCategories(uniqueCategories as string[]);
     } catch (error) {
       console.error('Error fetching categories:', error);
@@ -577,14 +602,7 @@ export function AddSessionDialog({
     e.preventDefault();
     if (!selectedDate || !user) return;
 
-    if (!selectedVolunteer) {
-      toast({
-        title: 'Error',
-        description: 'Please select a volunteer',
-        variant: 'destructive',
-      });
-      return;
-    }
+    // Volunteer is optional now (can be null)
 
     if (!selectedFacilitator) {
       toast({
@@ -675,7 +693,8 @@ export function AddSessionDialog({
       quiz_content_ppt: formData.quiz_content_ppt,
       facilitator_name: selectedFacilitatorData?.name || '',
       coordinator_id: selectedCoordinator,
-      volunteer_id: selectedVolunteer,
+      volunteer_id: selectedVolunteer || null,
+      subject_id: selectedSubject || null,
       volunteer_name: formData.volunteer_name,
       meeting_link: meetingLink,
       centre_id: selectedCentre,
@@ -836,6 +855,8 @@ For any questions, contact the coordinator.
     setSelectedCentre('');
     setSelectedSlot('');
     setSelectedClass('');
+    setSelectedSubject('');
+    setSubjects([]);
     setFormData({
       title: '',
       custom_title: '',
@@ -885,21 +906,37 @@ For any questions, contact the coordinator.
 
           {/* Volunteer Selection */}
           <div className="space-y-2">
-            <Label htmlFor="volunteer" className="text-sm sm:text-base">Select Volunteer *</Label>
+            <Label htmlFor="volunteer" className="text-sm sm:text-base">Select Volunteer</Label>
             {volunteers.length === 0 ? (
               <div className="p-3 bg-yellow-50 border border-yellow-200 rounded text-xs sm:text-sm text-yellow-800">
                 No active volunteers available. Please add volunteers first.
               </div>
             ) : (
-              <VolunteerSelector
-                volunteers={volunteers}
-                selectedVolunteer={selectedVolunteer}
-                onSelectVolunteer={(volunteerId, volunteerName) => {
-                  setSelectedVolunteer(volunteerId);
-                  setFormData(prev => ({ ...prev, volunteer_name: volunteerName }));
-                }}
-                placeholder="Choose a volunteer..."
-              />
+              <div className="space-y-1">
+                <VolunteerSelector
+                  volunteers={volunteers}
+                  selectedVolunteer={selectedVolunteer}
+                  onSelectVolunteer={(volunteerId, volunteerName) => {
+                    setSelectedVolunteer(volunteerId);
+                    setFormData(prev => ({ ...prev, volunteer_name: volunteerName }));
+                  }}
+                  placeholder="Choose a volunteer..."
+                />
+                {selectedVolunteer && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs text-muted-foreground"
+                    onClick={() => {
+                      setSelectedVolunteer('');
+                      setFormData(prev => ({ ...prev, volunteer_name: '' }));
+                    }}
+                  >
+                    ✕ Clear volunteer selection
+                  </Button>
+                )}
+              </div>
             )}
           </div>
 
@@ -974,8 +1011,33 @@ For any questions, contact the coordinator.
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Subject Selection - AFTER CLASS */}
+              {selectedClass && (
+                <div className="space-y-2 mb-4">
+                  <Label htmlFor="subject" className="text-sm sm:text-base">Subject *</Label>
+                  <Select value={selectedSubject} onValueChange={(value) => {
+                    setSelectedSubject(value);
+                  }}>
+                    <SelectTrigger className="text-sm sm:text-base">
+                      <SelectValue placeholder="Select a subject" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {subjects.map((subject) => (
+                        <SelectItem key={subject.id} value={subject.id}>
+                          {subject.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {subjects.length === 0 && (
+                    <p className="text-xs text-muted-foreground">No subjects found for this class.</p>
+                  )}
+                </div>
+              )}
               
               {/* Category Selection */}
+              {selectedSubject && categories.length > 0 && (
               <div className="space-y-2 mb-4">
                 <Label htmlFor="category" className="text-sm sm:text-base">Content Category *</Label>
                 <Select value={selectedCategory} onValueChange={handleCategoryChange}>
@@ -991,6 +1053,7 @@ For any questions, contact the coordinator.
                   </SelectContent>
                 </Select>
               </div>
+              )}
 
               {/* Module Selection */}
               {selectedCategory && modules.length > 0 && (
