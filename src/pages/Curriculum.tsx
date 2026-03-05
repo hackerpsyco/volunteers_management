@@ -291,16 +291,26 @@ export default function Curriculum() {
     }
   };
 
-  const fetchSubjects = async () => {
+  const fetchSubjects = async (classId?: string) => {
     try {
-      const { data, error } = await supabase
+      let query: any = supabase
         .from('subjects')
         .select('id, name, description')
         .order('name', { ascending: true });
 
+      if (classId) {
+        query = query.eq('class_id', classId);
+      }
+
+      const { data, error } = await query;
+
       if (error) {
-        console.warn('Subjects table not yet created. Run the migration first.');
-        setSubjects([]);
+        // Fallback: fetch all subjects if class_id filter fails
+        const { data: allData } = await (supabase as any)
+          .from('subjects')
+          .select('id, name, description')
+          .order('name', { ascending: true });
+        setSubjects(allData || []);
         return;
       }
       setSubjects(data || []);
