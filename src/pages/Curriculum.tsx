@@ -508,25 +508,6 @@ export default function Curriculum() {
 
           <div className="w-full sm:w-64">
             <label className="text-sm font-medium text-foreground mb-2 block">
-              Filter by Category
-            </label>
-            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select a category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                {categories.map((category) => (
-                  <SelectItem key={category} value={category}>
-                    {category}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="w-full sm:w-64">
-            <label className="text-sm font-medium text-foreground mb-2 block">
               Filter by Class
             </label>
             <Select value={selectedClass} onValueChange={setSelectedClass}>
@@ -556,6 +537,25 @@ export default function Curriculum() {
                 {subjects.map((subject) => (
                   <SelectItem key={subject.id} value={subject.id}>
                     {subject.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="w-full sm:w-64">
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              Filter by Category
+            </label>
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select a category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {categories.map((category) => (
+                  <SelectItem key={category} value={category}>
+                    {category}
                   </SelectItem>
                 ))}
               </SelectContent>
