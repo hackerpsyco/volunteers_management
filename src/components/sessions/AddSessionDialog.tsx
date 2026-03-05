@@ -1011,6 +1011,30 @@ For any questions, contact the coordinator.
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Subject Selection - AFTER CLASS */}
+              {selectedClass && (
+                <div className="space-y-2 mb-4">
+                  <Label htmlFor="subject" className="text-sm sm:text-base">Subject *</Label>
+                  <Select value={selectedSubject} onValueChange={(value) => {
+                    setSelectedSubject(value);
+                  }}>
+                    <SelectTrigger className="text-sm sm:text-base">
+                      <SelectValue placeholder="Select a subject" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {subjects.map((subject) => (
+                        <SelectItem key={subject.id} value={subject.id}>
+                          {subject.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {subjects.length === 0 && (
+                    <p className="text-xs text-muted-foreground">No subjects found for this class.</p>
+                  )}
+                </div>
+              )}
               
               {/* Category Selection */}
               <div className="space-y-2 mb-4">
