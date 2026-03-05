@@ -127,30 +127,47 @@ export default function Curriculum() {
 
   useEffect(() => {
     fetchClasses();
-    fetchSubjects();
   }, []);
 
   useEffect(() => {
-    // Fetch curriculum and session info when class is selected
+    // When class changes, fetch subjects for that class & reset subject filter
     if (selectedClass) {
+      fetchSubjects(selectedClass);
+      setSelectedSubject('');
+      setSelectedCategory('all');
       fetchCurriculum(selectedClass);
       fetchSessionInfo(selectedClass);
     } else {
       setCurriculum([]);
       setFilteredCurriculum([]);
       setSessionInfo({});
+      setSubjects([]);
     }
   }, [selectedClass]);
+
+  // Update categories when subject filter changes
+  useEffect(() => {
+    let source = curriculum;
+    if (selectedSubject && selectedSubject !== 'all') {
+      source = source.filter((item) => item.subject_id === selectedSubject);
+    }
+    const uniqueCategories = [...new Set(source.map((item) => item.content_category))].sort();
+    setCategories(uniqueCategories as string[]);
+    // Reset category if current selection is no longer valid
+    if (selectedCategory !== 'all' && !uniqueCategories.includes(selectedCategory)) {
+      setSelectedCategory('all');
+    }
+  }, [selectedSubject, curriculum]);
 
   useEffect(() => {
     let filtered = curriculum;
     
-    if (selectedCategory !== 'all') {
-      filtered = filtered.filter((item) => item.content_category === selectedCategory);
-    }
-
     if (selectedSubject && selectedSubject !== 'all') {
       filtered = filtered.filter((item) => item.subject_id === selectedSubject);
+    }
+
+    if (selectedCategory !== 'all') {
+      filtered = filtered.filter((item) => item.content_category === selectedCategory);
     }
 
     // Filter by status
@@ -248,10 +265,6 @@ export default function Curriculum() {
       });
 
       setCurriculum(formattedData);
-
-      // Extract unique categories
-      const uniqueCategories = [...new Set(formattedData.map((item) => item.content_category))].sort();
-      setCategories(uniqueCategories as string[]);
     } catch (error) {
       console.error('Error fetching curriculum:', error);
       toast.error('Failed to load curriculum');
@@ -288,16 +301,26 @@ export default function Curriculum() {
     }
   };
 
-  const fetchSubjects = async () => {
+  const fetchSubjects = async (classId?: string) => {
     try {
-      const { data, error } = await supabase
+      let query: any = supabase
         .from('subjects')
         .select('id, name, description')
         .order('name', { ascending: true });
 
+      if (classId) {
+        query = query.eq('class_id', classId);
+      }
+
+      const { data, error } = await query;
+
       if (error) {
-        console.warn('Subjects table not yet created. Run the migration first.');
-        setSubjects([]);
+        // Fallback: fetch all subjects if class_id filter fails
+        const { data: allData } = await (supabase as any)
+          .from('subjects')
+          .select('id, name, description')
+          .order('name', { ascending: true });
+        setSubjects(allData || []);
         return;
       }
       setSubjects(data || []);
@@ -485,25 +508,6 @@ export default function Curriculum() {
 
           <div className="w-full sm:w-64">
             <label className="text-sm font-medium text-foreground mb-2 block">
-              Filter by Category
-            </label>
-            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select a category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                {categories.map((category) => (
-                  <SelectItem key={category} value={category}>
-                    {category}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="w-full sm:w-64">
-            <label className="text-sm font-medium text-foreground mb-2 block">
               Filter by Class
             </label>
             <Select value={selectedClass} onValueChange={setSelectedClass}>
@@ -533,6 +537,25 @@ export default function Curriculum() {
                 {subjects.map((subject) => (
                   <SelectItem key={subject.id} value={subject.id}>
                     {subject.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="w-full sm:w-64">
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              Filter by Category
+            </label>
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select a category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {categories.map((category) => (
+                  <SelectItem key={category} value={category}>
+                    {category}
                   </SelectItem>
                 ))}
               </SelectContent>
