@@ -127,18 +127,21 @@ export default function Curriculum() {
 
   useEffect(() => {
     fetchClasses();
-    fetchSubjects();
   }, []);
 
   useEffect(() => {
-    // Fetch curriculum and session info when class is selected
+    // When class changes, fetch subjects for that class & reset subject filter
     if (selectedClass) {
+      fetchSubjects(selectedClass);
+      setSelectedSubject('');
+      setSelectedCategory('all');
       fetchCurriculum(selectedClass);
       fetchSessionInfo(selectedClass);
     } else {
       setCurriculum([]);
       setFilteredCurriculum([]);
       setSessionInfo({});
+      setSubjects([]);
     }
   }, [selectedClass]);
 
