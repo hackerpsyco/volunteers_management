@@ -861,6 +861,8 @@ For any questions, contact the coordinator.
     setSelectedCentre('');
     setSelectedSlot('');
     setSelectedClass('');
+    setSelectedSubject('');
+    setSubjects([]);
     setFormData({
       title: '',
       custom_title: '',
