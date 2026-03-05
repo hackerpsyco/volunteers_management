@@ -906,21 +906,37 @@ For any questions, contact the coordinator.
 
           {/* Volunteer Selection */}
           <div className="space-y-2">
-            <Label htmlFor="volunteer" className="text-sm sm:text-base">Select Volunteer *</Label>
+            <Label htmlFor="volunteer" className="text-sm sm:text-base">Select Volunteer</Label>
             {volunteers.length === 0 ? (
               <div className="p-3 bg-yellow-50 border border-yellow-200 rounded text-xs sm:text-sm text-yellow-800">
                 No active volunteers available. Please add volunteers first.
               </div>
             ) : (
-              <VolunteerSelector
-                volunteers={volunteers}
-                selectedVolunteer={selectedVolunteer}
-                onSelectVolunteer={(volunteerId, volunteerName) => {
-                  setSelectedVolunteer(volunteerId);
-                  setFormData(prev => ({ ...prev, volunteer_name: volunteerName }));
-                }}
-                placeholder="Choose a volunteer..."
-              />
+              <div className="space-y-1">
+                <VolunteerSelector
+                  volunteers={volunteers}
+                  selectedVolunteer={selectedVolunteer}
+                  onSelectVolunteer={(volunteerId, volunteerName) => {
+                    setSelectedVolunteer(volunteerId);
+                    setFormData(prev => ({ ...prev, volunteer_name: volunteerName }));
+                  }}
+                  placeholder="Choose a volunteer..."
+                />
+                {selectedVolunteer && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs text-muted-foreground"
+                    onClick={() => {
+                      setSelectedVolunteer('');
+                      setFormData(prev => ({ ...prev, volunteer_name: '' }));
+                    }}
+                  >
+                    ✕ Clear volunteer selection
+                  </Button>
+                )}
+              </div>
             )}
           </div>
 
