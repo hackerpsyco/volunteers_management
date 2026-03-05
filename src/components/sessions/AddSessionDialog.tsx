@@ -107,6 +107,7 @@ export function AddSessionDialog({
   const [centres, setCentres] = useState<Centre[]>([]);
   const [centreSlots, setCentreSlots] = useState<CentreTimeSlot[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
+  const [subjects, setSubjects] = useState<Array<{ id: string; name: string }>>([]);
   const [selectedVolunteer, setSelectedVolunteer] = useState<string>('');
   const [selectedFacilitator, setSelectedFacilitator] = useState<string>('');
   const [selectedCoordinator, setSelectedCoordinator] = useState<string>('');
@@ -116,6 +117,7 @@ export function AddSessionDialog({
   const [selectedCentre, setSelectedCentre] = useState<string>('');
   const [selectedSlot, setSelectedSlot] = useState<string>('');
   const [selectedClass, setSelectedClass] = useState<string>('');
+  const [selectedSubject, setSelectedSubject] = useState<string>('');
   const [formData, setFormData] = useState({
     title: '',
     custom_title: '',
