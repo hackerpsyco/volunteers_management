@@ -1037,6 +1037,7 @@ For any questions, contact the coordinator.
               )}
               
               {/* Category Selection */}
+              {selectedSubject && categories.length > 0 && (
               <div className="space-y-2 mb-4">
                 <Label htmlFor="category" className="text-sm sm:text-base">Content Category *</Label>
                 <Select value={selectedCategory} onValueChange={handleCategoryChange}>
