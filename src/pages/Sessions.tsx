@@ -83,6 +83,8 @@ interface Session {
   recording_size?: string | null;
   recording_created_at?: string | null;
   google_event_id?: string | null;
+  subject_id?: string | null;
+  subject_name?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -158,7 +160,8 @@ export default function Sessions() {
           *,
           coordinators:coordinator_id(name),
           centres:centre_id(name, location),
-          centre_time_slots:centre_time_slot_id(day, start_time, end_time)
+          centre_time_slots:centre_time_slot_id(day, start_time, end_time),
+          subjects(name)
         `)
         .order('session_date', { ascending: false });
 
@@ -173,6 +176,7 @@ export default function Sessions() {
         slot_day: session.centre_time_slots?.day || null,
         slot_start_time: session.centre_time_slots?.start_time || null,
         slot_end_time: session.centre_time_slots?.end_time || null,
+        subject_name: session.subjects?.name || null,
       }));
       
       setSessions(transformedData as Session[]);
@@ -574,18 +578,21 @@ export default function Sessions() {
                   <Table className="w-full text-sm">
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="min-w-[80px]">Category</TableHead>
-                        <TableHead className="min-w-[100px]">Module</TableHead>
-                        <TableHead className="min-w-[100px]">Topic</TableHead>
-                        <TableHead className="min-w-[80px]">Facilitator</TableHead>
-                        <TableHead className="min-w-[80px]">Coordinator</TableHead>
-                        <TableHead className="min-w-[70px]">Class</TableHead>
-                        <TableHead className="min-w-[80px]">Centre</TableHead>
-                        <TableHead className="min-w-[80px]">Date</TableHead>
-                        <TableHead className="min-w-[80px]">Time</TableHead>
-                        <TableHead className="min-w-[50px]">Type</TableHead>
-                        <TableHead className="min-w-[70px]">Recording</TableHead>
-                        <TableHead className="min-w-[60px]">Meeting</TableHead>
+                        <TableHead className="min-w-[60px]">Subject</TableHead>
+                        <TableHead className="min-w-[70px]">Category</TableHead>
+                        <TableHead className="min-w-[70px]">Module</TableHead>
+                        <TableHead className="min-w-[70px]">Topic</TableHead>
+                        <TableHead className="min-w-[40px]">Type</TableHead>
+                        <TableHead className="min-w-[70px]">Volunteer</TableHead>
+                        <TableHead className="min-w-[70px]">Coordinator</TableHead>
+                        <TableHead className="min-w-[70px]">Facilitator</TableHead>
+                        <TableHead className="min-w-[60px]">Class</TableHead>
+                        <TableHead className="min-w-[70px]">Centre</TableHead>
+                        <TableHead className="min-w-[70px]">Date</TableHead>
+                        <TableHead className="min-w-[70px]">Time</TableHead>
+                        <TableHead className="min-w-[60px]">Recording</TableHead>
+                        <TableHead className="min-w-[50px]">Meeting</TableHead>
+                        <TableHead className="min-w-[60px]">Status</TableHead>
                         <TableHead className="min-w-[50px]">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -593,28 +600,30 @@ export default function Sessions() {
                       {filteredSessions.map((session) => {
                         const isPastSession = new Date(session.session_date) < new Date();
                         return (
-                        <TableRow key={session.id} className="hover:bg-muted/50 text-xs">
-                          <TableCell className="truncate text-xs">{session.content_category || '-'}</TableCell>
-                          <TableCell className="truncate text-xs max-w-[100px]">{session.module_name || '-'}</TableCell>
-                          <TableCell className="truncate text-xs max-w-[100px]">{session.topics_covered || '-'}</TableCell>
-                          <TableCell className="truncate text-xs">{session.facilitator_name || '-'}</TableCell>
-                          <TableCell className="truncate text-xs">{session.coordinator_name || '-'}</TableCell>
-                          <TableCell className="truncate text-xs">{session.class_batch || '-'}</TableCell>
-                          <TableCell className="truncate text-xs">{session.centre_name || '-'}</TableCell>
-                          <TableCell className="text-xs whitespace-nowrap">
-                            {new Date(session.session_date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                          </TableCell>
-                          <TableCell className="text-xs whitespace-nowrap">
-                            {session.slot_start_time && session.slot_end_time 
-                              ? `${session.slot_start_time.slice(0, 5)}-${session.slot_end_time.slice(0, 5)}` 
-                              : '-'}
-                          </TableCell>
-                          <TableCell>
+                        <TableRow key={session.id} className="hover:bg-muted/50 text-xs h-8">
+                          <TableCell className="truncate text-xs px-2 py-1">{session.subject_name || '-'}</TableCell>
+                          <TableCell className="truncate text-xs px-2 py-1 max-w-[70px]" title={session.content_category || ''}>{session.content_category || '-'}</TableCell>
+                          <TableCell className="truncate text-xs px-2 py-1 max-w-[70px]" title={session.module_name || ''}>{session.module_name || '-'}</TableCell>
+                          <TableCell className="truncate text-xs px-2 py-1 max-w-[70px]" title={session.topics_covered || ''}>{session.topics_covered || '-'}</TableCell>
+                          <TableCell className="px-2 py-1">
                             <Badge variant="outline" className="text-xs whitespace-nowrap">
                               {session.session_type === 'guest_teacher' ? 'GT' : 'GS'}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-xs">
+                          <TableCell className="truncate text-xs px-2 py-1 max-w-[70px]" title={session.volunteer_name || ''}>{session.volunteer_name || '-'}</TableCell>
+                          <TableCell className="truncate text-xs px-2 py-1 max-w-[70px]" title={session.coordinator_name || ''}>{session.coordinator_name || '-'}</TableCell>
+                          <TableCell className="truncate text-xs px-2 py-1 max-w-[70px]" title={session.facilitator_name || ''}>{session.facilitator_name || '-'}</TableCell>
+                          <TableCell className="truncate text-xs px-2 py-1 max-w-[60px]" title={session.class_batch || ''}>{session.class_batch || '-'}</TableCell>
+                          <TableCell className="truncate text-xs px-2 py-1 max-w-[70px]" title={session.centre_name || ''}>{session.centre_name || '-'}</TableCell>
+                          <TableCell className="text-xs px-2 py-1 whitespace-nowrap">
+                            {new Date(session.session_date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                          </TableCell>
+                          <TableCell className="text-xs px-2 py-1 whitespace-nowrap">
+                            {session.slot_start_time && session.slot_end_time 
+                              ? `${session.slot_start_time.slice(0, 5)}-${session.slot_end_time.slice(0, 5)}` 
+                              : '-'}
+                          </TableCell>
+                          <TableCell className="text-xs px-2 py-1">
                             {session.recording_url ? (
                               <a
                                 href={session.recording_url}
@@ -632,7 +641,7 @@ export default function Sessions() {
                               <span className="text-muted-foreground">-</span>
                             )}
                           </TableCell>
-                          <TableCell className="text-xs">
+                          <TableCell className="text-xs px-2 py-1">
                             {session.meeting_link ? (
                               <a
                                 href={session.meeting_link}
@@ -645,6 +654,14 @@ export default function Sessions() {
                             ) : (
                               <span className="text-muted-foreground">-</span>
                             )}
+                          </TableCell>
+                          <TableCell className="text-xs px-2 py-1">
+                            <Badge 
+                              variant={session.status === 'completed' ? 'default' : session.status === 'pending' ? 'secondary' : 'outline'}
+                              className="text-xs whitespace-nowrap"
+                            >
+                              {session.status || '-'}
+                            </Badge>
                           </TableCell>
                           <TableCell>
                             <DropdownMenu>
