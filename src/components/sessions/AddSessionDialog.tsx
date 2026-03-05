@@ -602,14 +602,7 @@ export function AddSessionDialog({
     e.preventDefault();
     if (!selectedDate || !user) return;
 
-    if (!selectedVolunteer) {
-      toast({
-        title: 'Error',
-        description: 'Please select a volunteer',
-        variant: 'destructive',
-      });
-      return;
-    }
+    // Volunteer is optional now (can be null)
 
     if (!selectedFacilitator) {
       toast({
