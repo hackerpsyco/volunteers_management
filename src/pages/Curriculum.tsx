@@ -265,10 +265,6 @@ export default function Curriculum() {
       });
 
       setCurriculum(formattedData);
-
-      // Extract unique categories
-      const uniqueCategories = [...new Set(formattedData.map((item) => item.content_category))].sort();
-      setCategories(uniqueCategories as string[]);
     } catch (error) {
       console.error('Error fetching curriculum:', error);
       toast.error('Failed to load curriculum');
