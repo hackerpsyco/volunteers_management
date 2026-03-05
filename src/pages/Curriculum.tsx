@@ -114,11 +114,15 @@ export default function Curriculum() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedClass, setSelectedClass] = useState<string>('');
   const [selectedSubject, setSelectedSubject] = useState<string>('');
+  const [selectedModule, setSelectedModule] = useState<string>('all');
+  const [selectedTopic, setSelectedTopic] = useState<string>('all');
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [newStatus, setNewStatus] = useState<string>('');
   const [categories, setCategories] = useState<string[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
   const [subjects, setSubjects] = useState<any[]>([]);
+  const [modules, setModules] = useState<string[]>([]);
+  const [topics, setTopics] = useState<string[]>([]);
   const [sessionInfo, setSessionInfo] = useState<Record<string, SessionInfo>>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set());
@@ -170,6 +174,14 @@ export default function Curriculum() {
       filtered = filtered.filter((item) => item.content_category === selectedCategory);
     }
 
+    if (selectedModule !== 'all') {
+      filtered = filtered.filter((item) => item.module_title === selectedModule);
+    }
+
+    if (selectedTopic !== 'all') {
+      filtered = filtered.filter((item) => item.topic_title === selectedTopic);
+    }
+
     // Filter by status
     if (statusFilter !== 'all') {
       filtered = filtered.filter((item) => {
@@ -216,7 +228,7 @@ export default function Curriculum() {
     }
     
     setFilteredCurriculum(filtered);
-  }, [selectedCategory, selectedSubject, curriculum, searchQuery, sessionInfo, statusFilter, sessionTypeFilter]);
+  }, [selectedCategory, selectedSubject, selectedModule, selectedTopic, curriculum, searchQuery, sessionInfo, statusFilter, sessionTypeFilter]);
 
   const fetchCurriculum = async (classId?: string) => {
     try {
@@ -556,6 +568,44 @@ export default function Curriculum() {
                 {categories.map((category) => (
                   <SelectItem key={category} value={category}>
                     {category}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="w-full sm:w-64">
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              Filter by Module
+            </label>
+            <Select value={selectedModule} onValueChange={setSelectedModule}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select a module" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Modules</SelectItem>
+                {[...new Set(filteredCurriculum.map(item => item.module_title).filter(Boolean))].sort().map((module) => (
+                  <SelectItem key={module} value={module}>
+                    {module}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="w-full sm:w-64">
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              Filter by Topic
+            </label>
+            <Select value={selectedTopic} onValueChange={setSelectedTopic}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select a topic" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Topics</SelectItem>
+                {[...new Set(filteredCurriculum.map(item => item.topic_title).filter(Boolean))].sort().map((topic) => (
+                  <SelectItem key={topic} value={topic}>
+                    {topic}
                   </SelectItem>
                 ))}
               </SelectContent>

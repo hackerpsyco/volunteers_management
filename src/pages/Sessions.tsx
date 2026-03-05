@@ -100,7 +100,7 @@ export default function Sessions() {
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [updateRecordingDialogOpen, setUpdateRecordingDialogOpen] = useState(false);
   const [editSessionDialogOpen, setEditSessionDialogOpen] = useState(false);
-  const [selectedSessionType, setSelectedSessionType] = useState<'guest_teacher' | 'guest_speaker' | null>(null);
+  const [selectedSessionType, setSelectedSessionType] = useState<'guest_teacher' | 'guest_speaker' | 'local_teacher' | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [newStatus, setNewStatus] = useState<string>('');
@@ -324,7 +324,7 @@ export default function Sessions() {
 
   const filteredSessions = getFilteredSessions();
 
-  const handleSessionTypeSelect = (type: 'guest_teacher' | 'guest_speaker') => {
+  const handleSessionTypeSelect = (type: 'guest_teacher' | 'guest_speaker' | 'local_teacher') => {
     setSelectedSessionType(type);
     setIsFormDialogOpen(true);
   };
@@ -607,7 +607,7 @@ export default function Sessions() {
                           <TableCell className="truncate text-xs px-2 py-1 max-w-[70px]" title={session.topics_covered || ''}>{session.topics_covered || '-'}</TableCell>
                           <TableCell className="px-2 py-1">
                             <Badge variant="outline" className="text-xs whitespace-nowrap">
-                              {session.session_type === 'guest_teacher' ? 'GT' : 'GS'}
+                              {session.session_type === 'guest_speaker' ? 'GS' : session.session_type === 'local_teacher' ? 'LT' : 'GT'}
                             </Badge>
                           </TableCell>
                           <TableCell className="truncate text-xs px-2 py-1 max-w-[70px]" title={session.volunteer_name || ''}>{session.volunteer_name || '-'}</TableCell>
@@ -814,7 +814,7 @@ export default function Sessions() {
                       <div className="text-xs">
                         <span className="text-muted-foreground">Type</span>
                         <Badge variant="outline" className="capitalize mt-1">
-                          {session.session_type === 'guest_teacher' ? 'Guest Teacher' : 'Guest Speaker'}
+                          {session.session_type === 'guest_speaker' ? 'Guest Speaker' : session.session_type === 'local_teacher' ? 'Local Teacher' : 'Guest Teacher'}
                         </Badge>
                       </div>
 
@@ -918,6 +918,7 @@ export default function Sessions() {
         onOpenChange={setIsFormDialogOpen}
         selectedDate={selectedDate}
         onSuccess={fetchSessions}
+        sessionType={selectedSessionType || 'guest_teacher'}
       />
 
       {/* Import Sessions Dialog */}

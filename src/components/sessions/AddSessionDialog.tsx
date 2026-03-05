@@ -87,7 +87,7 @@ interface AddSessionDialogProps {
   onOpenChange: (open: boolean) => void;
   selectedDate?: Date | null;
   onSuccess: () => void;
-  sessionType?: 'guest_teacher' | 'guest_speaker';
+  sessionType?: 'guest_teacher' | 'guest_speaker' | 'local_teacher';
 }
 
 export function AddSessionDialog({ 
@@ -685,6 +685,7 @@ export function AddSessionDialog({
       title: formData.title,
       session_date: format(selectedDate, 'yyyy-MM-dd'),
       session_time: slot?.start_time || '09:00',
+      session_type: sessionType,
       session_type_option: formData.session_type_option,
       content_category: formData.content_category,
       module_name: formData.module_name,
@@ -986,8 +987,8 @@ For any questions, contact the coordinator.
             </Select>
           </div>
 
-          {/* Content Selection - Only for Guest Teacher */}
-          {sessionType === 'guest_teacher' && (
+          {/* Content Selection - For Guest Teacher and Local Teacher */}
+          {(sessionType === 'guest_teacher' || sessionType === 'local_teacher') && (
             <div className="border-t border-border pt-4">
               <h4 className="font-medium text-sm sm:text-base text-foreground mb-3">Select Class & Content</h4>
               
@@ -1111,8 +1112,8 @@ For any questions, contact the coordinator.
             </div>
           )}
 
-          {/* Content Details - Only for Guest Teacher */}
-          {sessionType === 'guest_teacher' && (
+          {/* Content Details - For Guest Teacher and Local Teacher */}
+          {(sessionType === 'guest_teacher' || sessionType === 'local_teacher') && (
             <div className="border-t border-border pt-4">
               <h4 className="font-medium text-sm sm:text-base text-foreground mb-3">Content Details {selectedTopic && '(Auto-filled)'}</h4>
               
@@ -1197,8 +1198,8 @@ For any questions, contact the coordinator.
             </div>
           </div>
 
-          {/* Centre & Time Slot Selection - Only for Guest Teacher */}
-          {sessionType === 'guest_teacher' && (
+          {/* Centre & Time Slot Selection - For Guest Teacher and Local Teacher */}
+          {(sessionType === 'guest_teacher' || sessionType === 'local_teacher') && (
             <div className="border-t border-border pt-4">
               <h4 className="font-medium text-sm sm:text-base text-foreground mb-3">Select Centre & Time Slot</h4>
               

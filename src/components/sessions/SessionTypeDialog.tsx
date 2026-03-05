@@ -6,12 +6,12 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { GraduationCap, Users } from 'lucide-react';
+import { GraduationCap, Users, BookOpen } from 'lucide-react';
 
 interface SessionTypeDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSelectType: (type: 'guest_teacher' | 'guest_speaker') => void;
+  onSelectType: (type: 'guest_teacher' | 'guest_speaker' | 'local_teacher') => void;
 }
 
 export function SessionTypeDialog({
@@ -29,7 +29,7 @@ export function SessionTypeDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 py-6">
           {/* Guest Teacher Option */}
           <button
             onClick={() => {
@@ -60,6 +60,23 @@ export function SessionTypeDialog({
               <h3 className="font-semibold text-foreground">Guest Speaker</h3>
               <p className="text-xs sm:text-sm text-muted-foreground mt-1">
                 Session led by a speaker
+              </p>
+            </div>
+          </button>
+
+          {/* Local Teacher Option */}
+          <button
+            onClick={() => {
+              onSelectType('local_teacher');
+              onOpenChange(false);
+            }}
+            className="flex flex-col items-center justify-center gap-3 p-6 border-2 border-border rounded-lg hover:border-primary hover:bg-muted transition-all"
+          >
+            <BookOpen className="h-12 w-12 text-purple-500" />
+            <div className="text-center">
+              <h3 className="font-semibold text-foreground">Local Teacher</h3>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+                Session led by a local teacher
               </p>
             </div>
           </button>
