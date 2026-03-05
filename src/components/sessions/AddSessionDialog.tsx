@@ -253,29 +253,40 @@ export function AddSessionDialog({
     }
   };
 
-  const fetchCategories = async (classId?: string) => {
+  const fetchSubjects = async (classId: string) => {
     try {
-      console.log('fetchCategories called with classId:', classId);
-      // Fetch categories for the selected class
+      const { data, error } = await (supabase as any)
+        .from('subjects')
+        .select('id, name')
+        .eq('class_id', classId)
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setSubjects(data || []);
+    } catch (error) {
+      console.error('Error fetching subjects:', error);
+      // Fallback: fetch all subjects
+      const { data } = await (supabase as any)
+        .from('subjects')
+        .select('id, name')
+        .order('name', { ascending: true });
+      setSubjects(data || []);
+    }
+  };
+
+  const fetchCategories = async (classId?: string, subjectId?: string) => {
+    try {
       let query: any = supabase
         .from('curriculum')
         .select('content_category')
         .not('content_category', 'is', null);
 
-      // Filter by class if provided
-      if (classId) {
-        query = query.eq('class_id', classId);
-      }
+      if (classId) query = query.eq('class_id', classId);
+      if (subjectId) query = query.eq('subject_id', subjectId);
 
       const { data, error } = await query;
-
-      if (error) {
-        console.error('fetchCategories error:', error);
-        throw error;
-      }
-      console.log('fetchCategories data length:', data?.length);
-      const uniqueCategories = [...new Set(data?.map(item => item.content_category) || [])];
-      console.log('uniqueCategories:', uniqueCategories);
+      if (error) throw error;
+      const uniqueCategories = [...new Set(data?.map((item: any) => item.content_category) || [])];
       setCategories(uniqueCategories as string[]);
     } catch (error) {
       console.error('Error fetching categories:', error);
