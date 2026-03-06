@@ -745,14 +745,31 @@ export default function Calendar() {
                   {selectedSession.meeting_link && (
                     <div className="bg-cyan-50 border border-cyan-200 rounded p-3">
                       <p className="text-xs text-muted-foreground">🔗 Meeting Link</p>
-                      <a
-                        href={selectedSession.meeting_link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-cyan-600 hover:text-cyan-800 hover:underline text-sm font-medium break-all"
-                      >
-                        Join Meeting
-                      </a>
+                      {(() => {
+                        let url = selectedSession.meeting_link;
+                        // Fix malformed Google Meet URLs
+                        if (url && url.includes('_meet/whoops')) {
+                          // Extract meeting code if embedded, or show raw link
+                          url = url.replace('/_meet/whoops', '');
+                        }
+                        // Ensure URL has protocol
+                        if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
+                          url = `https://${url}`;
+                        }
+                        return (
+                          <>
+                            <a
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-cyan-600 hover:text-cyan-800 hover:underline text-sm font-medium break-all"
+                            >
+                              Join Meeting
+                            </a>
+                            <p className="text-xs text-muted-foreground mt-1 break-all">{url}</p>
+                          </>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
