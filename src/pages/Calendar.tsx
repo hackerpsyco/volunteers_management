@@ -362,6 +362,31 @@ export default function Calendar() {
     setIsEditSessionOpen(true);
   };
 
+  const getSessionDisplayTitle = (session: Session) => {
+    // Format like: "55.3 Operators: Arithmetic, comparison..."
+    const parts: string[] = [];
+    if (session.s_no) parts.push(String(session.s_no));
+    if (session.modules) parts.push(session.modules);
+    const prefix = parts.join('.');
+    
+    if (session.topics_covered) {
+      return prefix ? `${prefix} ${session.topics_covered}` : session.topics_covered;
+    }
+    if (session.module_name) {
+      return prefix ? `${prefix} ${session.module_name}` : session.module_name;
+    }
+    return session.title;
+  };
+
+  const getSessionTypeColor = (sessionType?: string) => {
+    switch (sessionType) {
+      case 'guest_teacher': return 'bg-cyan-50 border-l-2 border-l-cyan-500 text-cyan-900';
+      case 'guest_speaker': return 'bg-violet-50 border-l-2 border-l-violet-500 text-violet-900';
+      case 'local_teacher': return 'bg-pink-50 border-l-2 border-l-pink-500 text-pink-900';
+      default: return 'bg-blue-50 border-l-2 border-l-blue-500 text-blue-900';
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'completed':
