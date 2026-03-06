@@ -38,6 +38,8 @@ interface Session {
   title: string;
   content_category?: string;
   module_name?: string;
+  modules?: string;
+  s_no?: number;
   topics_covered?: string;
   status: string;
   session_date: string;
