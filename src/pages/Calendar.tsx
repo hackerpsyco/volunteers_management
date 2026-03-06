@@ -84,7 +84,7 @@ export default function Calendar() {
   const [isSessionTypeOpen, setIsSessionTypeOpen] = useState(false);
   const [isAddSessionOpen, setIsAddSessionOpen] = useState(false);
   const [isEditSessionOpen, setIsEditSessionOpen] = useState(false);
-  const [selectedSessionType, setSelectedSessionType] = useState<'guest_teacher' | 'guest_speaker' | null>(null);
+  const [selectedSessionType, setSelectedSessionType] = useState<'guest_teacher' | 'guest_speaker' | 'local_teacher' | null>(null);
   const [selectedDateForNewSession, setSelectedDateForNewSession] = useState<Date | null>(null);
   const [expandedDateKey, setExpandedDateKey] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<number | null>(null);
