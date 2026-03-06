@@ -34,26 +34,36 @@ const navGroups: NavGroup[] = [
     studentVisible: false,
     items: [
       { title: 'Session Planner', url: '/sessions', icon: BookOpen, requiredRole: null, studentVisible: false },
-      { title: 'Feedback & Record', url: '/feedback', icon: FileText, requiredRole: null, studentVisible: false },
+      { title: 'Record & Feedback', url: '/feedback', icon: FileText, requiredRole: null, studentVisible: false },
       { title: 'Curriculum', url: '/curriculum', icon: BookOpen, requiredRole: null, studentVisible: false },
       { title: 'Tasks & Projects', url: '/tasks', icon: ClipboardList, requiredRole: null, studentVisible: false },
-    ],
+    ]
   },
   {
-    label: 'Users Management',
+    label: 'People Management',
     studentVisible: false,
     items: [
-      { title: 'Facilitator', url: '/facilitators', icon: Users2, requiredRole: null, studentVisible: false },
-      { title: 'Coordinators', url: '/coordinators', icon: Users2, requiredRole: null, studentVisible: false },
       { title: 'Guest Teacher & Speaker', url: '/volunteers', icon: Users, requiredRole: null, studentVisible: false },
+      { title: 'Coordinators', url: '/coordinators', icon: Users2, requiredRole: null, studentVisible: false },
+      { title: 'Facilitator', url: '/facilitators', icon: Users2, requiredRole: null, studentVisible: false },
+      
+      
     ],
   },
   {
-    label: 'Logic Action',
+    label: 'Logistic ',
     studentVisible: false,
     items: [
       { title: 'Centres & Slots', url: '/centres', icon: MapPin, requiredRole: null, studentVisible: false },
-      { title: 'Classes & Students', url: '/classes', icon: GraduationCap, requiredRole: null, studentVisible: false },
+       { title: 'Classes & Students', url: '/classes', icon: GraduationCap, requiredRole: null, studentVisible: false },
+    
+    ]
+  },
+  {
+    label: 'Admin Panel',
+    studentVisible: false,
+    items: [
+     
       { title: 'Admin Action', url: '/admin', icon: Shield, requiredRole: 1, studentVisible: false },
     ],
   },

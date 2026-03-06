@@ -253,7 +253,7 @@ export default function VolunteerList() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-2xl md:text-3xl font-bold text-foreground">Volunteer List</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-foreground">Guest Teacher & Speaker list</h1>
             <p className="text-sm md:text-base text-muted-foreground mt-1">
               Manage your volunteers
             </p>
@@ -283,7 +283,7 @@ export default function VolunteerList() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="h-5 w-5 text-primary" />
-              All Volunteers
+              All Guest Teacher & Speaker
             </CardTitle>
           </CardHeader>
           <CardContent>

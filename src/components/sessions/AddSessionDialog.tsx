@@ -505,6 +505,13 @@ export function AddSessionDialog({
       if (formData.volunteer_name) parts.push(`by ${formData.volunteer_name}`);
       if (formData.topics_covered) parts.push(formData.topics_covered);
       return parts.join(' - ');
+    } else if (sessionType === 'local_teacher') {
+      // Format: WES LT Session - Class + Module + Topic
+      const parts = ['WES LT Session'];
+      if (formData.class_batch) parts.push(formData.class_batch);
+      if (formData.module_name) parts.push(formData.module_name);
+      if (formData.topics_covered) parts.push(formData.topics_covered);
+      return parts.join(' - ');
     }
     return '';
   };
@@ -613,7 +620,8 @@ export function AddSessionDialog({
       return;
     }
 
-    if (!selectedCoordinator) {
+    // Coordinator is required only for guest_teacher sessions
+    if (sessionType === 'guest_teacher' && !selectedCoordinator) {
       toast({
         title: 'Error',
         description: 'Please select a coordinator',
@@ -622,7 +630,8 @@ export function AddSessionDialog({
       return;
     }
 
-    if (!selectedTopic) {
+    // For guest_teacher and local_teacher, topic must be selected from dropdown
+    if ((sessionType === 'guest_teacher' || sessionType === 'local_teacher') && !selectedTopic) {
       toast({
         title: 'Error',
         description: 'Please select a topic',
@@ -632,10 +641,20 @@ export function AddSessionDialog({
     }
 
     // Validate custom topic if selected
-    if (selectedTopic.id === 'custom' && !formData.topics_covered.trim()) {
+    if (selectedTopic && selectedTopic.id === 'custom' && !formData.topics_covered.trim()) {
       toast({
         title: 'Error',
         description: 'Please enter a custom topic',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // For guest_speaker, topic must be entered as free text
+    if (sessionType === 'guest_speaker' && !formData.topics_covered.trim()) {
+      toast({
+        title: 'Error',
+        description: 'Please enter a topic',
         variant: 'destructive',
       });
       return;
@@ -693,7 +712,7 @@ export function AddSessionDialog({
       videos: formData.videos,
       quiz_content_ppt: formData.quiz_content_ppt,
       facilitator_name: selectedFacilitatorData?.name || '',
-      coordinator_id: selectedCoordinator,
+      coordinator_id: selectedCoordinator || null,
       volunteer_id: selectedVolunteer || null,
       subject_id: selectedSubject || null,
       volunteer_name: formData.volunteer_name,
@@ -941,6 +960,30 @@ For any questions, contact the coordinator.
             )}
           </div>
 
+          {/* Coordinator Selection */}
+          {/* Coordinator Selection */}
+          <div className="space-y-2">
+            <Label htmlFor="coordinator" className="text-sm sm:text-base">Select Coordinator {sessionType === 'guest_teacher' ? '*' : ''}</Label>
+            <Select value={selectedCoordinator} onValueChange={(value) => {
+              setSelectedCoordinator(value);
+              const coordinator = coordinators.find(c => c.id === value);
+              if (coordinator) {
+                setFormData(prev => ({ ...prev, coordinator_name: coordinator.name }));
+              }
+            }}>
+              <SelectTrigger className="text-sm sm:text-base">
+                <SelectValue placeholder="Choose a coordinator" />
+              </SelectTrigger>
+              <SelectContent>
+                {coordinators.map((coordinator) => (
+                  <SelectItem key={coordinator.id} value={coordinator.id}>
+                    {coordinator.name} ({coordinator.location})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Facilitator Selection */}
           <div className="space-y-2">
             <Label htmlFor="facilitator" className="text-sm sm:text-base">Select Facilitator *</Label>
@@ -958,29 +1001,6 @@ For any questions, contact the coordinator.
                 {facilitators.map((facilitator) => (
                   <SelectItem key={facilitator.id} value={facilitator.id}>
                     {facilitator.name} ({facilitator.location})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Coordinator Selection */}
-          <div className="space-y-2">
-            <Label htmlFor="coordinator" className="text-sm sm:text-base">Select Coordinator *</Label>
-            <Select value={selectedCoordinator} onValueChange={(value) => {
-              setSelectedCoordinator(value);
-              const coordinator = coordinators.find(c => c.id === value);
-              if (coordinator) {
-                setFormData(prev => ({ ...prev, coordinator_name: coordinator.name }));
-              }
-            }}>
-              <SelectTrigger className="text-sm sm:text-base">
-                <SelectValue placeholder="Choose a coordinator" />
-              </SelectTrigger>
-              <SelectContent>
-                {coordinators.map((coordinator) => (
-                  <SelectItem key={coordinator.id} value={coordinator.id}>
-                    {coordinator.name} ({coordinator.location})
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -1198,8 +1218,8 @@ For any questions, contact the coordinator.
             </div>
           </div>
 
-          {/* Centre & Time Slot Selection - For Guest Teacher and Local Teacher */}
-          {(sessionType === 'guest_teacher' || sessionType === 'local_teacher') && (
+          {/* Centre & Time Slot Selection - For All Session Types */}
+          {(sessionType === 'guest_teacher' || sessionType === 'local_teacher' || sessionType === 'guest_speaker') && (
             <div className="border-t border-border pt-4">
               <h4 className="font-medium text-sm sm:text-base text-foreground mb-3">Select Centre & Time Slot</h4>
               

@@ -45,6 +45,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { TruncatedText } from '@/components/ui/truncated-text';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { SessionTypeDialog } from '@/components/sessions/SessionTypeDialog';
@@ -580,8 +581,8 @@ export default function Sessions() {
                       <TableRow>
                         <TableHead className="min-w-[60px]">Subject</TableHead>
                         <TableHead className="min-w-[70px]">Category</TableHead>
-                        <TableHead className="min-w-[70px]">Module</TableHead>
-                        <TableHead className="min-w-[70px]">Topic</TableHead>
+                        <TableHead className="min-w-[70px]">Module No & Module Name</TableHead>
+                        <TableHead className="min-w-[70px]">Topics Covered</TableHead>
                         <TableHead className="min-w-[40px]">Type</TableHead>
                         <TableHead className="min-w-[70px]">Volunteer</TableHead>
                         <TableHead className="min-w-[70px]">Coordinator</TableHead>
@@ -601,20 +602,20 @@ export default function Sessions() {
                         const isPastSession = new Date(session.session_date) < new Date();
                         return (
                         <TableRow key={session.id} className="hover:bg-muted/50 text-xs h-8">
-                          <TableCell className="truncate text-xs px-2 py-1">{session.subject_name || '-'}</TableCell>
-                          <TableCell className="truncate text-xs px-2 py-1 max-w-[70px]" title={session.content_category || ''}>{session.content_category || '-'}</TableCell>
-                          <TableCell className="truncate text-xs px-2 py-1 max-w-[70px]" title={session.module_name || ''}>{session.module_name || '-'}</TableCell>
-                          <TableCell className="truncate text-xs px-2 py-1 max-w-[70px]" title={session.topics_covered || ''}>{session.topics_covered || '-'}</TableCell>
+                          <TableCell className="text-xs px-2 py-1 max-w-[70px]"><TruncatedText text={session.subject_name} maxLength={20} /></TableCell>
+                          <TableCell className="text-xs px-2 py-1 max-w-[70px]"><TruncatedText text={session.content_category} maxLength={20} /></TableCell>
+                          <TableCell className="text-xs px-2 py-1 max-w-[70px]"><TruncatedText text={session.module_name} maxLength={20} /></TableCell>
+                          <TableCell className="text-xs px-2 py-1 max-w-[70px]"><TruncatedText text={session.topics_covered} maxLength={20} /></TableCell>
                           <TableCell className="px-2 py-1">
                             <Badge variant="outline" className="text-xs whitespace-nowrap">
                               {session.session_type === 'guest_speaker' ? 'GS' : session.session_type === 'local_teacher' ? 'LT' : 'GT'}
                             </Badge>
                           </TableCell>
-                          <TableCell className="truncate text-xs px-2 py-1 max-w-[70px]" title={session.volunteer_name || ''}>{session.volunteer_name || '-'}</TableCell>
-                          <TableCell className="truncate text-xs px-2 py-1 max-w-[70px]" title={session.coordinator_name || ''}>{session.coordinator_name || '-'}</TableCell>
-                          <TableCell className="truncate text-xs px-2 py-1 max-w-[70px]" title={session.facilitator_name || ''}>{session.facilitator_name || '-'}</TableCell>
-                          <TableCell className="truncate text-xs px-2 py-1 max-w-[60px]" title={session.class_batch || ''}>{session.class_batch || '-'}</TableCell>
-                          <TableCell className="truncate text-xs px-2 py-1 max-w-[70px]" title={session.centre_name || ''}>{session.centre_name || '-'}</TableCell>
+                          <TableCell className="text-xs px-2 py-1 max-w-[70px]"><TruncatedText text={session.volunteer_name} maxLength={20} /></TableCell>
+                          <TableCell className="text-xs px-2 py-1 max-w-[70px]"><TruncatedText text={session.coordinator_name} maxLength={20} /></TableCell>
+                          <TableCell className="text-xs px-2 py-1 max-w-[70px]"><TruncatedText text={session.facilitator_name} maxLength={20} /></TableCell>
+                          <TableCell className="text-xs px-2 py-1 max-w-[60px]"><TruncatedText text={session.class_batch} maxLength={15} /></TableCell>
+                          <TableCell className="text-xs px-2 py-1 max-w-[70px]"><TruncatedText text={session.centre_name} maxLength={20} /></TableCell>
                           <TableCell className="text-xs px-2 py-1 whitespace-nowrap">
                             {new Date(session.session_date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                           </TableCell>

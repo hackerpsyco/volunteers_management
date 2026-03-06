@@ -42,6 +42,7 @@ interface Session {
   status: string;
   session_date: string;
   session_time: string;
+  session_type?: string;
   facilitator_name?: string;
   facilitator_email?: string;
   volunteer_name?: string;
@@ -114,19 +115,15 @@ export default function Calendar() {
         setUserRole(profileData.role_id);
 
         // If student (role_id = 5) and has class_id, fetch and set their class
-        if (profileData.role_id === 5) {
-          if (profileData.class_id) {
-            const { data: classData } = await supabase
-              .from('classes')
-              .select('name')
-              .eq('id', profileData.class_id)
-              .single();
-            
-            if (classData?.name) {
-              setSelectedClass(classData.name);
-            }
-          } else {
-            console.warn('Student has no class_id assigned');
+        if (profileData.role_id === 5 && profileData.class_id) {
+          const { data: classData } = await supabase
+            .from('classes')
+            .select('name')
+            .eq('id', profileData.class_id)
+            .single();
+          
+          if (classData?.name) {
+            setSelectedClass(classData.name);
           }
         }
       }
@@ -184,49 +181,12 @@ export default function Calendar() {
 
       if (error) throw error;
       
-      // Transform data and fetch facilitator/volunteer emails
-      const transformedData = await Promise.all((data || []).map(async (session: any) => {
-        let facilitator_email = null;
-        let volunteer_email = null;
-
-        // Fetch facilitator email
-        if (session.facilitator_name) {
-          try {
-            const { data: facData, error: facError } = await supabase
-              .from('facilitators')
-              .select('email')
-              .eq('name', session.facilitator_name)
-              .single();
-            
-            if (!facError && facData) {
-              facilitator_email = facData.email || null;
-            }
-          } catch (err) {
-            console.warn(`Could not fetch facilitator email for ${session.facilitator_name}:`, err);
-          }
-        }
-
-        // Fetch volunteer email (try personal_email first, then work_email)
-        if (session.volunteer_name) {
-          try {
-            const { data: volData, error: volError } = await supabase
-              .from('volunteers')
-              .select('personal_email, work_email')
-              .eq('name', session.volunteer_name)
-              .single();
-            
-            if (!volError && volData) {
-              volunteer_email = volData.personal_email || volData.work_email || null;
-            }
-          } catch (err) {
-            console.warn(`Could not fetch volunteer email for ${session.volunteer_name}:`, err);
-          }
-        }
-
+      // Transform data without making individual queries for emails
+      const transformedData = (data || []).map((session: any) => {
         return {
           ...session,
-          facilitator_email,
-          volunteer_email,
+          facilitator_email: null, // Will be populated from facilitator_name if needed
+          volunteer_email: null, // Will be populated from volunteer_name if needed
           coordinator_name: session.coordinators?.name || null,
           coordinator_email: session.coordinators?.email || null,
           centre_name: session.centres?.name || null,
@@ -236,7 +196,7 @@ export default function Calendar() {
           slot_start_time: session.centre_time_slots?.start_time || null,
           slot_end_time: session.centre_time_slots?.end_time || null,
         };
-      }));
+      });
       
       setSessions(transformedData || []);
       setLoading(false);
@@ -594,10 +554,11 @@ export default function Calendar() {
                                   e.stopPropagation();
                                   setSelectedSession(session);
                                 }}
-                                className={`text-xs px-2 py-1 rounded truncate w-full text-left hover:opacity-80 ${getStatusColor(session.status)}`}
+                                className={`text-xs px-2 py-1 rounded w-full text-left hover:opacity-80 whitespace-normal break-words ${getStatusColor(session.status)}`}
                                 title={session.title}
                               >
-                                {session.session_time.split(':').slice(0, 2).join(':')} - {session.title}
+                                <div className="font-semibold">{session.session_time.split(':').slice(0, 2).join(':')}</div>
+                                <div className="text-[11px] mt-0.5">{session.title}</div>
                               </button>
                             ))}
                             {day.sessions.length > 2 && (
@@ -681,6 +642,17 @@ export default function Calendar() {
                       {selectedSession.status}
                     </span>
                   </div>
+                  {selectedSession.session_type && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Session Type</p>
+                      <p className="font-medium capitalize">
+                        {selectedSession.session_type === 'guest_teacher' ? 'Guest Teacher' :
+                         selectedSession.session_type === 'guest_speaker' ? 'Guest Speaker' :
+                         selectedSession.session_type === 'local_teacher' ? 'Local Teacher' :
+                         selectedSession.session_type}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Participants & Details */}
@@ -734,6 +706,20 @@ export default function Calendar() {
                     <div className="bg-indigo-50 border border-indigo-200 rounded p-3">
                       <p className="text-xs text-muted-foreground">⏰ Time Slot</p>
                       <p className="font-medium text-sm">{selectedSession.slot_start_time.split(':').slice(0, 2).join(':')} - {selectedSession.slot_end_time.split(':').slice(0, 2).join(':')}</p>
+                    </div>
+                  )}
+
+                  {selectedSession.meeting_link && (
+                    <div className="bg-cyan-50 border border-cyan-200 rounded p-3">
+                      <p className="text-xs text-muted-foreground">🔗 Meeting Link</p>
+                      <a
+                        href={selectedSession.meeting_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-cyan-600 hover:text-cyan-800 hover:underline text-sm font-medium break-all"
+                      >
+                        Join Meeting
+                      </a>
                     </div>
                   )}
                 </div>

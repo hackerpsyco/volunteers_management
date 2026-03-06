@@ -42,6 +42,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { TruncatedText } from '@/components/ui/truncated-text';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { UnifiedImportDialog } from '@/components/sessions/UnifiedImportDialog';
@@ -709,10 +710,10 @@ export default function Curriculum() {
                             <Badge variant="secondary">{item.subject_name || 'Unassigned'}</Badge>
                           </TableCell>
                           <TableCell>
-                            <Badge variant="outline">{item.content_category}</Badge>
+                            <Badge variant="outline"><TruncatedText text={item.content_category} maxLength={15} /></Badge>
                           </TableCell>
-                          <TableCell className="font-medium">{item.module_title}</TableCell>
-                          <TableCell className="max-w-[200px] truncate">{item.topic_title}</TableCell>
+                          <TableCell className="font-medium"><TruncatedText text={item.module_title} maxLength={25} /></TableCell>
+                          <TableCell className="max-w-[200px]"><TruncatedText text={item.topic_title} maxLength={25} /></TableCell>
                           <TableCell>
                             {item.videos ? (
                               <a
