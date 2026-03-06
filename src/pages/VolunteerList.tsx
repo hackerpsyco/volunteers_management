@@ -49,7 +49,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Plus, Users, MoreVertical, Pencil, Calendar, Trash2, UserCheck, UserX, Upload, BookOpen, Settings } from 'lucide-react';
+import { Plus, Users, MoreVertical, Pencil, Calendar, Trash2, UserCheck, UserX, Upload, BookOpen, Settings, Search } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { BulkUploadDialog } from '@/components/volunteers/BulkUploadDialog';
 import { SessionTypeDialog } from '@/components/sessions/SessionTypeDialog';
@@ -90,6 +90,10 @@ export default function VolunteerList() {
   const [isTypeDialogOpen, setIsTypeDialogOpen] = useState(false);
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
   const [selectedSessionType, setSelectedSessionType] = useState<'guest_teacher' | 'guest_speaker' | null>(null);
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [selectedCity, setSelectedCity] = useState<string>('all');
+  const [selectedFrequency, setSelectedFrequency] = useState<string>('all');
+  const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [preferencesData, setPreferencesData] = useState({
     regular_volunteering: false,
     frequency_per_month: 0,
@@ -107,12 +111,12 @@ export default function VolunteerList() {
   }, []);
 
   useEffect(() => {
-    // Filter volunteers based on search query
-    if (!searchQuery.trim()) {
-      setFilteredVolunteers(volunteers);
-    } else {
+    // Filter volunteers based on search query and selected filters
+    let filtered = volunteers;
+
+    if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      const filtered = volunteers.filter(v =>
+      filtered = filtered.filter(v =>
         v.name.toLowerCase().includes(query) ||
         v.personal_email?.toLowerCase().includes(query) ||
         v.work_email?.toLowerCase().includes(query) ||
@@ -121,9 +125,29 @@ export default function VolunteerList() {
         v.city?.toLowerCase().includes(query) ||
         v.country?.toLowerCase().includes(query)
       );
-      setFilteredVolunteers(filtered);
     }
-  }, [searchQuery, volunteers]);
+
+    if (selectedCity !== 'all') {
+      filtered = filtered.filter(v => v.city === selectedCity);
+    }
+
+    if (selectedFrequency !== 'all') {
+      filtered = filtered.filter(v =>
+        v.frequency_per_month?.toString() === selectedFrequency
+      );
+    }
+
+    if (selectedStatus !== 'all') {
+      filtered = filtered.filter(v => v.volunteer_status === selectedStatus);
+    }
+
+    setFilteredVolunteers(filtered);
+  }, [searchQuery, volunteers, selectedCity, selectedFrequency, selectedStatus]);
+
+  // Derived unique values for filters
+  const cities = Array.from(new Set(volunteers.map(v => v.city).filter(Boolean))).sort() as string[];
+  const frequencies = Array.from(new Set(volunteers.map(v => v.frequency_per_month).filter(f => f !== null))).sort((a, b) => (a || 0) - (b || 0)) as number[];
+  const statuses = ['active', 'inactive', 'on_leave'];
 
   async function fetchVolunteers() {
     try {
@@ -164,11 +188,11 @@ export default function VolunteerList() {
         .from('volunteers')
         .update({ is_active: newStatus })
         .eq('id', volunteer.id);
-      
+
       if (error) throw error;
-      
+
       toast.success(`Volunteer ${newStatus ? 'activated' : 'deactivated'} successfully`);
-      setVolunteers(volunteers.map((v) => 
+      setVolunteers(volunteers.map((v) =>
         v.id === volunteer.id ? { ...v, is_active: newStatus } : v
       ));
     } catch (error) {
@@ -251,20 +275,14 @@ export default function VolunteerList() {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
           <div className="min-w-0">
-            <h1 className="text-2xl md:text-3xl font-bold text-foreground">Guest Teacher & Speaker list</h1>
-            <p className="text-sm md:text-base text-muted-foreground mt-1">
+            <h1 className="text-xl md:text-2xl font-bold text-foreground">Guest Teacher & Speaker list</h1>
+            <p className="text-xs md:text-sm text-muted-foreground mt-0.5">
               Manage your volunteers
             </p>
           </div>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-            <Input
-              placeholder="Search by name, email, phone..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full sm:w-64"
-            />
             <Button variant="outline" onClick={() => setBulkUploadOpen(true)} className="w-full sm:w-auto">
               <Upload className="h-4 w-4 mr-2" />
               <span className="hidden sm:inline">Bulk Upload</span>
@@ -276,6 +294,55 @@ export default function VolunteerList() {
               <span className="sm:hidden">Add</span>
             </Button>
           </div>
+        </div>
+
+        {/* Filters */}
+        <div className="flex flex-wrap items-center gap-1.5 bg-muted/5 p-1.5 rounded-md border border-border/40">
+          <div className="relative w-full sm:w-[220px]">
+            <Search className="absolute left-2 top-2.5 h-3 w-3 text-muted-foreground" />
+            <Input
+              placeholder="Search volunteers..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-7 h-8 text-[11px] bg-transparent"
+            />
+          </div>
+
+          <Select value={selectedCity} onValueChange={setSelectedCity}>
+            <SelectTrigger className="h-8 w-[120px] md:w-[140px] text-[11px] bg-transparent">
+              <SelectValue placeholder="City" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Cities</SelectItem>
+              {cities.map(city => (
+                <SelectItem key={city} value={city}>{city}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={selectedFrequency} onValueChange={setSelectedFrequency}>
+            <SelectTrigger className="h-8 w-[120px] md:w-[140px] text-[11px] bg-transparent">
+              <SelectValue placeholder="Frequency" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Any Frequency</SelectItem>
+              {frequencies.map(f => (
+                <SelectItem key={f} value={f.toString()}>{f} sessions</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+            <SelectTrigger className="h-8 w-[120px] md:w-[140px] text-[11px] bg-transparent capitalize">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              {statuses.map(status => (
+                <SelectItem key={status} value={status} className="capitalize">{status.replace('_', ' ')}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Volunteers Table/Cards */}
@@ -322,98 +389,77 @@ export default function VolunteerList() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Organization</TableHead>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Personal Email</TableHead>
-                        <TableHead>Work Email</TableHead>
-                        <TableHead>Phone</TableHead>
-                        <TableHead>Country</TableHead>
-                        <TableHead>City</TableHead>
-                        <TableHead>LinkedIn</TableHead>
-                        <TableHead>Regular Vol.</TableHead>
-                        <TableHead>Frequency</TableHead>
-                        <TableHead>Interested Area</TableHead>
-                        <TableHead>Interested Topic</TableHead>
-                        <TableHead>Preferred Day</TableHead>
-                        <TableHead>Preferred Class</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="w-[60px]">Actions</TableHead>
+                        <TableHead className="px-2 py-3 w-[100px]">Type</TableHead>
+                        <TableHead className="px-2 py-3">Organization</TableHead>
+                        <TableHead className="px-2 py-3">Name</TableHead>
+                        <TableHead className="px-2 py-3">Email</TableHead>
+                        <TableHead className="px-2 py-3 w-[120px]">Phone</TableHead>
+                        <TableHead className="px-2 py-3 w-[100px]">Country</TableHead>
+                        <TableHead className="px-2 py-3 w-[100px]">City</TableHead>
+                        <TableHead className="px-2 py-3 w-[100px]">Frequency</TableHead>
+                        <TableHead className="px-2 py-3 w-[100px]">Status</TableHead>
+                        <TableHead className="px-2 py-3 w-[60px]">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredVolunteers.map((volunteer) => (
                         <TableRow key={volunteer.id}>
-                          <TableCell>
-                            <Badge variant="outline" className="capitalize">
+                          <TableCell className="px-2 py-2">
+                            <Badge variant="outline" className="capitalize text-[10px] px-1 h-5">
                               {volunteer.organization_type}
                             </Badge>
                           </TableCell>
-                          <TableCell>{getOrganizationDisplay(volunteer)}</TableCell>
-                          <TableCell className="font-medium">{volunteer.name}</TableCell>
-                          <TableCell className="max-w-[150px] truncate">
+                          <TableCell className="px-2 py-2 text-xs max-w-[100px] truncate">{getOrganizationDisplay(volunteer)}</TableCell>
+                          <TableCell className="px-2 py-2 font-medium text-xs max-w-[120px] truncate">{volunteer.name}</TableCell>
+                          <TableCell className="px-2 py-2 text-xs max-w-[120px] truncate">
                             {volunteer.personal_email || '-'}
                           </TableCell>
-                          <TableCell className="max-w-[150px] truncate">
-                            {volunteer.work_email || '-'}
-                          </TableCell>
-                          <TableCell>{volunteer.phone_number}</TableCell>
-                          <TableCell>{volunteer.country || '-'}</TableCell>
-                          <TableCell>{volunteer.city || '-'}</TableCell>
-                          <TableCell>
-                            {volunteer.linkedin_profile ? (
-                              <a 
-                                href={volunteer.linkedin_profile} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="text-primary hover:underline"
-                              >
-                                View
-                              </a>
-                            ) : '-'}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={volunteer.regular_volunteering ? 'default' : 'secondary'}>
-                              {volunteer.regular_volunteering ? 'Yes' : 'No'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>{volunteer.frequency_per_month || '-'}</TableCell>
-                          <TableCell className="max-w-[120px] truncate">{volunteer.interested_area || '-'}</TableCell>
-                          <TableCell className="max-w-[120px] truncate">{volunteer.interested_topic || '-'}</TableCell>
-                          <TableCell>{volunteer.preferred_day || '-'}</TableCell>
-                          <TableCell>{volunteer.preferred_class || '-'}</TableCell>
-                          <TableCell>
-                            <Badge variant={volunteer.is_active ? 'default' : 'secondary'}>
+                          <TableCell className="px-2 py-2 text-xs">{volunteer.phone_number}</TableCell>
+                          <TableCell className="px-2 py-2 text-xs">{volunteer.country || '-'}</TableCell>
+                          <TableCell className="px-2 py-2 text-xs">{volunteer.city || '-'}</TableCell>
+                          <TableCell className="px-2 py-2 text-xs">{volunteer.frequency_per_month || '-'}</TableCell>
+                          <TableCell className="px-2 py-2">
+                            <Badge variant={volunteer.is_active ? 'default' : 'secondary'} className="text-[10px] px-1 h-5">
                               {volunteer.is_active ? 'Active' : 'Inactive'}
                             </Badge>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="px-2 py-2">
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                  <MoreVertical className="h-4 w-4" />
+                                <Button variant="ghost" size="icon" className="h-7 w-7">
+                                  <MoreVertical className="h-3.5 w-3.5" />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="bg-popover">
-                                <DropdownMenuItem 
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setSelectedVolunteer(volunteer);
+                                    setDetailsDialogOpen(true);
+                                  }}
+                                >
+                                  <BookOpen className="h-4 w-4 mr-2" />
+                                  View Info
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
                                   onClick={() => navigate(`/volunteers/edit/${volunteer.id}`)}
                                 >
                                   <Pencil className="h-4 w-4 mr-2" />
                                   Edit
                                 </DropdownMenuItem>
-                                <DropdownMenuItem 
+                                <DropdownMenuItem
                                   onClick={() => handleEditPreferences(volunteer)}
                                 >
                                   <Settings className="h-4 w-4 mr-2" />
                                   Edit Preferences
                                 </DropdownMenuItem>
-                                <DropdownMenuItem 
+                                <DropdownMenuItem
                                   onClick={() => navigate(`/calendar?assign=${volunteer.id}`)}
                                 >
                                   <Calendar className="h-4 w-4 mr-2" />
                                   Assign Session
                                 </DropdownMenuItem>
-                                <DropdownMenuItem 
+                                <DropdownMenuItem
                                   onClick={handleAddSession}
                                   className="gap-2"
                                 >
@@ -421,7 +467,7 @@ export default function VolunteerList() {
                                   Add Session
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem 
+                                <DropdownMenuItem
                                   onClick={() => toggleVolunteerStatus(volunteer)}
                                 >
                                   {volunteer.is_active ? (
@@ -436,7 +482,7 @@ export default function VolunteerList() {
                                     </>
                                   )}
                                 </DropdownMenuItem>
-                                <DropdownMenuItem 
+                                <DropdownMenuItem
                                   onClick={() => {
                                     setSelectedVolunteer(volunteer);
                                     setDeleteDialogOpen(true);
@@ -525,9 +571,9 @@ export default function VolunteerList() {
                       {/* LinkedIn */}
                       {volunteer.linkedin_profile && (
                         <div className="text-xs">
-                          <a 
-                            href={volunteer.linkedin_profile} 
-                            target="_blank" 
+                          <a
+                            href={volunteer.linkedin_profile}
+                            target="_blank"
                             rel="noopener noreferrer"
                             className="text-primary hover:underline font-medium"
                           >
@@ -538,8 +584,8 @@ export default function VolunteerList() {
 
                       {/* Actions */}
                       <div className="flex gap-2 pt-2 border-t border-border">
-                        <Button 
-                          size="sm" 
+                        <Button
+                          size="sm"
                           variant="outline"
                           onClick={() => navigate(`/volunteers/edit/${volunteer.id}`)}
                           className="flex-1"
@@ -547,8 +593,8 @@ export default function VolunteerList() {
                           <Pencil className="h-4 w-4 mr-1" />
                           Edit
                         </Button>
-                        <Button 
-                          size="sm" 
+                        <Button
+                          size="sm"
                           variant="outline"
                           onClick={() => navigate(`/calendar?assign=${volunteer.id}`)}
                           className="flex-1"
@@ -564,13 +610,24 @@ export default function VolunteerList() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="bg-popover">
                             <DropdownMenuItem
+                              onClick={() => {
+                                setSelectedVolunteer(volunteer);
+                                setDetailsDialogOpen(true);
+                              }}
+                              className="gap-2"
+                            >
+                              <BookOpen className="h-4 w-4" />
+                              View Info
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
                               onClick={handleAddSession}
                               className="gap-2"
                             >
                               <BookOpen className="h-4 w-4" />
                               Add Session
                             </DropdownMenuItem>
-                            <DropdownMenuItem 
+                            <DropdownMenuItem
                               onClick={() => toggleVolunteerStatus(volunteer)}
                             >
                               {volunteer.is_active ? (
@@ -585,7 +642,7 @@ export default function VolunteerList() {
                                 </>
                               )}
                             </DropdownMenuItem>
-                            <DropdownMenuItem 
+                            <DropdownMenuItem
                               onClick={() => {
                                 setSelectedVolunteer(volunteer);
                                 setDeleteDialogOpen(true);
@@ -627,7 +684,7 @@ export default function VolunteerList() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      
+
       {/* Add Session Dialog - Type Selection */}
       <SessionTypeDialog
         open={isTypeDialogOpen}
@@ -804,6 +861,127 @@ export default function VolunteerList() {
             </Button>
             <Button onClick={handleSavePreferences}>
               Save Preferences
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Volunteer Details Dialog */}
+      <Dialog open={detailsDialogOpen} onOpenChange={setDetailsDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">Volunteer Information</DialogTitle>
+            <DialogDescription>
+              Detailed profile for {selectedVolunteer?.name}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedVolunteer && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+              {/* Basic Information */}
+              <div className="space-y-4">
+                <h4 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground border-b pb-1">
+                  Basic Details
+                </h4>
+                <div className="grid grid-cols-2 gap-y-3 gap-x-4 text-sm">
+                  <div className="text-muted-foreground">Status</div>
+                  <div className="font-medium capitalize">{selectedVolunteer.volunteer_status.replace('_', ' ')}</div>
+
+                  <div className="text-muted-foreground">Organization Type</div>
+                  <div className="font-medium capitalize">{selectedVolunteer.organization_type}</div>
+
+                  <div className="text-muted-foreground">Organization Name</div>
+                  <div className="font-medium">{getOrganizationDisplay(selectedVolunteer)}</div>
+
+                  <div className="text-muted-foreground">Country</div>
+                  <div className="font-medium">{selectedVolunteer.country || '-'}</div>
+
+                  <div className="text-muted-foreground">City</div>
+                  <div className="font-medium">{selectedVolunteer.city || '-'}</div>
+                </div>
+              </div>
+
+              {/* Contact Information */}
+              <div className="space-y-4">
+                <h4 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground border-b pb-1">
+                  Contact Info
+                </h4>
+                <div className="grid grid-cols-2 gap-y-3 gap-x-4 text-sm">
+                  <div className="text-muted-foreground">Phone Number</div>
+                  <div className="font-medium">{selectedVolunteer.phone_number}</div>
+
+                  <div className="text-muted-foreground">Personal Email</div>
+                  <div className="font-medium break-all">{selectedVolunteer.personal_email || '-'}</div>
+
+                  <div className="text-muted-foreground">Work Email</div>
+                  <div className="font-medium break-all">{selectedVolunteer.work_email || '-'}</div>
+
+                  <div className="text-muted-foreground">LinkedIn</div>
+                  <div className="font-medium">
+                    {selectedVolunteer.linkedin_profile ? (
+                      <a href={selectedVolunteer.linkedin_profile} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                        View Profile
+                      </a>
+                    ) : '-'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Volunteering Preferences */}
+              <div className="space-y-4 md:col-span-2">
+                <h4 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground border-b pb-1">
+                  Volunteering Preferences
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-6 text-sm">
+                  <div>
+                    <div className="text-muted-foreground mb-1">Regular Volunteering</div>
+                    <Badge variant={selectedVolunteer.regular_volunteering ? 'default' : 'secondary'}>
+                      {selectedVolunteer.regular_volunteering ? 'Yes' : 'No'}
+                    </Badge>
+                  </div>
+
+                  <div>
+                    <div className="text-muted-foreground mb-1">Frequency (Monthly)</div>
+                    <div className="font-medium">{selectedVolunteer.frequency_per_month || '0'} sessions</div>
+                  </div>
+
+                  <div>
+                    <div className="text-muted-foreground mb-1">Preferred Day</div>
+                    <div className="font-medium">{selectedVolunteer.preferred_day || '-'}</div>
+                  </div>
+
+                  <div>
+                    <div className="text-muted-foreground mb-1">Preferred Class</div>
+                    <div className="font-medium">{selectedVolunteer.preferred_class || '-'}</div>
+                  </div>
+
+                  <div>
+                    <div className="text-muted-foreground mb-1">Interested Area</div>
+                    <div className="font-medium">{selectedVolunteer.interested_area || '-'}</div>
+                  </div>
+
+                  <div>
+                    <div className="text-muted-foreground mb-1">Interested Topic</div>
+                    <div className="font-medium">{selectedVolunteer.interested_topic || '-'}</div>
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-4 border-t">
+                  <div className="text-muted-foreground text-sm mb-2">Remarks / Notes</div>
+                  <div className="p-3 bg-muted/50 rounded-md text-sm italic min-h-[60px]">
+                    {selectedVolunteer.remarks || 'No remarks provided.'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="sm:justify-between items-center bg-muted/20 -mx-6 -mb-6 p-4 rounded-b-lg">
+            <div className="text-[10px] text-muted-foreground font-mono">
+              ID: {selectedVolunteer?.id}
+            </div>
+            <Button type="button" onClick={() => setDetailsDialogOpen(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

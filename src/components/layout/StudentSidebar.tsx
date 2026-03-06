@@ -44,11 +44,11 @@ export function StudentSidebar() {
         isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
       )}>
         {/* Logo Section */}
-        <div className="p-4 md:p-6 border-b border-border">
+        <div className="h-[72px] px-4 md:px-6 border-b border-border flex items-center">
           <div className="flex items-center gap-3">
-            <img 
-              src={wesLogo} 
-              alt="WES Foundation Logo" 
+            <img
+              src={wesLogo}
+              alt="WES Foundation Logo"
               className="h-10 md:h-12 w-10 md:w-12 object-contain"
             />
             <div className="min-w-0">
@@ -70,8 +70,8 @@ export function StudentSidebar() {
                 className={cn(
                   'flex items-center gap-3 px-3 md:px-4 py-2 md:py-3 rounded-lg transition-colors',
                   'text-sm md:text-base font-medium',
-                  isActive 
-                    ? 'bg-primary text-primary-foreground' 
+                  isActive
+                    ? 'bg-primary text-primary-foreground'
                     : 'text-muted-foreground hover:bg-accent hover:text-foreground'
                 )}
               >

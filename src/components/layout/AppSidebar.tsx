@@ -46,8 +46,8 @@ const navGroups: NavGroup[] = [
       { title: 'Guest Teacher & Speaker', url: '/volunteers', icon: Users, requiredRole: null, studentVisible: false },
       { title: 'Coordinators', url: '/coordinators', icon: Users2, requiredRole: null, studentVisible: false },
       { title: 'Facilitator', url: '/facilitators', icon: Users2, requiredRole: null, studentVisible: false },
-      
-      
+
+
     ],
   },
   {
@@ -55,15 +55,15 @@ const navGroups: NavGroup[] = [
     studentVisible: false,
     items: [
       { title: 'Centres & Slots', url: '/centres', icon: MapPin, requiredRole: null, studentVisible: false },
-       { title: 'Classes & Students', url: '/classes', icon: GraduationCap, requiredRole: null, studentVisible: false },
-    
+      { title: 'Classes & Students', url: '/classes', icon: GraduationCap, requiredRole: null, studentVisible: false },
+
     ]
   },
   {
     label: 'Admin Panel',
     studentVisible: false,
     items: [
-     
+
       { title: 'Admin Action', url: '/admin', icon: Shield, requiredRole: 1, studentVisible: false },
     ],
   },
@@ -131,11 +131,11 @@ export function AppSidebar() {
         isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
       )}>
         {/* Logo Section */}
-        <div className="p-4 md:p-6 border-b border-border">
+        <div className="h-[72px] px-4 md:px-6 border-b border-border flex items-center">
           <div className="flex items-center gap-3">
-            <img 
-              src={wesLogo} 
-              alt="WES Foundation Logo" 
+            <img
+              src={wesLogo}
+              alt="WES Foundation Logo"
               className="h-10 md:h-12 w-10 md:w-12 object-contain"
             />
             <div className="min-w-0">

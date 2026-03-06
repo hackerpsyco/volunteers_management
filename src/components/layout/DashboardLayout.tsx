@@ -175,9 +175,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       {userRole === 5 ? <StudentSidebar /> : <AppSidebar />}
       <main className="flex-1 flex flex-col">
         {/* Top Header with Profile */}
-        <div className="bg-card border-b border-border px-4 md:px-8 py-4 flex items-center justify-between">
+        <div className="bg-card border-b border-border px-4 md:px-8 h-[72px] flex items-center justify-between">
           <div className="flex-1" />
-          
+
           {/* Profile Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -203,23 +203,23 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 <p className="text-sm font-semibold text-foreground">Logged In</p>
                 <p className="text-xs text-muted-foreground truncate">{userEmail}</p>
               </div>
-              
+
               <DropdownMenuSeparator />
-              
+
               {/* Edit Profile Option */}
               <DropdownMenuItem onClick={handleEditProfile} className="cursor-pointer">
                 <Edit className="h-4 w-4 mr-2" />
                 <span>Edit Profile</span>
               </DropdownMenuItem>
-              
+
               {/* Settings Option */}
               <DropdownMenuItem onClick={handleSettings} className="cursor-pointer">
                 <Settings className="h-4 w-4 mr-2" />
                 <span>Settings</span>
               </DropdownMenuItem>
-              
+
               <DropdownMenuSeparator />
-              
+
               {/* Sign Out Option */}
               <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer text-destructive">
                 <LogOut className="h-4 w-4 mr-2" />
