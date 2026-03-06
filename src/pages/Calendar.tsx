@@ -364,20 +364,27 @@ export default function Calendar() {
     setIsEditSessionOpen(true);
   };
 
+  const getSessionTypeLabel = (sessionType?: string) => {
+    switch (sessionType) {
+      case 'guest_teacher': return 'GT';
+      case 'guest_speaker': return 'GS';
+      case 'local_teacher': return 'LT';
+      default: return '';
+    }
+  };
+
   const getSessionDisplayTitle = (session: Session) => {
-    // Format like: "55.3 Operators: Arithmetic, comparison..."
+    // Format: "WES GT Session - Class - by Volunteer - Module - Topic"
+    const typeLabel = getSessionTypeLabel(session.session_type);
     const parts: string[] = [];
-    if (session.s_no) parts.push(String(session.s_no));
+    parts.push(`WES ${typeLabel} Session`);
+    if (session.class_batch) parts.push(session.class_batch);
+    if (session.volunteer_name) {
+      parts.push(`by ${session.volunteer_name}`);
+    }
     if (session.modules) parts.push(session.modules);
-    const prefix = parts.join('.');
-    
-    if (session.topics_covered) {
-      return prefix ? `${prefix} ${session.topics_covered}` : session.topics_covered;
-    }
-    if (session.module_name) {
-      return prefix ? `${prefix} ${session.module_name}` : session.module_name;
-    }
-    return session.title;
+    if (session.topics_covered) parts.push(session.topics_covered);
+    return parts.join(' - ');
   };
 
   const getSessionTypeColor = (sessionType?: string) => {
@@ -584,8 +591,7 @@ export default function Calendar() {
                                 className={`text-xs px-2 py-1 rounded w-full text-left hover:opacity-80 whitespace-normal break-words ${getSessionTypeColor(session.session_type)}`}
                                 title={getSessionDisplayTitle(session)}
                               >
-                                <div className="font-semibold">{session.session_time.split(':').slice(0, 2).join(':')}</div>
-                                <div className="text-[11px] mt-0.5 line-clamp-2">{getSessionDisplayTitle(session)}</div>
+                                <div className="text-[11px] line-clamp-2 font-medium">{getSessionDisplayTitle(session)}</div>
                               </button>
                             ))}
                             {day.sessions.length > 2 && (
