@@ -591,8 +591,7 @@ export default function Calendar() {
                                 className={`text-xs px-2 py-1 rounded w-full text-left hover:opacity-80 whitespace-normal break-words ${getSessionTypeColor(session.session_type)}`}
                                 title={getSessionDisplayTitle(session)}
                               >
-                                <div className="font-semibold">{session.session_time.split(':').slice(0, 2).join(':')}</div>
-                                <div className="text-[11px] mt-0.5 line-clamp-2">{getSessionDisplayTitle(session)}</div>
+                                <div className="text-[11px] line-clamp-2 font-medium">{getSessionDisplayTitle(session)}</div>
                               </button>
                             ))}
                             {day.sessions.length > 2 && (
