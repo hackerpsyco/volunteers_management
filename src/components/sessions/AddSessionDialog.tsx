@@ -688,18 +688,7 @@ export function AddSessionDialog({
 
     // Generate meeting link with valid Google Meet format
     // Google Meet links should be: https://meet.google.com/xxx-xxxx-xxx (with hyphens)
-    const generateMeetingCode = () => {
-      const chars = 'abcdefghijklmnopqrstuvwxyz';
-      let code = '';
-      // Generate format: xxx-xxxx-xxx
-      for (let i = 0; i < 3; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
-      code += '-';
-      for (let i = 0; i < 4; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
-      code += '-';
-      for (let i = 0; i < 3; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
-      return code;
-    };
-    const meetingLink = `https://meet.google.com/${generateMeetingCode()}`;
+    const meetingLink = formData.meeting_link.trim() || null;
 
     const sessionData = {
       title: formData.title,
