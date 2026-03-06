@@ -131,6 +131,7 @@ export function AddSessionDialog({
     coordinator_name: '',
     session_type_option: 'fresh',
     class_batch: '',
+    meeting_link: '',
   });
   const { user } = useAuth();
   const { toast } = useToast();
