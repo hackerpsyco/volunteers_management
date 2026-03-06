@@ -131,6 +131,7 @@ export function AddSessionDialog({
     coordinator_name: '',
     session_type_option: 'fresh',
     class_batch: '',
+    meeting_link: '',
   });
   const { user } = useAuth();
   const { toast } = useToast();
@@ -687,18 +688,7 @@ export function AddSessionDialog({
 
     // Generate meeting link with valid Google Meet format
     // Google Meet links should be: https://meet.google.com/xxx-xxxx-xxx (with hyphens)
-    const generateMeetingCode = () => {
-      const chars = 'abcdefghijklmnopqrstuvwxyz';
-      let code = '';
-      // Generate format: xxx-xxxx-xxx
-      for (let i = 0; i < 3; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
-      code += '-';
-      for (let i = 0; i < 4; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
-      code += '-';
-      for (let i = 0; i < 3; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
-      return code;
-    };
-    const meetingLink = `https://meet.google.com/${generateMeetingCode()}`;
+    const meetingLink = formData.meeting_link.trim() || null;
 
     const sessionData = {
       title: formData.title,
@@ -890,6 +880,7 @@ For any questions, contact the coordinator.
       coordinator_name: '',
       session_type_option: 'fresh',
       class_batch: '',
+      meeting_link: '',
     });
     onOpenChange(false);
   };
@@ -1270,6 +1261,22 @@ For any questions, contact the coordinator.
               )}
             </div>
           )}
+
+          {/* Meeting Link */}
+          <div className="border-t border-border pt-4">
+            <h4 className="font-medium text-sm sm:text-base text-foreground mb-3">Meeting Link</h4>
+            <div className="space-y-2">
+              <Label htmlFor="meeting_link" className="text-sm sm:text-base">Google Meet / Zoom Link</Label>
+              <Input
+                id="meeting_link"
+                placeholder="https://meet.google.com/xxx-xxxx-xxx"
+                value={formData.meeting_link}
+                onChange={(e) => setFormData({ ...formData, meeting_link: e.target.value })}
+                className="text-sm sm:text-base"
+              />
+              <p className="text-xs text-muted-foreground">Paste the actual meeting link here (optional)</p>
+            </div>
+          </div>
 
           {/* Session Template */}
           <div className="border-t border-border pt-4">
