@@ -880,6 +880,7 @@ For any questions, contact the coordinator.
       coordinator_name: '',
       session_type_option: 'fresh',
       class_batch: '',
+      meeting_link: '',
     });
     onOpenChange(false);
   };
