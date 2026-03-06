@@ -654,7 +654,7 @@ export default function Calendar() {
                   )}
                   <div>
                     <p className="text-xs text-muted-foreground">Title</p>
-                    <p className="font-medium">{selectedSession.title}</p>
+                    <p className="font-medium">{getSessionDisplayTitle(selectedSession)}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Date</p>
