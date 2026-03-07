@@ -792,6 +792,16 @@ export default function SessionRecording() {
             >
               c) Student Homework Feedback
             </button>
+            <button
+              onClick={() => setCurrentSubTab('d')}
+              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                currentSubTab === 'd'
+                  ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              d) Record Sheet Link
+            </button>
           </div>
         )}
 
