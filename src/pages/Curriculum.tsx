@@ -101,6 +101,7 @@ interface SessionInfo {
   volunteer_name?: string;
   fresh_sessions?: Array<{ id: string; date: string; volunteer: string; status: string }>;
   revision_sessions?: Array<{ id: string; date: string; volunteer: string; status: string }>;
+  session_types: Set<string>;
 }
 
 export default function Curriculum() {
@@ -129,6 +130,7 @@ export default function Curriculum() {
   const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set());
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sessionTypeFilter, setSessionTypeFilter] = useState<string>('all');
+  const [sessionCategoryFilter, setSessionCategoryFilter] = useState<string>('all');
 
   useEffect(() => {
     fetchClasses();
@@ -206,6 +208,15 @@ export default function Curriculum() {
           return info?.revision_count > 0;
         }
         return true;
+      });
+    }
+
+    // Filter by session category (GT/GS/LT)
+    if (sessionCategoryFilter !== 'all') {
+      filtered = filtered.filter((item) => {
+        const info = sessionInfo[item.topic_title];
+        // Check if there are ANY sessions of the selected type for this topic
+        return (info as any)?.session_types?.has(sessionCategoryFilter);
       });
     }
 
@@ -361,7 +372,7 @@ export default function Curriculum() {
       // Fetch sessions filtered by class_batch (class name)
       const { data: sessions, error } = await supabase
         .from('sessions')
-        .select('id, topics_covered, session_type_option, status, session_date, volunteer_name, content_category, class_batch')
+        .select('id, topics_covered, session_type_option, session_type, status, session_date, volunteer_name, content_category, class_batch')
         .eq('class_batch', selectedClassObj.name);
 
       if (error) throw error;
@@ -379,7 +390,13 @@ export default function Curriculum() {
             revision_count: 0,
             fresh_sessions: [],
             revision_sessions: [],
+            session_types: new Set<string>(),
           };
+        }
+
+        const info = sessionMap[topic];
+        if (session.session_type) {
+          info.session_types.add(session.session_type);
         }
 
         const sessionDetail = {
@@ -632,16 +649,17 @@ export default function Curriculum() {
 
           <div className="w-full sm:w-64">
             <label className="text-sm font-medium text-foreground mb-2 block">
-              Filter by Session Type
+              Filter by Session Category
             </label>
-            <Select value={sessionTypeFilter} onValueChange={setSessionTypeFilter}>
+            <Select value={sessionCategoryFilter} onValueChange={setSessionCategoryFilter}>
               <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select session type" />
+                <SelectValue placeholder="Select session category" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="fresh">Fresh Sessions</SelectItem>
-                <SelectItem value="revision">Revision Sessions</SelectItem>
+                <SelectItem value="all">All Categories (GT/GS/LT)</SelectItem>
+                <SelectItem value="guest_teacher">Guest Teacher (GT)</SelectItem>
+                <SelectItem value="guest_speaker">Guest Speaker (GS)</SelectItem>
+                <SelectItem value="local_teacher">Local Teacher (LT)</SelectItem>
               </SelectContent>
             </Select>
           </div>

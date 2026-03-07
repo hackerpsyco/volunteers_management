@@ -238,7 +238,7 @@ export default function VolunteerList() {
       frequency_per_month: volunteer.frequency_per_month || 0,
       interested_area: volunteer.interested_area || '',
       interested_topic: volunteer.interested_topic || '',
-      preferred_day: volunteer.preferred_day || '',
+      preferred_day: volunteer.preferred_day || 'none',
       preferred_class: volunteer.preferred_class || '',
       remarks: volunteer.remarks || '',
       volunteer_status: volunteer.volunteer_status || 'active',
@@ -250,16 +250,23 @@ export default function VolunteerList() {
     if (!selectedVolunteer) return;
 
     try {
+      const is_active = preferencesData.volunteer_status === 'active';
+      const updateData = { 
+        ...preferencesData, 
+        is_active,
+        preferred_day: preferencesData.preferred_day === 'none' ? null : preferencesData.preferred_day
+      };
+
       const { error } = await supabase
         .from('volunteers')
-        .update(preferencesData)
+        .update(updateData)
         .eq('id', selectedVolunteer.id);
 
       if (error) throw error;
 
       // Update local state
       setVolunteers(volunteers.map(v =>
-        v.id === selectedVolunteer.id ? { ...v, ...preferencesData } : v
+        v.id === selectedVolunteer.id ? { ...v, ...updateData } : v
       ));
 
       toast.success('Volunteer preferences updated successfully');
@@ -296,20 +303,42 @@ export default function VolunteerList() {
           </div>
         </div>
 
+        {/* Summary Info (New) */}
+        {!loading && volunteers.length > 0 && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+            <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-3">
+              <p className="text-[10px] text-blue-600 font-semibold uppercase tracking-wider mb-1">Total</p>
+              <p className="text-xl font-bold text-blue-700">{volunteers.length}</p>
+            </div>
+            <div className="bg-green-50/50 border border-green-100 rounded-lg p-3">
+              <p className="text-[10px] text-green-600 font-semibold uppercase tracking-wider mb-1">Active</p>
+              <p className="text-xl font-bold text-green-700">{volunteers.filter(v => v.is_active).length}</p>
+            </div>
+            <div className="bg-orange-50/50 border border-orange-100 rounded-lg p-3">
+              <p className="text-[10px] text-orange-600 font-semibold uppercase tracking-wider mb-1">Inactive</p>
+              <p className="text-xl font-bold text-orange-700">{volunteers.filter(v => !v.is_active).length}</p>
+            </div>
+            <div className="bg-purple-50/50 border border-purple-100 rounded-lg p-3">
+              <p className="text-[10px] text-purple-600 font-semibold uppercase tracking-wider mb-1">Regular</p>
+              <p className="text-xl font-bold text-purple-700">{volunteers.filter(v => v.regular_volunteering).length}</p>
+            </div>
+          </div>
+        )}
+
         {/* Filters */}
-        <div className="flex flex-wrap items-center gap-1.5 bg-muted/5 p-1.5 rounded-md border border-border/40">
-          <div className="relative w-full sm:w-[220px]">
-            <Search className="absolute left-2 top-2.5 h-3 w-3 text-muted-foreground" />
+        <div className="flex flex-wrap items-center gap-2 bg-muted/10 p-2 rounded-lg border border-border/60">
+          <div className="relative w-full sm:w-[240px]">
+            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
             <Input
               placeholder="Search volunteers..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-7 h-8 text-[11px] bg-transparent"
+              className="pl-8 h-9 text-xs bg-transparent"
             />
           </div>
 
           <Select value={selectedCity} onValueChange={setSelectedCity}>
-            <SelectTrigger className="h-8 w-[120px] md:w-[140px] text-[11px] bg-transparent">
+            <SelectTrigger className="h-9 w-[130px] md:w-[150px] text-xs bg-transparent">
               <SelectValue placeholder="City" />
             </SelectTrigger>
             <SelectContent>
@@ -321,7 +350,7 @@ export default function VolunteerList() {
           </Select>
 
           <Select value={selectedFrequency} onValueChange={setSelectedFrequency}>
-            <SelectTrigger className="h-8 w-[120px] md:w-[140px] text-[11px] bg-transparent">
+            <SelectTrigger className="h-9 w-[130px] md:w-[150px] text-xs bg-transparent">
               <SelectValue placeholder="Frequency" />
             </SelectTrigger>
             <SelectContent>
@@ -333,7 +362,7 @@ export default function VolunteerList() {
           </Select>
 
           <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-            <SelectTrigger className="h-8 w-[120px] md:w-[140px] text-[11px] bg-transparent capitalize">
+            <SelectTrigger className="h-9 w-[130px] md:w-[150px] text-xs bg-transparent capitalize">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
@@ -628,6 +657,13 @@ export default function VolunteerList() {
                               Add Session
                             </DropdownMenuItem>
                             <DropdownMenuItem
+                              onClick={() => handleEditPreferences(volunteer)}
+                              className="gap-2"
+                            >
+                              <Settings className="h-4 w-4" />
+                              Edit Preferences
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
                               onClick={() => toggleVolunteerStatus(volunteer)}
                             >
                               {volunteer.is_active ? (
@@ -792,7 +828,7 @@ export default function VolunteerList() {
                   <SelectValue placeholder="Select day" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">None</SelectItem>
+                  <SelectItem value="none">None</SelectItem>
                   <SelectItem value="Monday">Monday</SelectItem>
                   <SelectItem value="Tuesday">Tuesday</SelectItem>
                   <SelectItem value="Wednesday">Wednesday</SelectItem>

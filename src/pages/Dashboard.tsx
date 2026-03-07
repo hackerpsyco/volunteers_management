@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Users, Calendar, BookOpen, Plus, Filter } from 'lucide-react';
+import { Users, Calendar, BookOpen, Plus, Filter, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
@@ -19,6 +19,7 @@ interface Stats {
   totalSessions: number;
   totalStudents: number;
   totalFacilitators: number;
+  totalFeedback: number;
 }
 
 interface SessionStatus {
@@ -46,7 +47,8 @@ export default function Dashboard() {
     totalVolunteers: 0,
     totalSessions: 0,
     totalStudents: 0,
-    totalFacilitators: 0
+    totalFacilitators: 0,
+    totalFeedback: 0,
   });
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>({
     pending: 0,
@@ -118,12 +120,14 @@ export default function Dashboard() {
         const sessionsResult = await supabase.from('sessions').select('id', { count: 'exact', head: true });
         const studentsResult = await supabase.from('students').select('id', { count: 'exact', head: true });
         const facilitatorsResult = await supabase.from('facilitators').select('id', { count: 'exact', head: true });
+        const feedbackResult = await supabase.from('sessions').select('id', { count: 'exact', head: true }).not('recorded_at', 'is', null);
 
         setStats({
           totalVolunteers: volunteersResult.count || 0,
           totalSessions: sessionsResult.count || 0,
           totalStudents: studentsResult.count || 0,
           totalFacilitators: facilitatorsResult.count || 0,
+          totalFeedback: feedbackResult.count || 0,
         });
 
         // Fetch session status breakdown
@@ -202,6 +206,7 @@ export default function Dashboard() {
     { label: 'Total Sessions', value: stats.totalSessions, icon: Calendar, color: 'text-green-600' },
     { label: 'Total Students', value: stats.totalStudents, icon: Users, color: 'text-purple-600' },
     { label: 'Facilitator', value: stats.totalFacilitators, icon: Users, color: 'text-orange-600' },
+    { label: 'Total Feedback', value: stats.totalFeedback, icon: FileText, color: 'text-pink-600' },
   ];
 
   const sessionStatusItems = [
@@ -223,7 +228,7 @@ export default function Dashboard() {
         </div>
 
         {/* Stats Cards Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
           {statCards.map((card, index) => {
             const Icon = card.icon;
             return (

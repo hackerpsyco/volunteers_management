@@ -377,10 +377,21 @@ Module:      ${formData.module_name || 'N/A'}
 Topic:       ${formData.topics_covered || 'N/A'}
 Session Type: ${formData.session_type_option === 'fresh' ? '🆕 Fresh Session' : '🔄 Revision Session'}
 
+👥 VOLUNTEER, FACILITATOR & COORDINATOR
+
+Volunteer:   ${formData.volunteer_name || 'N/A'}
+Facilitator: ${formData.facilitator_name || 'N/A'}
+Coordinator: ${formData.coordinator_name || 'N/A'}
+
 📎 RESOURCES
 
 ${formData.videos ? `📹 Videos: ${formData.videos}` : ''}
 ${formData.quiz_content_ppt ? `📊 PPT/Quiz: ${formData.quiz_content_ppt}` : ''}
+
+📋 SESSION TEMPLATE
+
+Use this template to prepare your session:
+${window.location.origin}/ppt/1.1.7.1.3%20GT%20WES_%20Sample%20Template%20for%20Session.pptx
 
 Session updated with new details.
             `.trim(),
@@ -682,6 +693,25 @@ Session updated with new details.
                 </Select>
               </div>
             )}
+          </div>
+
+          {/* Session Template */}
+          <div className="border-t border-border pt-4">
+            <h4 className="font-medium text-sm sm:text-base text-foreground mb-3">Session Template</h4>
+            
+            <div className="space-y-2">
+              <a 
+                href="/ppt/1.1.7.1.3%20GT%20WES_%20Sample%20Template%20for%20Session.pptx"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-600 hover:bg-blue-100 transition-colors"
+              >
+                📄 Open Session Template
+              </a>
+              <p className="text-xs text-muted-foreground mt-2">
+                Use this template to prepare your session content
+              </p>
+            </div>
           </div>
 
           <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 pt-4">

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Plus, Trash2, Upload, MoreVertical, GraduationCap, FileText, Edit, Film, Search, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
@@ -114,6 +114,8 @@ export default function Sessions() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [dateFromFilter, setDateFromFilter] = useState<string>('');
   const [dateToFilter, setDateToFilter] = useState<string>('');
+  const [sessionTypeFilter, setSessionTypeFilter] = useState<string | null>(null);
+  const [subjectFilter, setSubjectFilter] = useState<string | null>(null);
 
   useEffect(() => {
     fetchSessions();
@@ -151,6 +153,19 @@ export default function Sessions() {
       subscription.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (categorySort && subjectFilter) {
+      const availableCategories = [...new Set(sessions
+        .filter(s => s.subject_name === subjectFilter)
+        .map(s => s.content_category)
+        .filter(Boolean)
+      )];
+      if (!availableCategories.includes(categorySort)) {
+        setCategorySort(null);
+      }
+    }
+  }, [subjectFilter, sessions, categorySort]);
 
   const fetchSessions = async () => {
     try {
@@ -281,6 +296,16 @@ export default function Sessions() {
       } else if (timeFilter === 'past') {
         filtered = filtered.filter(s => new Date(s.session_date) < today);
       }
+    }
+
+    // Apply session type filter
+    if (sessionTypeFilter) {
+      filtered = filtered.filter(s => s.session_type === sessionTypeFilter);
+    }
+
+    // Apply subject filter
+    if (subjectFilter) {
+      filtered = filtered.filter(s => s.subject_name === subjectFilter);
     }
 
     // Apply date range filter
@@ -475,6 +500,24 @@ export default function Sessions() {
                         className="w-full"
                       />
                     </div>
+
+                    {/* Session Type Filter */}
+                    <div className="w-full sm:w-48">
+                      <label className="text-sm font-medium text-foreground mb-2 block">
+                        Filter by Type
+                      </label>
+                      <Select value={sessionTypeFilter || 'all'} onValueChange={(value) => setSessionTypeFilter(value === 'all' ? null : value)}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Types</SelectItem>
+                          <SelectItem value="guest_teacher">Guest Teacher (GT)</SelectItem>
+                          <SelectItem value="guest_speaker">Guest Speaker (GS)</SelectItem>
+                          <SelectItem value="local_teacher">Local Teacher (LT)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
 
                   {/* Filter Row 2: Volunteer, Facilitator, Coordinator, Category Sort */}
@@ -550,7 +593,11 @@ export default function Sessions() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">All Categories</SelectItem>
-                          {[...new Set(sessions.map(s => s.content_category).filter(Boolean))].sort().map((category) => (
+                          {[...new Set(sessions
+                            .filter(s => !subjectFilter || s.subject_name === subjectFilter)
+                            .map(s => s.content_category)
+                            .filter(Boolean)
+                          )].sort().map((category) => (
                             <SelectItem key={category} value={category || ''}>
                               {category}
                             </SelectItem>
@@ -559,8 +606,28 @@ export default function Sessions() {
                       </Select>
                     </div>
 
+                    {/* Subject Filter */}
+                    <div className="w-full sm:w-48">
+                      <label className="text-sm font-medium text-foreground mb-2 block">
+                        Filter by Subject
+                      </label>
+                      <Select value={subjectFilter || 'all'} onValueChange={(value) => setSubjectFilter(value === 'all' ? null : value)}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select subject" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Subjects</SelectItem>
+                          {[...new Set(sessions.map(s => s.subject_name).filter(Boolean))].sort().map((subject) => (
+                            <SelectItem key={subject} value={subject || ''}>
+                              {subject}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
                     {/* Active Filters Summary */}
-                    {(searchQuery || statusFilter || timeFilter || dateFromFilter || dateToFilter || volunteerFilter || facilitatorFilter || coordinatorFilter || categorySort) && (
+                    {(searchQuery || statusFilter || timeFilter || dateFromFilter || dateToFilter || volunteerFilter || facilitatorFilter || coordinatorFilter || categorySort || subjectFilter) && (
                       <div className="text-sm text-muted-foreground mt-2 sm:mt-0 w-full sm:w-auto">
                         Showing {filteredSessions.length} of {sessions.length} sessions
                       </div>

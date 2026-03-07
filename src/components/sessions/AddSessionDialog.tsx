@@ -763,10 +763,10 @@ Coordinator: ${selectedCoordinatorData?.name || 'N/A'}
 ${formData.videos ? `📹 Videos: ${formData.videos}` : ''}
 ${formData.quiz_content_ppt ? `📊 PPT/Quiz: ${formData.quiz_content_ppt}` : ''}
 
-� SEESSION TEMPLATE
+�📋 SESSION TEMPLATE
 
 Use this template to prepare your session:
-https://docs.google.com/presentation/d/1xd5BC2fBf-OM0bCwiyZJwrkn4WBjfRrGz84HNaO-5Yc/edit?usp=sharing
+${window.location.origin}/ppt/1.1.7.1.3%20GT%20WES_%20Sample%20Template%20for%20Session.pptx
 
 🔗 MEETING LINK
 
@@ -1284,7 +1284,7 @@ For any questions, contact the coordinator.
             
             <div className="space-y-2">
               <a 
-                href="https://docs.google.com/presentation/d/1xd5BC2fBf-OM0bCwiyZJwrkn4WBjfRrGz84HNaO-5Yc/edit?usp=sharing"
+                href="/ppt/1.1.7.1.3%20GT%20WES_%20Sample%20Template%20for%20Session.pptx"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-600 hover:bg-blue-100 transition-colors"

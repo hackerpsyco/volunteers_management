@@ -16,6 +16,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { ArrowLeft } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Textarea } from '@/components/ui/textarea';
+import { countries, commonIndianCities } from '@/utils/geoData';
 
 const volunteerSchema = z.object({
   organization_type: z.enum(['company', 'individual', 'institute']),
@@ -28,6 +31,14 @@ const volunteerSchema = z.object({
   country_code: z.string().min(2, 'Country code is required').max(2, 'Invalid country code'),
   phone_number: z.string().trim().min(10, 'Phone number must be at least 10 digits').max(15, 'Phone number is too long'),
   linkedin_profile: z.string().trim().url('Please enter a valid LinkedIn URL').max(255, 'LinkedIn URL is too long').optional().or(z.literal('')),
+  regular_volunteering: z.boolean().optional(),
+  frequency_per_month: z.number().min(0).optional(),
+  interested_area: z.string().trim().optional(),
+  interested_topic: z.string().trim().optional(),
+  preferred_day: z.string().trim().optional(),
+  preferred_class: z.string().trim().optional(),
+  remarks: z.string().trim().optional(),
+  volunteer_status: z.string().trim().optional(),
 }).refine((data) => data.personal_email || data.work_email, {
   message: 'At least one email (personal or work) is required',
   path: ['work_email'],
@@ -45,6 +56,15 @@ export default function EditVolunteer() {
   const [countryCode, setCountryCode] = useState('IN');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [linkedinProfile, setLinkedinProfile] = useState('');
+  const [volunteerStatus, setVolunteerStatus] = useState('active');
+  const [regularVolunteering, setRegularVolunteering] = useState(false);
+  const [frequencyPerMonth, setFrequencyPerMonth] = useState(0);
+  const [interestedArea, setInterestedArea] = useState('');
+  const [interestedTopic, setInterestedTopic] = useState('');
+  const [preferredDay, setPreferredDay] = useState('none');
+  const [preferredClass, setPreferredClass] = useState('');
+  const [remarks, setRemarks] = useState('');
+  const [isOtherCity, setIsOtherCity] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const navigate = useNavigate();
@@ -99,6 +119,21 @@ export default function EditVolunteer() {
         setCountryCode(data.country_code || 'IN');
         setPhoneNumber(data.phone_number || '');
         setLinkedinProfile(data.linkedin_profile || '');
+        setRegularVolunteering(data.regular_volunteering || false);
+        setFrequencyPerMonth(data.frequency_per_month || 0);
+        setInterestedArea(data.interested_area || '');
+        setInterestedTopic(data.interested_topic || '');
+        setPreferredDay(data.preferred_day || 'none');
+        setPreferredClass(data.preferred_class || '');
+        setRemarks(data.remarks || '');
+        setVolunteerStatus(data.volunteer_status || (data.is_active ? 'active' : 'inactive'));
+
+        // Set isOtherCity based on fetched data
+        if (data.country !== 'India' || (data.city && !commonIndianCities.includes(data.city))) {
+          setIsOtherCity(true);
+        } else {
+          setIsOtherCity(false);
+        }
       }
     } catch (error) {
       console.error('Error fetching volunteer:', error);
@@ -123,7 +158,14 @@ export default function EditVolunteer() {
       city: city || undefined,
       country_code: countryCode,
       phone_number: phoneNumber,
-      linkedin_profile: linkedinProfile || undefined
+      linkedin_profile: linkedinProfile || undefined,
+      regular_volunteering: regularVolunteering,
+      frequency_per_month: frequencyPerMonth,
+      interested_area: interestedArea || undefined,
+      interested_topic: interestedTopic || undefined,
+      preferred_day: preferredDay || undefined,
+      preferred_class: preferredClass || undefined,
+      remarks: remarks || undefined
     });
 
     if (!validation.success) {
@@ -146,6 +188,15 @@ export default function EditVolunteer() {
           country_code: validation.data.country_code,
           phone_number: validation.data.phone_number,
           linkedin_profile: validation.data.linkedin_profile || null,
+          regular_volunteering: validation.data.regular_volunteering,
+          frequency_per_month: validation.data.frequency_per_month,
+          interested_area: validation.data.interested_area || null,
+          interested_topic: validation.data.interested_topic || null,
+          preferred_day: validation.data.preferred_day === 'none' ? null : validation.data.preferred_day || null,
+          preferred_class: validation.data.preferred_class || null,
+          remarks: validation.data.remarks || null,
+          volunteer_status: validation.data.volunteer_status,
+          is_active: validation.data.volunteer_status === 'active',
         })
         .eq('id', id);
 
@@ -294,47 +345,91 @@ export default function EditVolunteer() {
 
               <div className="space-y-2">
                 <Label htmlFor="country">Country</Label>
-                <Input
-                  id="country"
-                  type="text"
-                  placeholder="Enter country"
-                  value={country}
-                  onChange={(e) => setCountry(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="city">City</Label>
-                <Input
-                  id="city"
-                  type="text"
-                  placeholder="Enter city"
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="countryCode">Country Code *</Label>
-                <Select value={countryCode} onValueChange={setCountryCode}>
-                  <SelectTrigger>
+                <Select value={country} onValueChange={(value) => {
+                  setCountry(value);
+                  if (value !== 'India') {
+                    setIsOtherCity(true);
+                  } else {
+                    const isInList = commonIndianCities.includes(city);
+                    setIsOtherCity(!isInList && city !== '');
+                  }
+                }}>
+                  <SelectTrigger id="country">
                     <SelectValue placeholder="Select country" />
                   </SelectTrigger>
                   <SelectContent>
-                    {countryCodes.map((country) => (
-                      <SelectItem key={country.code} value={country.code}>
-                        {country.name} ({country.dialCode})
-                      </SelectItem>
+                    {countries.map((c) => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="city">City</Label>
+                {!isOtherCity && country === 'India' ? (
+                  <Select value={city} onValueChange={(value) => {
+                    if (value === 'other') {
+                      setIsOtherCity(true);
+                    } else {
+                      setCity(value);
+                    }
+                  }}>
+                    <SelectTrigger id="city">
+                      <SelectValue placeholder="Select city" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {commonIndianCities.map((c) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                      <SelectItem value="other">Other City...</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="flex gap-2">
+                    <Input
+                      id="city"
+                      type="text"
+                      placeholder="Enter city"
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      required
+                    />
+                    {country === 'India' && (
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => {
+                          setIsOtherCity(false);
+                          if (!commonIndianCities.includes(city)) {
+                            setCity('');
+                          }
+                        }}
+                      >
+                        Reset
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="phoneNumber">Phone Number *</Label>
                 <div className="flex gap-2">
-                  <div className="w-24 px-3 py-2 bg-muted rounded-md text-sm font-medium flex items-center">
-                    {countryCodes.find(c => c.code === countryCode)?.dialCode}
+                  <div className="w-[100px]">
+                    <Select value={countryCode} onValueChange={setCountryCode}>
+                      <SelectTrigger id="countryCode">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {countryCodes.map((country) => (
+                          <SelectItem key={country.code} value={country.code}>
+                            {country.code} ({country.dialCode})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <Input
                     id="phoneNumber"
@@ -357,6 +452,106 @@ export default function EditVolunteer() {
                   value={linkedinProfile}
                   onChange={(e) => setLinkedinProfile(e.target.value)}
                 />
+              </div>
+
+              {/* Preferences Section */}
+              <div className="pt-4 border-t space-y-4">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Volunteering Preferences</h3>
+                
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="regularVolunteering"
+                    checked={regularVolunteering}
+                    onCheckedChange={(checked) => setRegularVolunteering(checked as boolean)}
+                  />
+                  <Label htmlFor="regularVolunteering" className="text-sm font-medium cursor-pointer">Regular Volunteering</Label>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="frequency">Frequency per Month</Label>
+                  <Input
+                    id="frequency"
+                    type="number"
+                    min="0"
+                    value={frequencyPerMonth}
+                    onChange={(e) => setFrequencyPerMonth(parseInt(e.target.value) || 0)}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="interestedArea">Interested Area</Label>
+                    <Input
+                      id="interestedArea"
+                      value={interestedArea}
+                      onChange={(e) => setInterestedArea(e.target.value)}
+                      placeholder="e.g. Technology"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="interestedTopic">Interested Topic</Label>
+                    <Input
+                      id="interestedTopic"
+                      value={interestedTopic}
+                      onChange={(e) => setInterestedTopic(e.target.value)}
+                      placeholder="e.g. AI"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="preferredDay">Preferred Day</Label>
+                    <Select value={preferredDay} onValueChange={setPreferredDay}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select day" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        <SelectItem value="Monday">Monday</SelectItem>
+                        <SelectItem value="Tuesday">Tuesday</SelectItem>
+                        <SelectItem value="Wednesday">Wednesday</SelectItem>
+                        <SelectItem value="Thursday">Thursday</SelectItem>
+                        <SelectItem value="Friday">Friday</SelectItem>
+                        <SelectItem value="Saturday">Saturday</SelectItem>
+                        <SelectItem value="Sunday">Sunday</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="preferredClass">Preferred Class</Label>
+                    <Input
+                      id="preferredClass"
+                      value={preferredClass}
+                      onChange={(e) => setPreferredClass(e.target.value)}
+                      placeholder="e.g. Class 10"
+                    />
+                  </div>
+                </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="volunteerStatus">Status</Label>
+                    <Select value={volunteerStatus} onValueChange={setVolunteerStatus}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="inactive">Inactive</SelectItem>
+                        <SelectItem value="on_leave">On Leave</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="remarks">Remarks</Label>
+                  <Textarea
+                    id="remarks"
+                    value={remarks}
+                    onChange={(e) => setRemarks(e.target.value)}
+                    placeholder="Any additional notes..."
+                  />
+                </div>
               </div>
 
               <div className="flex gap-3 pt-4">

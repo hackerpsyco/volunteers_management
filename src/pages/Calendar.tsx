@@ -33,6 +33,11 @@ interface Class {
   name: string;
 }
 
+interface Subject {
+  id: string;
+  name: string;
+}
+
 interface Session {
   id: string;
   title: string;
@@ -64,6 +69,8 @@ interface Session {
   slot_start_time?: string;
   slot_end_time?: string;
   class_batch?: string;
+  subject_id?: string;
+  subject_name?: string;
 }
 
 interface CalendarDay {
@@ -80,6 +87,8 @@ export default function Calendar() {
   const [classes, setClasses] = useState<Class[]>([]);
   const [selectedVolunteer, setSelectedVolunteer] = useState<string>('all');
   const [selectedClass, setSelectedClass] = useState<string>('all');
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [selectedSubject, setSelectedSubject] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [calendarDays, setCalendarDays] = useState<CalendarDay[]>([]);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
@@ -89,6 +98,7 @@ export default function Calendar() {
   const [selectedSessionType, setSelectedSessionType] = useState<'guest_teacher' | 'guest_speaker' | 'local_teacher' | null>(null);
   const [selectedDateForNewSession, setSelectedDateForNewSession] = useState<Date | null>(null);
   const [expandedDateKey, setExpandedDateKey] = useState<string | null>(null);
+  const [sessionTypeFilter, setSessionTypeFilter] = useState<string>('all');
   const [userRole, setUserRole] = useState<number | null>(null);
 
   useEffect(() => {
@@ -96,6 +106,7 @@ export default function Calendar() {
       loadUserRoleAndClass();
       fetchVolunteers();
       fetchClasses();
+      fetchSubjects();
       fetchSessions();
     }
   }, [user?.id]);
@@ -136,7 +147,7 @@ export default function Calendar() {
 
   useEffect(() => {
     generateCalendar();
-  }, [currentDate, sessions, selectedVolunteer, selectedClass]);
+  }, [currentDate, sessions, selectedVolunteer, selectedClass, sessionTypeFilter, selectedSubject]);
 
   const fetchVolunteers = async () => {
     try {
@@ -169,6 +180,21 @@ export default function Calendar() {
     }
   };
 
+  const fetchSubjects = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('subjects')
+        .select('id, name')
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setSubjects(data || []);
+    } catch (error) {
+      console.error('Error fetching subjects:', error);
+      toast.error('Failed to load subjects');
+    }
+  };
+
   const fetchSessions = async () => {
     try {
       const { data, error } = await supabase
@@ -177,7 +203,8 @@ export default function Calendar() {
           *,
           coordinators:coordinator_id(name, email),
           centres:centre_id(name, location),
-          centre_time_slots:centre_time_slot_id(day, start_time, end_time)
+          centre_time_slots:centre_time_slot_id(day, start_time, end_time),
+          subjects(name)
         `)
         .order('session_date', { ascending: true });
 
@@ -197,6 +224,7 @@ export default function Calendar() {
           slot_day: session.centre_time_slots?.day || null,
           slot_start_time: session.centre_time_slots?.start_time || null,
           slot_end_time: session.centre_time_slots?.end_time || null,
+          subject_name: session.subjects?.name || null,
         };
       });
       
@@ -229,6 +257,14 @@ export default function Calendar() {
     
     if (selectedClass !== 'all') {
       filteredSessions = filteredSessions.filter(s => s.class_batch === selectedClass);
+    }
+
+    if (sessionTypeFilter !== 'all') {
+      filteredSessions = filteredSessions.filter(s => s.session_type === sessionTypeFilter);
+    }
+
+    if (selectedSubject !== 'all') {
+      filteredSessions = filteredSessions.filter(s => s.subject_name === selectedSubject);
     }
 
     // Previous month days
@@ -465,7 +501,7 @@ export default function Calendar() {
         {/* Volunteer and Class Filters - Only show for non-students */}
         {userRole !== 5 && (
           <div className="bg-card border border-border rounded-lg p-4 space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               {/* Volunteer Filter */}
               <div>
                 <label className="text-sm font-medium text-foreground block mb-2">
@@ -505,6 +541,44 @@ export default function Calendar() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Session Type Filter */}
+              <div>
+                <label className="text-sm font-medium text-foreground block mb-2">
+                  Filter by Type
+                </label>
+                <Select value={sessionTypeFilter} onValueChange={setSessionTypeFilter}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    <SelectItem value="guest_teacher">Guest Teacher (GT)</SelectItem>
+                    <SelectItem value="guest_speaker">Guest Speaker (GS)</SelectItem>
+                    <SelectItem value="local_teacher">Local Teacher (LT)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Subject Filter */}
+              <div>
+                <label className="text-sm font-medium text-foreground block mb-2">
+                  Filter by Subject
+                </label>
+                <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select subject" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Subjects</SelectItem>
+                    {subjects.map((subject) => (
+                      <SelectItem key={subject.id} value={subject.name}>
+                        {subject.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
         )}
@@ -529,7 +603,7 @@ export default function Calendar() {
               <h2 className="text-xl font-semibold">{monthName}</h2>
               <div className="flex gap-2">
                 <Button size="sm" variant="outline" onClick={previousMonth}>
-                  <ChevronLeft className="h-4 w-4" />
+                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <Button size="sm" variant="outline" onClick={nextMonth}>
                   <ChevronRight className="h-4 w-4" />
