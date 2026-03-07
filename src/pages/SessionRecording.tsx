@@ -668,7 +668,15 @@ export default function SessionRecording() {
           <div>
             <h1 className="text-2xl font-bold text-foreground">Session Feedback</h1>
             <p className="text-sm text-muted-foreground">
-              {session.title} - {new Date(session.session_date).toLocaleDateString()}
+              {(() => {
+                const sessionData = session as any;
+                const typeLabel = sessionData.session_type === 'guest_speaker' ? 'GS' : sessionData.session_type === 'local_teacher' ? 'LT' : 'GT';
+                const classBatch = sessionData.class_batch || formData.class_batch || '';
+                const volunteerName = sessionData.volunteer_name || '';
+                const modules = sessionData.modules || '';
+                const topics = sessionData.topics_covered || sessionData.title || '';
+                return `WES ${typeLabel} Session${classBatch ? ` - ${classBatch}` : ''}${volunteerName ? ` - by ${volunteerName}` : ''}${modules ? ` - ${modules}` : ''}${topics ? ` - ${topics}` : ''}`;
+              })()}
             </p>
           </div>
         </div>
@@ -783,6 +791,16 @@ export default function SessionRecording() {
               }`}
             >
               c) Student Homework Feedback
+            </button>
+            <button
+              onClick={() => setCurrentSubTab('d')}
+              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                currentSubTab === 'd'
+                  ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              d) Record Sheet Link
             </button>
           </div>
         )}
@@ -967,18 +985,27 @@ export default function SessionRecording() {
                                 </p>
                               </div>
 
-                              <div className="col-span-2">
-                                <select
-                                  value={perfData.performance_comment === 'Absent' ? 'absent' : 'present'}
-                                  onChange={(e) => {
-                                    const newValue = e.target.value === 'absent' ? 'Absent' : 'Present';
-                                    handleSaveStudentPerformanceField(student.id, 'performance_comment', newValue);
-                                  }}
-                                  className="px-2 py-1 border border-border rounded text-xs w-full h-8"
-                                >
-                                  <option value="present">Present</option>
-                                  <option value="absent">Absent</option>
-                                </select>
+                              <div className="col-span-2 flex justify-center">
+                                {(() => {
+                                  const isAbsent = perfData.performance_comment === 'Absent';
+                                  return (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const newValue = isAbsent ? 'Present' : 'Absent';
+                                        handleSaveStudentPerformanceField(student.id, 'performance_comment', newValue);
+                                      }}
+                                      className={`w-8 h-8 rounded-full text-xs font-bold border-2 transition-colors ${
+                                        isAbsent
+                                          ? 'bg-red-100 text-red-700 border-red-300 hover:bg-red-200'
+                                          : 'bg-green-100 text-green-700 border-green-300 hover:bg-green-200'
+                                      }`}
+                                      title={isAbsent ? 'Absent - Click to mark Present' : 'Present - Click to mark Absent'}
+                                    >
+                                      {isAbsent ? 'A' : 'P'}
+                                    </button>
+                                  );
+                                })()}
                               </div>
 
                               <div className="col-span-2">
@@ -1055,6 +1082,47 @@ export default function SessionRecording() {
                       placeholder="Name and details of best performer"
                       className="min-h-[60px]"
                     />
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Sub-tab d: Record Sheet Link */}
+            {currentSubTab === 'd' && (
+              <div className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <ExternalLink className="h-4 w-4" />
+                      Record Sheet Link
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div>
+                      <Label htmlFor="record_sheet_link" className="text-sm">Google Sheet / Record Link</Label>
+                      <Input
+                        id="record_sheet_link"
+                        type="url"
+                        value={(formData as any).record_sheet_link || ''}
+                        onChange={(e) => setFormData({ ...formData, record_sheet_link: e.target.value } as any)}
+                        placeholder="https://docs.google.com/spreadsheets/d/..."
+                        className="mt-1"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Paste the link to the session record sheet (Google Sheets, Excel Online, etc.)
+                      </p>
+                    </div>
+                    {(formData as any).record_sheet_link && (
+                      <a
+                        href={(formData as any).record_sheet_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-primary hover:underline text-sm"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        Open Record Sheet
+                      </a>
+                    )}
                   </CardContent>
                 </Card>
               </div>
