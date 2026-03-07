@@ -792,16 +792,6 @@ export default function SessionRecording() {
             >
               c) Student Homework Feedback
             </button>
-            <button
-              onClick={() => setCurrentSubTab('d')}
-              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                currentSubTab === 'd'
-                  ? 'bg-blue-100 text-blue-700 border border-blue-300'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              d) Record Sheet Link
-            </button>
           </div>
         )}
 
@@ -1084,12 +1074,8 @@ export default function SessionRecording() {
                     />
                   </CardContent>
                 </Card>
-              </div>
-            )}
 
-            {/* Sub-tab d: Record Sheet Link */}
-            {currentSubTab === 'd' && (
-              <div className="space-y-4">
+                {/* Record Sheet Link */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-base flex items-center gap-2">
@@ -1109,7 +1095,7 @@ export default function SessionRecording() {
                         className="mt-1"
                       />
                       <p className="text-xs text-muted-foreground mt-1">
-                        Paste the link to the session record sheet (Google Sheets, Excel Online, etc.)
+                        Paste the link to the session record sheet
                       </p>
                     </div>
                     {(formData as any).record_sheet_link && (
