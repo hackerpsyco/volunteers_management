@@ -1074,12 +1074,8 @@ export default function SessionRecording() {
                     />
                   </CardContent>
                 </Card>
-              </div>
-            )}
 
-            {/* Sub-tab d: Record Sheet Link */}
-            {currentSubTab === 'd' && (
-              <div className="space-y-4">
+                {/* Record Sheet Link */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-base flex items-center gap-2">
@@ -1099,7 +1095,7 @@ export default function SessionRecording() {
                         className="mt-1"
                       />
                       <p className="text-xs text-muted-foreground mt-1">
-                        Paste the link to the session record sheet (Google Sheets, Excel Online, etc.)
+                        Paste the link to the session record sheet
                       </p>
                     </div>
                     {(formData as any).record_sheet_link && (
