@@ -206,6 +206,7 @@ export default function SessionRecording() {
         guest_teacher_feedback: (sessionData as any).guest_teacher_feedback || '',
         incharge_reviewer_feedback: (sessionData as any).incharge_reviewer_feedback || '',
         recording_url: (sessionData as any).recording_url || '',
+        record_sheet_link: (sessionData as any).record_sheet_link || '',
         mic_sound_rating: (sessionData as any).mic_sound_rating || 5,
         seating_view_rating: (sessionData as any).seating_view_rating || 5,
         session_strength: (sessionData as any).session_strength || 5,
