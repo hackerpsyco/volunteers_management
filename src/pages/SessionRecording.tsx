@@ -985,18 +985,27 @@ export default function SessionRecording() {
                                 </p>
                               </div>
 
-                              <div className="col-span-2">
-                                <select
-                                  value={perfData.performance_comment === 'Absent' ? 'absent' : 'present'}
-                                  onChange={(e) => {
-                                    const newValue = e.target.value === 'absent' ? 'Absent' : 'Present';
-                                    handleSaveStudentPerformanceField(student.id, 'performance_comment', newValue);
-                                  }}
-                                  className="px-2 py-1 border border-border rounded text-xs w-full h-8"
-                                >
-                                  <option value="present">Present</option>
-                                  <option value="absent">Absent</option>
-                                </select>
+                              <div className="col-span-2 flex justify-center">
+                                {(() => {
+                                  const isAbsent = perfData.performance_comment === 'Absent';
+                                  return (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const newValue = isAbsent ? 'Present' : 'Absent';
+                                        handleSaveStudentPerformanceField(student.id, 'performance_comment', newValue);
+                                      }}
+                                      className={`w-8 h-8 rounded-full text-xs font-bold border-2 transition-colors ${
+                                        isAbsent
+                                          ? 'bg-red-100 text-red-700 border-red-300 hover:bg-red-200'
+                                          : 'bg-green-100 text-green-700 border-green-300 hover:bg-green-200'
+                                      }`}
+                                      title={isAbsent ? 'Absent - Click to mark Present' : 'Present - Click to mark Absent'}
+                                    >
+                                      {isAbsent ? 'A' : 'P'}
+                                    </button>
+                                  );
+                                })()}
                               </div>
 
                               <div className="col-span-2">
