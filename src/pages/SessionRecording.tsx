@@ -1087,6 +1087,47 @@ export default function SessionRecording() {
               </div>
             )}
 
+            {/* Sub-tab d: Record Sheet Link */}
+            {currentSubTab === 'd' && (
+              <div className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <ExternalLink className="h-4 w-4" />
+                      Record Sheet Link
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div>
+                      <Label htmlFor="record_sheet_link" className="text-sm">Google Sheet / Record Link</Label>
+                      <Input
+                        id="record_sheet_link"
+                        type="url"
+                        value={(formData as any).record_sheet_link || ''}
+                        onChange={(e) => setFormData({ ...formData, record_sheet_link: e.target.value } as any)}
+                        placeholder="https://docs.google.com/spreadsheets/d/..."
+                        className="mt-1"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Paste the link to the session record sheet (Google Sheets, Excel Online, etc.)
+                      </p>
+                    </div>
+                    {(formData as any).record_sheet_link && (
+                      <a
+                        href={(formData as any).record_sheet_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-primary hover:underline text-sm"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        Open Record Sheet
+                      </a>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
             {/* Sub-tab c: Student Homework Feedback */}
             {currentSubTab === 'c' && (
               <div className="space-y-4">
