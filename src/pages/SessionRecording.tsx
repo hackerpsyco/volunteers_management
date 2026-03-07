@@ -668,7 +668,15 @@ export default function SessionRecording() {
           <div>
             <h1 className="text-2xl font-bold text-foreground">Session Feedback</h1>
             <p className="text-sm text-muted-foreground">
-              {session.title} - {new Date(session.session_date).toLocaleDateString()}
+              {(() => {
+                const sessionData = session as any;
+                const typeLabel = sessionData.session_type === 'guest_speaker' ? 'GS' : sessionData.session_type === 'local_teacher' ? 'LT' : 'GT';
+                const classBatch = sessionData.class_batch || formData.class_batch || '';
+                const volunteerName = sessionData.volunteer_name || '';
+                const modules = sessionData.modules || '';
+                const topics = sessionData.topics_covered || sessionData.title || '';
+                return `WES ${typeLabel} Session${classBatch ? ` - ${classBatch}` : ''}${volunteerName ? ` - by ${volunteerName}` : ''}${modules ? ` - ${modules}` : ''}${topics ? ` - ${topics}` : ''}`;
+              })()}
             </p>
           </div>
         </div>
