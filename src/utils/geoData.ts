@@ -9,6 +9,7 @@ export const countries = [
   "Japan",
   "China",
   "Brazil",
+  "Luxembourg",
   "Mexico",
   "Singapore",
   "New Zealand",
@@ -73,3 +74,31 @@ export const commonIndianCities = [
   "Solapur",
   "Hubli-Dharwad"
 ].sort();
+
+export const countryCodes = [
+  { code: 'IN', name: 'India', dialCode: '+91' },
+  { code: 'US', name: 'United States', dialCode: '+1' },
+  { code: 'GB', name: 'United Kingdom', dialCode: '+44' },
+  { code: 'CA', name: 'Canada', dialCode: '+1' },
+  { code: 'AU', name: 'Australia', dialCode: '+61' },
+  { code: 'DE', name: 'Germany', dialCode: '+49' },
+  { code: 'FR', name: 'France', dialCode: '+33' },
+  { code: 'JP', name: 'Japan', dialCode: '+81' },
+  { code: 'CN', name: 'China', dialCode: '+86' },
+  { code: 'BR', name: 'Brazil', dialCode: '+55' },
+  { code: 'LU', name: 'Luxembourg', dialCode: '+352' },
+  { code: 'MX', name: 'Mexico', dialCode: '+52' },
+  { code: 'SG', name: 'Singapore', dialCode: '+65' },
+  { code: 'NZ', name: 'New Zealand', dialCode: '+64' },
+  { code: 'ZA', name: 'South Africa', dialCode: '+27' },
+  { code: 'AE', name: 'United Arab Emirates', dialCode: '+971' },
+  { code: 'PK', name: 'Pakistan', dialCode: '+92' },
+  { code: 'BD', name: 'Bangladesh', dialCode: '+880' },
+  { code: 'LK', name: 'Sri Lanka', dialCode: '+94' },
+  { code: 'NG', name: 'Nigeria', dialCode: '+234' },
+  { code: 'KE', name: 'Kenya', dialCode: '+254' },
+];
+
+export const getDialCode = (code: string) => {
+  return countryCodes.find(c => c.code === code)?.dialCode || '';
+};

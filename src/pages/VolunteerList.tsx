@@ -54,6 +54,7 @@ import { Badge } from '@/components/ui/badge';
 import { BulkUploadDialog } from '@/components/volunteers/BulkUploadDialog';
 import { SessionTypeDialog } from '@/components/sessions/SessionTypeDialog';
 import { AddSessionDialog } from '@/components/sessions/AddSessionDialog';
+import { getDialCode } from '@/utils/geoData';
 
 interface Volunteer {
   id: string;
@@ -64,6 +65,7 @@ interface Volunteer {
   work_email: string | null;
   country: string | null;
   city: string | null;
+  country_code: string | null;
   phone_number: string;
   linkedin_profile: string | null;
   is_active: boolean;
@@ -251,8 +253,8 @@ export default function VolunteerList() {
 
     try {
       const is_active = preferencesData.volunteer_status === 'active';
-      const updateData = { 
-        ...preferencesData, 
+      const updateData = {
+        ...preferencesData,
         is_active,
         preferred_day: preferencesData.preferred_day === 'none' ? null : preferencesData.preferred_day
       };
@@ -418,45 +420,55 @@ export default function VolunteerList() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="px-2 py-3 w-[100px]">Type</TableHead>
-                        <TableHead className="px-2 py-3">Organization</TableHead>
-                        <TableHead className="px-2 py-3">Name</TableHead>
-                        <TableHead className="px-2 py-3">Email</TableHead>
-                        <TableHead className="px-2 py-3 w-[120px]">Phone</TableHead>
-                        <TableHead className="px-2 py-3 w-[100px]">Country</TableHead>
-                        <TableHead className="px-2 py-3 w-[100px]">City</TableHead>
-                        <TableHead className="px-2 py-3 w-[100px]">Frequency</TableHead>
-                        <TableHead className="px-2 py-3 w-[100px]">Status</TableHead>
-                        <TableHead className="px-2 py-3 w-[60px]">Actions</TableHead>
+                        <TableHead className="px-3 py-3 text-xs">Name</TableHead>
+                        <TableHead className="px-3 py-3 text-xs w-[80px]">Type</TableHead>
+                        <TableHead className="px-3 py-3 text-xs">Organization</TableHead>
+                        <TableHead className="px-3 py-3 text-xs">Work Email</TableHead>
+                        <TableHead className="px-3 py-3 text-xs">Personal Email</TableHead>
+                        <TableHead className="px-3 py-3 text-xs w-[120px]">Phone</TableHead>
+                        <TableHead className="px-3 py-3 text-xs w-[90px]">Country</TableHead>
+                        <TableHead className="px-3 py-3 text-xs w-[90px]">City</TableHead>
+                        <TableHead className="px-3 py-3 text-xs w-[55px]">Freq</TableHead>
+                        <TableHead className="px-3 py-3 text-xs w-[80px]">Status</TableHead>
+                        <TableHead className="px-3 py-3 text-xs w-[50px]">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredVolunteers.map((volunteer) => (
                         <TableRow key={volunteer.id}>
-                          <TableCell className="px-2 py-2">
-                            <Badge variant="outline" className="capitalize text-[10px] px-1 h-5">
+                          <TableCell className="px-3 py-2 font-medium text-sm truncate max-w-[150px]" title={volunteer.name}>
+                            {volunteer.name}
+                          </TableCell>
+                          <TableCell className="px-3 py-2">
+                            <Badge variant="outline" className="capitalize text-xs">
                               {volunteer.organization_type}
                             </Badge>
                           </TableCell>
-                          <TableCell className="px-2 py-2 text-xs max-w-[100px] truncate">{getOrganizationDisplay(volunteer)}</TableCell>
-                          <TableCell className="px-2 py-2 font-medium text-xs max-w-[120px] truncate">{volunteer.name}</TableCell>
-                          <TableCell className="px-2 py-2 text-xs max-w-[120px] truncate">
+                          <TableCell className="px-3 py-2 text-sm truncate max-w-[140px]" title={getOrganizationDisplay(volunteer)}>
+                            {getOrganizationDisplay(volunteer)}
+                          </TableCell>
+                          <TableCell className="px-3 py-2 text-sm truncate max-w-[180px]" title={volunteer.work_email || '-'}>
+                            {volunteer.work_email || '-'}
+                          </TableCell>
+                          <TableCell className="px-3 py-2 text-sm truncate max-w-[180px]" title={volunteer.personal_email || '-'}>
                             {volunteer.personal_email || '-'}
                           </TableCell>
-                          <TableCell className="px-2 py-2 text-xs">{volunteer.phone_number}</TableCell>
-                          <TableCell className="px-2 py-2 text-xs">{volunteer.country || '-'}</TableCell>
-                          <TableCell className="px-2 py-2 text-xs">{volunteer.city || '-'}</TableCell>
-                          <TableCell className="px-2 py-2 text-xs">{volunteer.frequency_per_month || '-'}</TableCell>
-                          <TableCell className="px-2 py-2">
-                            <Badge variant={volunteer.is_active ? 'default' : 'secondary'} className="text-[10px] px-1 h-5">
+                          <TableCell className="px-3 py-2 text-sm">
+                            {volunteer.country_code ? `${getDialCode(volunteer.country_code)} ${volunteer.phone_number}` : volunteer.phone_number}
+                          </TableCell>
+                          <TableCell className="px-3 py-2 text-sm truncate" title={volunteer.country || '-'}>{volunteer.country || '-'}</TableCell>
+                          <TableCell className="px-3 py-2 text-sm truncate" title={volunteer.city || '-'}>{volunteer.city || '-'}</TableCell>
+                          <TableCell className="px-3 py-2 text-sm text-center">{volunteer.frequency_per_month || '-'}</TableCell>
+                          <TableCell className="px-3 py-2">
+                            <Badge variant={volunteer.is_active ? 'default' : 'secondary'} className="text-xs">
                               {volunteer.is_active ? 'Active' : 'Inactive'}
                             </Badge>
                           </TableCell>
-                          <TableCell className="px-2 py-2">
+                          <TableCell className="px-3 py-2">
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-7 w-7">
-                                  <MoreVertical className="h-3.5 w-3.5" />
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreVertical className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="bg-popover">
@@ -562,22 +574,24 @@ export default function VolunteerList() {
                       {/* Phone */}
                       <div className="text-xs">
                         <span className="text-muted-foreground">Phone</span>
-                        <p className="font-medium text-sm">{volunteer.phone_number}</p>
+                        <p className="font-medium text-sm">
+                          {volunteer.country_code ? `${getDialCode(volunteer.country_code)} ${volunteer.phone_number}` : volunteer.phone_number}
+                        </p>
                       </div>
-
-                      {/* Personal Email - Separate */}
-                      {volunteer.personal_email && (
-                        <div className="text-xs">
-                          <span className="text-muted-foreground">Personal Email</span>
-                          <p className="font-medium break-all text-sm">{volunteer.personal_email}</p>
-                        </div>
-                      )}
 
                       {/* Work Email - Separate */}
                       {volunteer.work_email && (
                         <div className="text-xs">
                           <span className="text-muted-foreground">Work Email</span>
                           <p className="font-medium break-all text-sm">{volunteer.work_email}</p>
+                        </div>
+                      )}
+
+                      {/* Personal Email - Separate */}
+                      {volunteer.personal_email && (
+                        <div className="text-xs">
+                          <span className="text-muted-foreground">Personal Email</span>
+                          <p className="font-medium break-all text-sm">{volunteer.personal_email}</p>
                         </div>
                       )}
 

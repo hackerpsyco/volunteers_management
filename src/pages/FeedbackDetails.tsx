@@ -37,6 +37,11 @@ interface FeedbackData {
   session_strength: number | null;
   class_batch: string | null;
   recorded_at: string | null;
+  coordinator_mic_sound_rating: number | null;
+  coordinator_seating_view_rating: number | null;
+  coordinator_session_strength: number | null;
+  record_sheet_link?: string | null;
+  recording_url?: string | null;
 }
 
 interface StudentPerformance {
@@ -112,7 +117,19 @@ export default function FeedbackDetails() {
         .order('created_at', { ascending: true });
 
       if (error) throw error;
-      setStudentPerformance((data || []) as unknown as StudentPerformance[]);
+
+      // Deduplicate by student name, keeping the latest record
+      const deduplicated = (data || []).reduce((acc: any[], current: any) => {
+        const x = acc.findIndex(item => item.student_name === current.student_name);
+        if (x > -1) {
+          acc[x] = current;
+        } else {
+          acc.push(current);
+        }
+        return acc;
+      }, []);
+
+      setStudentPerformance(deduplicated as unknown as StudentPerformance[]);
     } catch (error) {
       console.error('Error fetching student performance:', error);
     }
@@ -226,31 +243,28 @@ export default function FeedbackDetails() {
         <div className="flex gap-2 flex-wrap border-b border-border pb-4">
           <button
             onClick={() => setActiveTab('facilitator')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              activeTab === 'facilitator'
-                ? 'bg-blue-100 text-blue-700 border border-blue-300'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'facilitator'
+              ? 'bg-blue-100 text-blue-700 border border-blue-300'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
           >
             Facilitator Feedback
           </button>
           <button
             onClick={() => setActiveTab('coordinator')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              activeTab === 'coordinator'
-                ? 'bg-green-100 text-green-700 border border-green-300'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'coordinator'
+              ? 'bg-green-100 text-green-700 border border-green-300'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
           >
             Coordinator Feedback
           </button>
           <button
             onClick={() => setActiveTab('supervisor')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              activeTab === 'supervisor'
-                ? 'bg-purple-100 text-purple-700 border border-purple-300'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'supervisor'
+              ? 'bg-purple-100 text-purple-700 border border-purple-300'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
           >
             Supervisor Feedback (Admin Only)
           </button>
@@ -308,7 +322,25 @@ export default function FeedbackDetails() {
                         <TableCell className="whitespace-pre-wrap">{feedback.best_performer}</TableCell>
                       </TableRow>
                     )}
-                    {!feedback.session_objective && !feedback.practical_activities && !feedback.session_highlights && !feedback.learning_outcomes && !feedback.facilitator_reflection && !feedback.best_performer && (
+                    {feedback.mic_sound_rating && (
+                      <TableRow>
+                        <TableCell className="font-semibold">Mic/Sound Rating</TableCell>
+                        <TableCell className="font-medium">{feedback.mic_sound_rating}/10</TableCell>
+                      </TableRow>
+                    )}
+                    {feedback.seating_view_rating && (
+                      <TableRow>
+                        <TableCell className="font-semibold">Seating/View Rating</TableCell>
+                        <TableCell className="font-medium">{feedback.seating_view_rating}/10</TableCell>
+                      </TableRow>
+                    )}
+                    {feedback.session_strength && (
+                      <TableRow>
+                        <TableCell className="font-semibold">Session Strength</TableCell>
+                        <TableCell className="font-medium">{feedback.session_strength}/10</TableCell>
+                      </TableRow>
+                    )}
+                    {!feedback.session_objective && !feedback.practical_activities && !feedback.session_highlights && !feedback.learning_outcomes && !feedback.facilitator_reflection && !feedback.best_performer && !feedback.mic_sound_rating && !feedback.seating_view_rating && !feedback.session_strength && (
                       <TableRow>
                         <TableCell colSpan={2} className="text-center text-muted-foreground italic py-8">
                           No facilitator feedback provided
@@ -328,21 +360,32 @@ export default function FeedbackDetails() {
                         <TableRow>
                           <TableHead className="w-[50px]">SN</TableHead>
                           <TableHead>Student Name</TableHead>
-                          <TableHead className="w-[120px]">Questions</TableHead>
+                          <TableHead className="w-[100px]">Status</TableHead>
+                          <TableHead className="w-[100px]">Questions</TableHead>
                           <TableHead className="w-[100px]">Rating</TableHead>
                           <TableHead>Comment</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {studentPerformance.map((student, index) => (
-                          <TableRow key={student.id}>
-                            <TableCell className="font-medium">{index + 1}</TableCell>
-                            <TableCell className="font-medium">{student.student_name}</TableCell>
-                            <TableCell className="text-center">{student.questions_asked}</TableCell>
-                            <TableCell className="text-center font-medium">{student.performance_rating}/10</TableCell>
-                            <TableCell className="max-w-[300px] truncate text-sm">{student.performance_comment || '-'}</TableCell>
-                          </TableRow>
-                        ))}
+                        {studentPerformance.map((student, index) => {
+                          const isAbsent = student.performance_comment === 'Absent';
+                          return (
+                            <TableRow key={student.id}>
+                              <TableCell className="font-medium">{index + 1}</TableCell>
+                              <TableCell className="font-medium">{student.student_name}</TableCell>
+                              <TableCell>
+                                <Badge variant={isAbsent ? 'destructive' : 'default'} className={isAbsent ? '' : 'bg-green-600 hover:bg-green-700'}>
+                                  {isAbsent ? 'Absent' : 'Present'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-center">{student.questions_asked}</TableCell>
+                              <TableCell className="text-center font-medium">{student.performance_rating}/10</TableCell>
+                              <TableCell className="max-w-[300px] truncate text-sm">
+                                {isAbsent || student.performance_comment === 'Present' ? '-' : student.performance_comment || '-'}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   </div>
@@ -380,25 +423,45 @@ export default function FeedbackDetails() {
                         <TableCell className="whitespace-pre-wrap">{feedback.incharge_reviewer_feedback}</TableCell>
                       </TableRow>
                     )}
-                    {feedback.mic_sound_rating && (
+                    {feedback.recording_url && (
                       <TableRow>
-                        <TableCell className="font-semibold">Mic/Sound Rating</TableCell>
-                        <TableCell className="font-medium">{feedback.mic_sound_rating}/10</TableCell>
+                        <TableCell className="font-semibold">Recording Link</TableCell>
+                        <TableCell>
+                          <a href={feedback.recording_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline inline-flex items-center gap-1">
+                            View Recording
+                          </a>
+                        </TableCell>
                       </TableRow>
                     )}
-                    {feedback.seating_view_rating && (
+                    {feedback.record_sheet_link && (
                       <TableRow>
-                        <TableCell className="font-semibold">Seating/View Rating</TableCell>
-                        <TableCell className="font-medium">{feedback.seating_view_rating}/10</TableCell>
+                        <TableCell className="font-semibold">Record Sheet Link</TableCell>
+                        <TableCell>
+                          <a href={feedback.record_sheet_link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline inline-flex items-center gap-1">
+                            View Record Sheet
+                          </a>
+                        </TableCell>
                       </TableRow>
                     )}
-                    {feedback.session_strength && (
+                    {feedback.coordinator_mic_sound_rating && (
                       <TableRow>
-                        <TableCell className="font-semibold">Session Strength</TableCell>
-                        <TableCell className="font-medium">{feedback.session_strength}/10</TableCell>
+                        <TableCell className="font-semibold">Coordinator Mic/Sound Rating</TableCell>
+                        <TableCell className="font-medium">{feedback.coordinator_mic_sound_rating}/10</TableCell>
                       </TableRow>
                     )}
-                    {!feedback.guest_teacher_feedback && !feedback.incharge_reviewer_feedback && !feedback.mic_sound_rating && !feedback.seating_view_rating && !feedback.session_strength && (
+                    {feedback.coordinator_seating_view_rating && (
+                      <TableRow>
+                        <TableCell className="font-semibold">Coordinator Seating/View Rating</TableCell>
+                        <TableCell className="font-medium">{feedback.coordinator_seating_view_rating}/10</TableCell>
+                      </TableRow>
+                    )}
+                    {feedback.coordinator_session_strength && (
+                      <TableRow>
+                        <TableCell className="font-semibold">Coordinator Session Strength</TableCell>
+                        <TableCell className="font-medium">{feedback.coordinator_session_strength}/10</TableCell>
+                      </TableRow>
+                    )}
+                    {!feedback.guest_teacher_feedback && !feedback.incharge_reviewer_feedback && !feedback.coordinator_mic_sound_rating && !feedback.coordinator_seating_view_rating && !feedback.coordinator_session_strength && !feedback.recording_url && !feedback.record_sheet_link && (
                       <TableRow>
                         <TableCell colSpan={2} className="text-center text-muted-foreground italic py-8">
                           No coordinator feedback provided

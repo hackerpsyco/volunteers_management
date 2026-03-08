@@ -18,7 +18,7 @@ import { z } from 'zod';
 import { ArrowLeft } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
-import { countries, commonIndianCities } from '@/utils/geoData';
+import { countries, commonIndianCities, countryCodes } from '@/utils/geoData';
 
 const volunteerSchema = z.object({
   organization_type: z.enum(['company', 'individual', 'institute']),
@@ -69,28 +69,6 @@ export default function EditVolunteer() {
   const [isLoadingData, setIsLoadingData] = useState(true);
   const navigate = useNavigate();
 
-  const countryCodes = [
-    { code: 'IN', name: 'India', dialCode: '+91' },
-    { code: 'US', name: 'United States', dialCode: '+1' },
-    { code: 'GB', name: 'United Kingdom', dialCode: '+44' },
-    { code: 'CA', name: 'Canada', dialCode: '+1' },
-    { code: 'AU', name: 'Australia', dialCode: '+61' },
-    { code: 'DE', name: 'Germany', dialCode: '+49' },
-    { code: 'FR', name: 'France', dialCode: '+33' },
-    { code: 'JP', name: 'Japan', dialCode: '+81' },
-    { code: 'CN', name: 'China', dialCode: '+86' },
-    { code: 'BR', name: 'Brazil', dialCode: '+55' },
-    { code: 'MX', name: 'Mexico', dialCode: '+52' },
-    { code: 'SG', name: 'Singapore', dialCode: '+65' },
-    { code: 'NZ', name: 'New Zealand', dialCode: '+64' },
-    { code: 'ZA', name: 'South Africa', dialCode: '+27' },
-    { code: 'AE', name: 'United Arab Emirates', dialCode: '+971' },
-    { code: 'PK', name: 'Pakistan', dialCode: '+92' },
-    { code: 'BD', name: 'Bangladesh', dialCode: '+880' },
-    { code: 'LK', name: 'Sri Lanka', dialCode: '+94' },
-    { code: 'NG', name: 'Nigeria', dialCode: '+234' },
-    { code: 'KE', name: 'Kenya', dialCode: '+254' },
-  ];
 
   useEffect(() => {
     if (id) {
@@ -254,6 +232,18 @@ export default function EditVolunteer() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Full Name *</Label>
+                <Input
+                  id="name"
+                  type="text"
+                  placeholder="Enter full name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                />
+              </div>
+
               {/* Organization Type */}
               <div className="space-y-2">
                 <Label htmlFor="organizationType">Organization Type *</Label>
@@ -305,18 +295,6 @@ export default function EditVolunteer() {
                   </div>
                 </div>
               )}
-
-              <div className="space-y-2">
-                <Label htmlFor="name">Full Name *</Label>
-                <Input
-                  id="name"
-                  type="text"
-                  placeholder="Enter full name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                />
-              </div>
 
               <div className="space-y-2">
                 <Label htmlFor="personalEmail">Personal Email</Label>
@@ -396,10 +374,10 @@ export default function EditVolunteer() {
                       required
                     />
                     {country === 'India' && (
-                      <Button 
-                        type="button" 
-                        variant="ghost" 
-                        size="sm" 
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
                         onClick={() => {
                           setIsOtherCity(false);
                           if (!commonIndianCities.includes(city)) {
@@ -457,7 +435,7 @@ export default function EditVolunteer() {
               {/* Preferences Section */}
               <div className="pt-4 border-t space-y-4">
                 <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Volunteering Preferences</h3>
-                
+
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="regularVolunteering"
@@ -529,19 +507,19 @@ export default function EditVolunteer() {
                   </div>
                 </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="volunteerStatus">Status</Label>
-                    <Select value={volunteerStatus} onValueChange={setVolunteerStatus}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="inactive">Inactive</SelectItem>
-                        <SelectItem value="on_leave">On Leave</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="volunteerStatus">Status</Label>
+                  <Select value={volunteerStatus} onValueChange={setVolunteerStatus}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                      <SelectItem value="on_leave">On Leave</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="remarks">Remarks</Label>

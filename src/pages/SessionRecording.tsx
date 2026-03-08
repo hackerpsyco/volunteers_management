@@ -178,7 +178,7 @@ export default function SessionRecording() {
       if (error) throw error;
 
       const sessionData = data as any;
-      
+
       // Fetch volunteer's preferred class separately
       let preferredClass = null;
       if (sessionData.volunteer_name) {
@@ -187,7 +187,7 @@ export default function SessionRecording() {
           .select('preferred_class')
           .eq('name', sessionData.volunteer_name)
           .single();
-        
+
         preferredClass = volunteerData?.preferred_class || null;
       }
 
@@ -362,8 +362,8 @@ export default function SessionRecording() {
           best_performer: formData.best_performer,
           guest_teacher_feedback: formData.guest_teacher_feedback,
           incharge_reviewer_feedback: formData.incharge_reviewer_feedback,
-           recording_url: formData.recording_url,
-           record_sheet_link: (formData as any).record_sheet_link || null,
+          recording_url: formData.recording_url,
+          record_sheet_link: (formData as any).record_sheet_link || null,
           mic_sound_rating: formData.mic_sound_rating,
           seating_view_rating: formData.seating_view_rating,
           session_strength: formData.session_strength,
@@ -405,7 +405,7 @@ export default function SessionRecording() {
 
     try {
       setSaving(true);
-      
+
       // Check if hours tracker already exists
       const { data: existingData } = await supabase
         .from('session_hours_tracker' as any)
@@ -471,7 +471,7 @@ export default function SessionRecording() {
       performance_rating: 5,
       performance_comment: '',
     };
-    
+
     const updatedData = {
       ...data,
       student_name: student.name,
@@ -494,41 +494,19 @@ export default function SessionRecording() {
         const student = students.find(s => s.id === studentId);
         if (!student) continue;
 
-        const existingRecord = studentPerformance.find(sp => sp.student_name === student.name);
+        const { error } = await supabase
+          .from('student_performance')
+          .upsert({
+            session_id: sessionId,
+            student_name: student.name,
+            questions_asked: data.questions_asked || 0,
+            performance_rating: data.performance_rating || 5,
+            performance_comment: data.performance_comment || '',
+          }, { onConflict: 'session_id,student_name' });
 
-        if (existingRecord && existingRecord.id) {
-          // Update existing record
-          const { error } = await supabase
-            .from('student_performance')
-            .update({
-              questions_asked: data.questions_asked || 0,
-              performance_rating: data.performance_rating || 5,
-              performance_comment: data.performance_comment || '',
-            })
-            .eq('id', existingRecord.id);
-
-          if (error) {
-            console.error('Error updating student performance:', error);
-            throw error;
-          }
-        } else {
-          // Insert new record
-          const { error } = await supabase
-            .from('student_performance')
-            .insert([
-              {
-                session_id: sessionId,
-                student_name: student.name,
-                questions_asked: data.questions_asked || 0,
-                performance_rating: data.performance_rating || 5,
-                performance_comment: data.performance_comment || '',
-              },
-            ]);
-
-          if (error) {
-            console.error('Error inserting student performance:', error);
-            throw error;
-          }
+        if (error) {
+          console.error('Error saving student performance:', error);
+          throw error;
         }
       }
 
@@ -722,11 +700,10 @@ export default function SessionRecording() {
               setCurrentPage(1);
               setCurrentSubTab('a');
             }}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              currentPage === 1
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${currentPage === 1
                 ? 'bg-primary text-primary-foreground'
                 : 'bg-muted text-muted-foreground hover:bg-muted/80'
-            }`}
+              }`}
           >
             <div className="flex flex-col items-center">
               <span className="text-sm font-semibold">1. Session Details & Performance</span>
@@ -735,11 +712,10 @@ export default function SessionRecording() {
           </button>
           <button
             onClick={() => setCurrentPage(3)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              currentPage === 3
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${currentPage === 3
                 ? 'bg-primary text-primary-foreground'
                 : 'bg-muted text-muted-foreground hover:bg-muted/80'
-            }`}
+              }`}
           >
             <div className="flex flex-col items-center">
               <span className="text-sm font-semibold">2. Feedback & Closure</span>
@@ -748,11 +724,10 @@ export default function SessionRecording() {
           </button>
           <button
             onClick={() => setCurrentPage(2)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              currentPage === 2
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${currentPage === 2
                 ? 'bg-primary text-primary-foreground'
                 : 'bg-muted text-muted-foreground hover:bg-muted/80'
-            }`}
+              }`}
           >
             <div className="flex flex-col items-center">
               <span className="text-sm font-semibold">3. Session Hours Tracker</span>
@@ -766,31 +741,28 @@ export default function SessionRecording() {
           <div className="flex justify-center gap-2 flex-wrap border-b border-border pb-4">
             <button
               onClick={() => setCurrentSubTab('a')}
-              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                currentSubTab === 'a'
+              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${currentSubTab === 'a'
                   ? 'bg-blue-100 text-blue-700 border border-blue-300'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
+                }`}
             >
               a) Session Objective
             </button>
             <button
               onClick={() => setCurrentSubTab('b')}
-              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                currentSubTab === 'b'
+              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${currentSubTab === 'b'
                   ? 'bg-blue-100 text-blue-700 border border-blue-300'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
+                }`}
             >
               b) Performance Details
             </button>
             <button
               onClick={() => setCurrentSubTab('c')}
-              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                currentSubTab === 'c'
+              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${currentSubTab === 'c'
                   ? 'bg-blue-100 text-blue-700 border border-blue-300'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
+                }`}
             >
               c) Student Homework Feedback
             </button>
@@ -817,7 +789,7 @@ export default function SessionRecording() {
                     />
                   </CardContent>
                 </Card>
-                   {/* Quality Ratings - Before Session Objective */}
+                {/* Quality Ratings - Before Session Objective */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-base">Quality Test Ratings</CardTitle>
@@ -960,7 +932,7 @@ export default function SessionRecording() {
                           // Use form data if available, otherwise use database data
                           const formDataForStudent = studentFormData[student.id];
                           const dbDataForStudent = studentPerformance.find(sp => sp.student_name === student.name);
-                          
+
                           const perfData = formDataForStudent || dbDataForStudent || {
                             student_name: student.name,
                             questions_asked: 0,
@@ -987,11 +959,10 @@ export default function SessionRecording() {
                                         const newValue = isAbsent ? 'Present' : 'Absent';
                                         handleSaveStudentPerformanceField(student.id, 'performance_comment', newValue);
                                       }}
-                                      className={`w-8 h-8 rounded-full text-xs font-bold border-2 transition-colors ${
-                                        isAbsent
+                                      className={`w-8 h-8 rounded-full text-xs font-bold border-2 transition-colors ${isAbsent
                                           ? 'bg-red-100 text-red-700 border-red-300 hover:bg-red-200'
                                           : 'bg-green-100 text-green-700 border-green-300 hover:bg-green-200'
-                                      }`}
+                                        }`}
                                       title={isAbsent ? 'Absent - Click to mark Present' : 'Present - Click to mark Absent'}
                                     >
                                       {isAbsent ? 'A' : 'P'}
@@ -1197,7 +1168,7 @@ export default function SessionRecording() {
                         className="mt-1 min-h-[60px]"
                       />
                     </div> */}
-                    <Button 
+                    <Button
                       onClick={handleSaveHomework}
                       disabled={savingHomework}
                       className="w-full gap-2"
@@ -1241,12 +1212,11 @@ export default function SessionRecording() {
                                 </p>
                               </div>
                               <div className="flex items-center gap-2">
-                                <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                  homework.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                                  homework.status === 'submitted' ? 'bg-blue-100 text-blue-800' :
-                                  homework.status === 'reviewed' ? 'bg-purple-100 text-purple-800' :
-                                  'bg-green-100 text-green-800'
-                                }`}>
+                                <span className={`px-2 py-1 rounded text-xs font-medium ${homework.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                    homework.status === 'submitted' ? 'bg-blue-100 text-blue-800' :
+                                      homework.status === 'reviewed' ? 'bg-purple-100 text-purple-800' :
+                                        'bg-green-100 text-green-800'
+                                  }`}>
                                   {homework.status}
                                 </span>
                                 <Button
@@ -1437,21 +1407,19 @@ export default function SessionRecording() {
                 <div className="flex justify-center gap-2 flex-wrap border-b border-border pb-4">
                   <button
                     onClick={() => setHoursSubTab('a')}
-                    className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                      hoursSubTab === 'a'
+                    className={`px-3 py-1 rounded text-xs font-medium transition-colors ${hoursSubTab === 'a'
                         ? 'bg-blue-100 text-blue-700 border border-blue-300'
                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
+                      }`}
                   >
                     a) Volunteer Hours
                   </button>
                   <button
                     onClick={() => setHoursSubTab('b')}
-                    className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                      hoursSubTab === 'b'
+                    className={`px-3 py-1 rounded text-xs font-medium transition-colors ${hoursSubTab === 'b'
                         ? 'bg-blue-100 text-blue-700 border border-blue-300'
                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
+                      }`}
                   >
                     b) Benevity ID
                   </button>
