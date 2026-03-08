@@ -52,7 +52,7 @@ export function StudentSidebar() {
               className="h-10 md:h-12 w-10 md:w-12 object-contain"
             />
             <div className="min-w-0">
-              <h1 className="font-bold text-foreground text-base md:text-lg truncate">WES Foundation</h1>
+              <h1 className="font-bold text-foreground text-base md:text-lg truncate">WesFellow Hub</h1>
               <p className="text-xs text-muted-foreground truncate">Student Portal</p>
             </div>
           </div>

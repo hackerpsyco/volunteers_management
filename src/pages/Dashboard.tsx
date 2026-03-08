@@ -223,7 +223,7 @@ export default function Dashboard() {
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-foreground">Dashboard</h1>
           <p className="text-sm md:text-base text-muted-foreground mt-1">
-            Welcome to Volunteer Management System
+            Welcome to WesFellow Hub
           </p>
         </div>
 

@@ -1,7 +1,7 @@
 {
-  "name": "WES Foundation - Volunteer Management",
-  "short_name": "WES Volunteers",
-  "description": "WES Foundation Volunteer Management System",
+  "name": "WesFellow Hub",
+  "short_name": "WesFellow",
+  "description": "WesFellow Hub Platform",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

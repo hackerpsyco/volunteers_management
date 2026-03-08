@@ -1,6 +1,6 @@
-# Volunteer Management System
+# WesFellow Hub
 
-A comprehensive platform for managing volunteers, sessions, curriculum, and feedback. This application is built with modern web technologies to provide a seamless experience for administrators, facilitators, and coordinators.
+A comprehensive platform for managing volunteers, sessions, curriculum, and feedback. Built with modern web technologies, WesFellow Hub provides a seamless experience for administrators, facilitators, and coordinators.
 
 ## 🚀 Technlogy Stack
 

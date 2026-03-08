@@ -15,7 +15,7 @@ const NotFound = () => {
         <div className="flex justify-center">
           <img 
             src={wesLogo} 
-            alt="WES Foundation Logo" 
+            alt="WesFellow Hub Logo" 
             className="h-20 w-20 object-contain opacity-50"
           />
         </div>

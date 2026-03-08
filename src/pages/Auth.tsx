@@ -82,13 +82,13 @@ export default function Auth() {
           <div className="flex justify-center">
             <img 
               src={wesLogo} 
-              alt="WES Foundation Logo" 
+              alt="WesFellow Hub Logo" 
               className="h-24 w-24 object-contain"
             />
           </div>
           <div>
             <CardTitle className="text-2xl font-bold text-foreground">
-              Volunteer Management
+              WesFellow Hub
             </CardTitle>
             <CardDescription className="text-muted-foreground mt-2">
               {isLogin ? 'Sign in to your account' : 'Create a new account'}
