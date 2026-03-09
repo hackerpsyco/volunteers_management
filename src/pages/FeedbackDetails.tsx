@@ -105,6 +105,7 @@ export default function FeedbackDetails() {
       fetchFeedback();
       fetchStudentPerformance();
       fetchHoursTracker();
+      fetchAllStudentsInClass();
     }
   }, [sessionId]);
 
