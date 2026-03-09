@@ -180,23 +180,23 @@ export function AddSessionDialog({
 
   // Load modules when category changes
   useEffect(() => {
-    console.log('useEffect: selectedCategory changed to:', selectedCategory, 'selectedClass:', selectedClass);
+    console.log('useEffect: selectedCategory changed to:', selectedCategory, 'selectedClass:', selectedClass, 'selectedSubject:', selectedSubject);
     if (selectedCategory && selectedClass) {
-      console.log('Calling fetchModules with:', selectedCategory, selectedClass);
-      fetchModules(selectedCategory, selectedClass);
+      console.log('Calling fetchModules with:', selectedCategory, selectedClass, selectedSubject);
+      fetchModules(selectedCategory, selectedClass, selectedSubject);
       setSelectedModule('');
       setTopics([]);
     }
-  }, [selectedCategory, selectedClass]);
+  }, [selectedCategory, selectedClass, selectedSubject]);
 
   // Load topics when module changes
   useEffect(() => {
-    console.log('useEffect: selectedModule changed to:', selectedModule, 'selectedCategory:', selectedCategory, 'selectedClass:', selectedClass);
+    console.log('useEffect: selectedModule changed to:', selectedModule, 'selectedCategory:', selectedCategory, 'selectedClass:', selectedClass, 'selectedSubject:', selectedSubject);
     if (selectedCategory && selectedModule && selectedClass) {
-      console.log('Calling fetchTopics with:', selectedCategory, selectedModule, selectedClass);
-      fetchTopics(selectedCategory, selectedModule, selectedClass);
+      console.log('Calling fetchTopics with:', selectedCategory, selectedModule, selectedClass, selectedSubject);
+      fetchTopics(selectedCategory, selectedModule, selectedClass, selectedSubject);
     }
-  }, [selectedCategory, selectedModule, selectedClass]);
+  }, [selectedCategory, selectedModule, selectedClass, selectedSubject]);
 
   // Load centre slots when centre changes
   useEffect(() => {
