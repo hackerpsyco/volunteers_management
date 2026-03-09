@@ -70,6 +70,7 @@ export default function FeedbackDetails() {
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState<FeedbackData | null>(null);
   const [studentPerformance, setStudentPerformance] = useState<StudentPerformance[]>([]);
+  const [allStudents, setAllStudents] = useState<any[]>([]);
   const [hoursTracker, setHoursTracker] = useState<SessionHoursTracker | null>(null);
   const [userRole, setUserRole] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'facilitator' | 'coordinator' | 'supervisor'>('facilitator');
