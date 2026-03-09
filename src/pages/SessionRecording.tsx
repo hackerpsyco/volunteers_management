@@ -1012,6 +1012,13 @@ export default function SessionRecording() {
                             </div>
                           );
                         })}
+
+                        {/* Student Count Summary */}
+                        <div className="pt-3 mt-3 border-t border-border">
+                          <p className="text-sm font-semibold text-muted-foreground">
+                            Total Students: <span className="text-foreground">{students.length}</span>
+                          </p>
+                        </div>
                       </div>
                     )}
                   </CardContent>
