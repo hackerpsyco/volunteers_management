@@ -180,23 +180,23 @@ export function AddSessionDialog({
 
   // Load modules when category changes
   useEffect(() => {
-    console.log('useEffect: selectedCategory changed to:', selectedCategory, 'selectedClass:', selectedClass);
+    console.log('useEffect: selectedCategory changed to:', selectedCategory, 'selectedClass:', selectedClass, 'selectedSubject:', selectedSubject);
     if (selectedCategory && selectedClass) {
-      console.log('Calling fetchModules with:', selectedCategory, selectedClass);
-      fetchModules(selectedCategory, selectedClass);
+      console.log('Calling fetchModules with:', selectedCategory, selectedClass, selectedSubject);
+      fetchModules(selectedCategory, selectedClass, selectedSubject);
       setSelectedModule('');
       setTopics([]);
     }
-  }, [selectedCategory, selectedClass]);
+  }, [selectedCategory, selectedClass, selectedSubject]);
 
   // Load topics when module changes
   useEffect(() => {
-    console.log('useEffect: selectedModule changed to:', selectedModule, 'selectedCategory:', selectedCategory, 'selectedClass:', selectedClass);
+    console.log('useEffect: selectedModule changed to:', selectedModule, 'selectedCategory:', selectedCategory, 'selectedClass:', selectedClass, 'selectedSubject:', selectedSubject);
     if (selectedCategory && selectedModule && selectedClass) {
-      console.log('Calling fetchTopics with:', selectedCategory, selectedModule, selectedClass);
-      fetchTopics(selectedCategory, selectedModule, selectedClass);
+      console.log('Calling fetchTopics with:', selectedCategory, selectedModule, selectedClass, selectedSubject);
+      fetchTopics(selectedCategory, selectedModule, selectedClass, selectedSubject);
     }
-  }, [selectedCategory, selectedModule, selectedClass]);
+  }, [selectedCategory, selectedModule, selectedClass, selectedSubject]);
 
   // Load centre slots when centre changes
   useEffect(() => {
@@ -309,20 +309,26 @@ export function AddSessionDialog({
     }
   };
 
-  const fetchModules = async (category: string, classId?: string) => {
+  const fetchModules = async (category: string, classId?: string, subjectId?: string) => {
     try {
-      console.log('fetchModules called with category:', category, 'classId:', classId);
-      // Fetch modules for the selected category and class
+      console.log('fetchModules called with category:', category, 'classId:', classId, 'subjectId:', subjectId);
+      // Fetch modules for the selected category, class, and subject
       let query: any = supabase
         .from('curriculum')
         .select('module_name')
         .eq('content_category', category)
         .not('module_name', 'is', null);
 
-      // Filter by class if provided AND class_id is not null in database
+      // Filter by class if provided
       if (classId) {
         console.log('Adding class_id filter:', classId);
         query = query.eq('class_id', classId);
+      }
+
+      // Filter by subject if provided - THIS IS THE KEY FIX
+      if (subjectId) {
+        console.log('Adding subject_id filter:', subjectId);
+        query = query.eq('subject_id', subjectId);
       }
 
       let { data, error } = await query;
@@ -334,14 +340,19 @@ export function AddSessionDialog({
       
       console.log('fetchModules data length:', data?.length, 'data:', data);
       
-      // If no data with class_id filter, try without it (fallback for NULL class_id)
+      // If no data with filters, try without class_id filter (fallback for NULL class_id)
       if ((!data || data.length === 0) && classId) {
         console.log('No data with class_id filter, trying without class_id filter...');
-        const fallbackQuery = supabase
+        let fallbackQuery: any = supabase
           .from('curriculum')
           .select('module_no, module_name')
           .eq('content_category', category)
           .not('module_name', 'is', null);
+        
+        // Keep subject_id filter in fallback
+        if (subjectId) {
+          fallbackQuery = fallbackQuery.eq('subject_id', subjectId);
+        }
         
         const { data: fallbackData, error: fallbackError } = await fallbackQuery;
         if (fallbackError) throw fallbackError;
@@ -378,10 +389,10 @@ export function AddSessionDialog({
     }
   };
 
-  const fetchTopics = async (category: string, moduleName: string, classId?: string) => {
+  const fetchTopics = async (category: string, moduleName: string, classId?: string, subjectId?: string) => {
     try {
-      console.log('fetchTopics called with category:', category, 'moduleName:', moduleName, 'classId:', classId);
-      // Fetch topics for the selected category, module_name, and class
+      console.log('fetchTopics called with category:', category, 'moduleName:', moduleName, 'classId:', classId, 'subjectId:', subjectId);
+      // Fetch topics for the selected category, module_name, class, and subject
       let query: any = supabase
         .from('curriculum')
         .select('*')
@@ -392,6 +403,11 @@ export function AddSessionDialog({
       // Filter by class if provided
       if (classId) {
         query = query.eq('class_id', classId);
+      }
+
+      // Filter by subject if provided
+      if (subjectId) {
+        query = query.eq('subject_id', subjectId);
       }
 
       let { data, error } = await query;
@@ -406,12 +422,17 @@ export function AddSessionDialog({
       // If no data with class_id filter, try without it (fallback for NULL class_id)
       if ((!data || data.length === 0) && classId) {
         console.log('No topics with class_id filter, trying without class_id filter...');
-        const fallbackQuery = supabase
+        let fallbackQuery: any = supabase
           .from('curriculum')
           .select('*')
           .eq('content_category', category)
           .eq('module_name', moduleName)
           .order('topics_covered', { ascending: true });
+        
+        // Keep subject_id filter in fallback
+        if (subjectId) {
+          fallbackQuery = fallbackQuery.eq('subject_id', subjectId);
+        }
         
         const { data: fallbackData, error: fallbackError } = await fallbackQuery;
         if (fallbackError) throw fallbackError;
