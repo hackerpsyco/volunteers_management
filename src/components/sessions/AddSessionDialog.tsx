@@ -364,19 +364,27 @@ export function AddSessionDialog({
       const uniqueModulesMap = new Map();
       data?.forEach((item: any) => {
         // Extract module number from module_name if module_no is NULL
-        // module_name format: "66. Project: Design A Product - Launch Box"
+        // Supports formats like: "66. Topic", "Module 1 – Week 1", "Module 2 - Week 2"
         let moduleNo = item.module_no;
         let moduleName = item.module_name;
         
         if (!moduleNo && moduleName) {
-          // Extract number from start of module_name
-          const match = moduleName.match(/^(\d+)\./);
+          // Try multiple patterns to extract module number
+          // Pattern 1: "66. Something" (number followed by period)
+          let match = moduleName.match(/^(\d+)\./);
           if (match) {
             moduleNo = parseInt(match[1]);
+          } else {
+            // Pattern 2: "Module 1 – Week 1" or "Module 1 - Week 1" (Module followed by number)
+            match = moduleName.match(/Module\s+(\d+)/i);
+            if (match) {
+              moduleNo = parseInt(match[1]);
+            }
           }
         }
         
-        const key = `${moduleNo}`;
+        // Use module_name as the unique key to ensure all different modules are kept
+        const key = moduleName;
         if (!uniqueModulesMap.has(key)) {
           uniqueModulesMap.set(key, { no: moduleNo, name: moduleName });
         }
