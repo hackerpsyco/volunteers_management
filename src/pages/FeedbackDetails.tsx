@@ -137,6 +137,47 @@ export default function FeedbackDetails() {
     }
   };
 
+  const fetchAllStudentsInClass = async () => {
+    try {
+      // Get session to find its class batch
+      const { data: sessionData, error: sessionError } = await supabase
+        .from('sessions')
+        .select('class_batch')
+        .eq('id', sessionId)
+        .single();
+
+      if (sessionError || !sessionData?.class_batch) {
+        console.warn('Could not find class batch for session');
+        return;
+      }
+
+      // Find class by matching class_batch name
+      const { data: classData, error: classError } = await supabase
+        .from('classes')
+        .select('id')
+        .ilike('name', `%${sessionData.class_batch}%`)
+        .single();
+
+      if (classError || !classData) {
+        console.warn('Could not find class for session');
+        return;
+      }
+
+      // Fetch all students from that class
+      const { data: studentsData, error: studentsError } = await supabase
+        .from('students')
+        .select('id, name, student_id')
+        .eq('class_id', classData.id)
+        .order('name', { ascending: true });
+
+      if (studentsError) throw studentsError;
+
+      setAllStudents(studentsData || []);
+    } catch (error) {
+      console.error('Error fetching all students:', error);
+    }
+  };
+
   const fetchFeedback = async () => {
     try {
       setLoading(true);
