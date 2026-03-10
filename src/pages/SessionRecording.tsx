@@ -1070,7 +1070,7 @@ export default function SessionRecording() {
                         type="url"
                         value={(formData as any).record_sheet_link || ''}
                         onChange={(e) => setFormData({ ...formData, record_sheet_link: e.target.value } as any)}
-                        placeholder="https://docs.google.com/spreadsheets/d/..."
+                        placeholder="please paste link the record sheet(physical) of sesssion(pdf)"
                         className="mt-1"
                       />
                       <p className="text-xs text-muted-foreground mt-1">

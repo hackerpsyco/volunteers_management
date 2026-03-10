@@ -80,6 +80,9 @@ interface Volunteer {
   created_at: string;
 }
 
+type SortDirection = 'asc' | 'desc' | null;
+type SortColumn = keyof Volunteer | null;
+
 export default function VolunteerList() {
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
   const [filteredVolunteers, setFilteredVolunteers] = useState<Volunteer[]>([]);
@@ -96,6 +99,8 @@ export default function VolunteerList() {
   const [selectedCity, setSelectedCity] = useState<string>('all');
   const [selectedFrequency, setSelectedFrequency] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [sortColumn, setSortColumn] = useState<SortColumn>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(null);
   const [preferencesData, setPreferencesData] = useState({
     regular_volunteering: false,
     frequency_per_month: 0,
@@ -143,8 +148,39 @@ export default function VolunteerList() {
       filtered = filtered.filter(v => v.volunteer_status === selectedStatus);
     }
 
+    // Apply sorting
+    if (sortColumn && sortDirection) {
+      filtered = [...filtered].sort((a, b) => {
+        const aValue = a[sortColumn];
+        const bValue = b[sortColumn];
+
+        // Handle null/undefined values
+        if (aValue == null && bValue == null) return 0;
+        if (aValue == null) return sortDirection === 'asc' ? 1 : -1;
+        if (bValue == null) return sortDirection === 'asc' ? -1 : 1;
+
+        // String comparison (case-insensitive)
+        if (typeof aValue === 'string' && typeof bValue === 'string') {
+          const comparison = aValue.toLowerCase().localeCompare(bValue.toLowerCase());
+          return sortDirection === 'asc' ? comparison : -comparison;
+        }
+
+        // Number comparison
+        if (typeof aValue === 'number' && typeof bValue === 'number') {
+          return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+        }
+
+        // Boolean comparison
+        if (typeof aValue === 'boolean' && typeof bValue === 'boolean') {
+          return sortDirection === 'asc' ? (aValue === bValue ? 0 : aValue ? 1 : -1) : (aValue === bValue ? 0 : aValue ? -1 : 1);
+        }
+
+        return 0;
+      });
+    }
+
     setFilteredVolunteers(filtered);
-  }, [searchQuery, volunteers, selectedCity, selectedFrequency, selectedStatus]);
+  }, [searchQuery, volunteers, selectedCity, selectedFrequency, selectedStatus, sortColumn, sortDirection]);
 
   // Derived unique values for filters
   const cities = Array.from(new Set(volunteers.map(v => v.city).filter(Boolean))).sort() as string[];
@@ -222,6 +258,29 @@ export default function VolunteerList() {
     if (volunteer.city) parts.push(volunteer.city);
     if (volunteer.country) parts.push(volunteer.country);
     return parts.length > 0 ? parts.join(', ') : '-';
+  }
+
+  function handleColumnSort(column: SortColumn) {
+    if (sortColumn === column) {
+      // If clicking the same column, cycle through: asc -> desc -> null
+      if (sortDirection === 'asc') {
+        setSortDirection('desc');
+      } else if (sortDirection === 'desc') {
+        setSortColumn(null);
+        setSortDirection(null);
+      }
+    } else {
+      // If clicking a different column, start with ascending
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  }
+
+  function getSortIndicator(column: SortColumn) {
+    if (sortColumn !== column) return '↕';
+    if (sortDirection === 'asc') return '↑';
+    if (sortDirection === 'desc') return '↓';
+    return '↕';
   }
 
   const handleAddSession = () => {
@@ -420,7 +479,17 @@ export default function VolunteerList() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="px-3 py-3 text-xs">Name</TableHead>
+                        <TableHead 
+                          className="px-3 py-3 text-xs cursor-pointer hover:bg-muted/50 transition-colors"
+                          onClick={() => handleColumnSort('name')}
+                        >
+                          <div className="flex items-center gap-1">
+                            Name
+                            <span className={sortColumn === 'name' ? 'font-bold' : 'text-muted-foreground'}>
+                              {getSortIndicator('name')}
+                            </span>
+                          </div>
+                        </TableHead>
                         <TableHead className="px-3 py-3 text-xs w-[80px]">Type</TableHead>
                         <TableHead className="px-3 py-3 text-xs">Organization</TableHead>
                         <TableHead className="px-3 py-3 text-xs">Work Email</TableHead>
