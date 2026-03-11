@@ -1308,7 +1308,7 @@ export default function SessionRecording() {
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Incharge/Reviewer Feedback</CardTitle>
+                <CardTitle className="text-base">Feedback by Coordinator</CardTitle>
               </CardHeader>
               <CardContent>
                 <Textarea
