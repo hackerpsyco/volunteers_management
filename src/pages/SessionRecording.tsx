@@ -718,7 +718,8 @@ export default function SessionRecording() {
               }`}
           >
             <div className="flex flex-col items-center">
-              <span className="text-sm font-semibold">2. Coordinator Feedback</span>
+              <span className="text-sm font-semibold">2. Feedback & Closure</span>
+              <span className="text-xs ">by Coordinator</span>
             </div>
           </button>
           <button
