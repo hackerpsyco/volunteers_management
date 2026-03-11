@@ -1065,7 +1065,7 @@ export default function SessionRecording() {
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div>
-                      <Label htmlFor="record_sheet_link" className="text-sm">Google Sheet / Record Link</Label>
+                      <Label htmlFor="record_sheet_link" className="text-sm">Record Sheet</Label>
                       <Input
                         id="record_sheet_link"
                         type="url"
