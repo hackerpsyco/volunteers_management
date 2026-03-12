@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Plus, ExternalLink, ClipboardList } from 'lucide-react';
+import { Search, Plus, ExternalLink, ClipboardList, ChevronDown, ChevronRight } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -48,6 +48,14 @@ interface TaskItem {
   class_name?: string;
 }
 
+interface TaskGroup {
+  title: string;
+  description: string;
+  created_at: string;
+  due_date: string;
+  tasks: TaskItem[];
+}
+
 interface ClassOption {
   id: string;
   name: string;
@@ -66,11 +74,14 @@ interface StudentOption {
 export default function Tasks() {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [filteredTasks, setFilteredTasks] = useState<TaskItem[]>([]);
+  const [taskGroups, setTaskGroups] = useState<TaskGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterClass, setFilterClass] = useState('all');
   const [filterSession, setFilterSession] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [filterDate, setFilterDate] = useState('');
+  const [selectedTaskGroup, setSelectedTaskGroup] = useState<TaskGroup | null>(null);
 
   const [classes, setClasses] = useState<ClassOption[]>([]);
   const [sessions, setSessions] = useState<SessionOption[]>([]);
@@ -117,6 +128,12 @@ export default function Tasks() {
     if (filterStatus !== 'all') {
       filtered = filtered.filter((t) => t.status === filterStatus);
     }
+    if (filterDate) {
+      filtered = filtered.filter((t) => {
+        if (!t.due_date) return false;
+        return new Date(t.due_date).toLocaleDateString() === new Date(filterDate).toLocaleDateString();
+      });
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       filtered = filtered.filter(
@@ -130,7 +147,24 @@ export default function Tasks() {
       );
     }
     setFilteredTasks(filtered);
-  }, [tasks, filterClass, filterSession, filterStatus, searchQuery, classes]);
+
+    // Group tasks by title
+    const grouped = new Map<string, TaskGroup>();
+    filtered.forEach((task) => {
+      const key = task.title;
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          title: task.title,
+          description: task.description,
+          created_at: task.created_at,
+          due_date: task.due_date,
+          tasks: [],
+        });
+      }
+      grouped.get(key)!.tasks.push(task);
+    });
+    setTaskGroups(Array.from(grouped.values()));
+  }, [tasks, filterClass, filterSession, filterStatus, filterDate, searchQuery, classes]);
 
   const fetchClasses = async () => {
     try {
@@ -379,7 +413,16 @@ export default function Tasks() {
             </Select>
           </div>
 
-          {(filterClass !== 'all' || filterSession !== 'all' || filterStatus !== 'all' || searchQuery.trim()) && (
+          <div className="w-full sm:w-48">
+            <label className="text-sm font-medium text-foreground mb-2 block">Filter by Date</label>
+            <Input
+              type="date"
+              value={filterDate}
+              onChange={(e) => setFilterDate(e.target.value)}
+            />
+          </div>
+
+          {(filterClass !== 'all' || filterSession !== 'all' || filterStatus !== 'all' || searchQuery.trim() || filterDate) && (
             <div className="text-sm text-muted-foreground">
               Showing {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''}
             </div>
@@ -391,7 +434,7 @@ export default function Tasks() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <ClipboardList className="h-5 w-5 text-primary" />
-              All Tasks
+              All Tasks ({taskGroups.length})
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -399,7 +442,7 @@ export default function Tasks() {
               <div className="flex justify-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
               </div>
-            ) : filteredTasks.length === 0 ? (
+            ) : taskGroups.length === 0 ? (
               <div className="text-center py-12">
                 <ClipboardList className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-foreground mb-2">No tasks found</h3>
@@ -410,97 +453,104 @@ export default function Tasks() {
                 </Button>
               </div>
             ) : (
-              <>
-                {/* Desktop Table */}
-                <div className="hidden md:block overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Title</TableHead>
-                        <TableHead>Class</TableHead>
-                        <TableHead>Session</TableHead>
-                        <TableHead>Student</TableHead>
-                        <TableHead>Due Date</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Submission</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredTasks.map((task) => (
-                        <TableRow key={task.id}>
-                          <TableCell className="font-medium">
-                            <div>
-                              <div>{task.title}</div>
-                              {task.description && (
-                                <div className="text-xs text-muted-foreground truncate max-w-[200px]">
-                                  {task.description}
-                                </div>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>{task.class_name || '-'}</TableCell>
-                          <TableCell className="max-w-[150px] truncate">{task.session_title || '-'}</TableCell>
-                          <TableCell>{task.student_name || '-'}</TableCell>
-                          <TableCell>
-                            {task.due_date ? new Date(task.due_date).toLocaleDateString() : '-'}
-                          </TableCell>
-                          <TableCell>{getStatusBadge(task.status)}</TableCell>
-                          <TableCell>
-                            {task.submission_link ? (
-                              <a
-                                href={task.submission_link}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-primary hover:underline flex items-center gap-1"
-                              >
-                                <ExternalLink className="h-3 w-3" />
-                                View
-                              </a>
-                            ) : (
-                              '-'
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-
-                {/* Mobile Cards */}
-                <div className="md:hidden space-y-3">
-                  {filteredTasks.map((task) => (
-                    <Card key={task.id} className="p-4">
-                      <div className="flex justify-between items-start mb-2">
-                        <h3 className="font-medium text-foreground">{task.title}</h3>
-                        {getStatusBadge(task.status)}
+              <div className="space-y-2">
+                {taskGroups.map((group) => (
+                  <button
+                    key={group.title}
+                    onClick={() => setSelectedTaskGroup(group)}
+                    className="w-full border border-border rounded-lg p-4 flex items-center justify-between hover:bg-muted/50 transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-foreground truncate">{group.title}</h3>
+                        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground mt-1">
+                          <span>Created: {new Date(group.created_at || new Date()).toLocaleDateString()}</span>
+                          <span>Deadline: {group.due_date ? new Date(group.due_date).toLocaleDateString() : '-'}</span>
+                          <span className="font-medium text-foreground">{group.tasks.length} student{group.tasks.length !== 1 ? 's' : ''}</span>
+                        </div>
                       </div>
-                      {task.description && (
-                        <p className="text-sm text-muted-foreground mb-2">{task.description}</p>
-                      )}
-                      <div className="text-xs text-muted-foreground space-y-1">
-                        <div>Class: {task.class_name || '-'}</div>
-                        <div>Session: {task.session_title || '-'}</div>
-                        <div>Student: {task.student_name || '-'}</div>
-                        <div>Due: {task.due_date ? new Date(task.due_date).toLocaleDateString() : '-'}</div>
-                        {task.submission_link && (
-                          <a
-                            href={task.submission_link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline flex items-center gap-1"
-                          >
-                            <ExternalLink className="h-3 w-3" />
-                            View Submission
-                          </a>
-                        )}
-                      </div>
-                    </Card>
-                  ))}
-                </div>
-              </>
+                    </div>
+                  </button>
+                ))}
+              </div>
             )}
           </CardContent>
         </Card>
+
+        {/* Task Detail Modal */}
+        <Dialog open={!!selectedTaskGroup} onOpenChange={(open) => !open && setSelectedTaskGroup(null)}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setSelectedTaskGroup(null)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  ← Back
+                </button>
+                <DialogTitle>{selectedTaskGroup?.title}</DialogTitle>
+              </div>
+            </DialogHeader>
+            
+            {selectedTaskGroup && (
+              <div className="space-y-4">
+                {/* Task Summary */}
+                <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+                  <div>
+                    <span className="text-sm text-muted-foreground">Created</span>
+                    <p className="font-medium">{new Date(selectedTaskGroup.created_at || new Date()).toLocaleDateString()}</p>
+                  </div>
+                  <div>
+                    <span className="text-sm text-muted-foreground">Deadline</span>
+                    <p className="font-medium">{selectedTaskGroup.due_date ? new Date(selectedTaskGroup.due_date).toLocaleDateString() : '-'}</p>
+                  </div>
+                  {selectedTaskGroup.description && (
+                    <div>
+                      <span className="text-sm text-muted-foreground">Description</span>
+                      <p className="font-medium">{selectedTaskGroup.description}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Student Details */}
+                <div>
+                  <h3 className="font-semibold text-lg mb-3">Student Details ({selectedTaskGroup.tasks.length})</h3>
+                  <div className="space-y-2">
+                    {selectedTaskGroup.tasks.map((task) => (
+                      <div key={task.id} className="flex items-center justify-between p-3 bg-muted/30 rounded border border-border text-sm">
+                        <div className="flex-1">
+                          <div className="font-medium text-foreground">{task.student_name}</div>
+                          <div className="text-xs text-muted-foreground">{task.class_name}</div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Badge variant={
+                            task.status === 'completed' ? 'default' :
+                            task.status === 'submitted' ? 'secondary' :
+                            task.status === 'in_progress' ? 'outline' :
+                            'secondary'
+                          }>
+                            {task.status}
+                          </Badge>
+                          {task.submission_link && (
+                            <a
+                              href={task.submission_link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-primary hover:underline"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
 
         {/* Create Task Dialog */}
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>

@@ -116,6 +116,8 @@ export default function Sessions() {
   const [dateToFilter, setDateToFilter] = useState<string>('');
   const [sessionTypeFilter, setSessionTypeFilter] = useState<string | null>(null);
   const [subjectFilter, setSubjectFilter] = useState<string | null>(null);
+  const [sortColumn, setSortColumn] = useState<keyof Session | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc' | null>(null);
 
   useEffect(() => {
     fetchSessions();
@@ -345,8 +347,64 @@ export default function Sessions() {
       });
     }
 
+    // Apply column sorting
+    if (sortColumn && sortDirection) {
+      filtered = [...filtered].sort((a, b) => {
+        const aValue = a[sortColumn];
+        const bValue = b[sortColumn];
+
+        // Handle null/undefined values
+        if (aValue == null && bValue == null) return 0;
+        if (aValue == null) return sortDirection === 'asc' ? 1 : -1;
+        if (bValue == null) return sortDirection === 'asc' ? -1 : 1;
+
+        // String comparison (case-insensitive)
+        if (typeof aValue === 'string' && typeof bValue === 'string') {
+          const comparison = aValue.toLowerCase().localeCompare(bValue.toLowerCase());
+          return sortDirection === 'asc' ? comparison : -comparison;
+        }
+
+        // Date comparison
+        if (sortColumn === 'session_date' && typeof aValue === 'string' && typeof bValue === 'string') {
+          const aDate = new Date(aValue).getTime();
+          const bDate = new Date(bValue).getTime();
+          return sortDirection === 'asc' ? aDate - bDate : bDate - aDate;
+        }
+
+        // Number comparison
+        if (typeof aValue === 'number' && typeof bValue === 'number') {
+          return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+        }
+
+        return 0;
+      });
+    }
+
     return filtered;
   };
+
+  function handleColumnSort(column: keyof Session) {
+    if (sortColumn === column) {
+      // If clicking the same column, cycle through: asc -> desc -> null
+      if (sortDirection === 'asc') {
+        setSortDirection('desc');
+      } else if (sortDirection === 'desc') {
+        setSortColumn(null);
+        setSortDirection(null);
+      }
+    } else {
+      // If clicking a different column, start with ascending
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  }
+
+  function getSortIndicator(column: keyof Session) {
+    if (sortColumn !== column) return '↕';
+    if (sortDirection === 'asc') return '↑';
+    if (sortDirection === 'desc') return '↓';
+    return '↕';
+  }
 
   const filteredSessions = getFilteredSessions();
 
@@ -646,17 +704,59 @@ export default function Sessions() {
                   <Table className="w-full text-sm">
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="min-w-[60px]">Subject</TableHead>
-                        <TableHead className="min-w-[70px]">Category</TableHead>
-                        <TableHead className="min-w-[70px]">Module No & Module Name</TableHead>
-                        <TableHead className="min-w-[70px]">Topics Covered</TableHead>
+                        <TableHead className="min-w-[60px] cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleColumnSort('subject_name')}>
+                          <div className="flex items-center gap-1">
+                            Subject
+                            <span className={sortColumn === 'subject_name' ? 'font-bold' : 'text-muted-foreground'}>
+                              {getSortIndicator('subject_name')}
+                            </span>
+                          </div>
+                        </TableHead>
+                        <TableHead className="min-w-[70px] cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleColumnSort('content_category')}>
+                          <div className="flex items-center gap-1">
+                            Category
+                            <span className={sortColumn === 'content_category' ? 'font-bold' : 'text-muted-foreground'}>
+                              {getSortIndicator('content_category')}
+                            </span>
+                          </div>
+                        </TableHead>
+                        <TableHead className="min-w-[70px] cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleColumnSort('module_name')}>
+                          <div className="flex items-center gap-1">
+                            Module No & Module Name
+                            <span className={sortColumn === 'module_name' ? 'font-bold' : 'text-muted-foreground'}>
+                              {getSortIndicator('module_name')}
+                            </span>
+                          </div>
+                        </TableHead>
+                        <TableHead className="min-w-[70px] cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleColumnSort('topics_covered')}>
+                          <div className="flex items-center gap-1">
+                            Topics Covered
+                            <span className={sortColumn === 'topics_covered' ? 'font-bold' : 'text-muted-foreground'}>
+                              {getSortIndicator('topics_covered')}
+                            </span>
+                          </div>
+                        </TableHead>
                         <TableHead className="min-w-[40px]">Type</TableHead>
-                        <TableHead className="min-w-[70px]">Volunteer</TableHead>
+                        <TableHead className="min-w-[70px] cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleColumnSort('volunteer_name')}>
+                          <div className="flex items-center gap-1">
+                            Volunteer
+                            <span className={sortColumn === 'volunteer_name' ? 'font-bold' : 'text-muted-foreground'}>
+                              {getSortIndicator('volunteer_name')}
+                            </span>
+                          </div>
+                        </TableHead>
                         <TableHead className="min-w-[70px]">Coordinator</TableHead>
                         <TableHead className="min-w-[70px]">Facilitator</TableHead>
                         <TableHead className="min-w-[60px]">Class</TableHead>
                         <TableHead className="min-w-[70px]">Centre</TableHead>
-                        <TableHead className="min-w-[70px]">Date</TableHead>
+                        <TableHead className="min-w-[70px] cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleColumnSort('session_date')}>
+                          <div className="flex items-center gap-1">
+                            Date
+                            <span className={sortColumn === 'session_date' ? 'font-bold' : 'text-muted-foreground'}>
+                              {getSortIndicator('session_date')}
+                            </span>
+                          </div>
+                        </TableHead>
                         <TableHead className="min-w-[70px]">Time</TableHead>
                         <TableHead className="min-w-[60px]">Recording</TableHead>
                         <TableHead className="min-w-[50px]">Meeting</TableHead>
