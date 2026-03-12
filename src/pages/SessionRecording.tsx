@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ArrowLeft, Save, ChevronRight, ChevronLeft, Plus, Trash2, Shield, ExternalLink } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
@@ -338,6 +338,37 @@ export default function SessionRecording() {
       if (studentsError) throw studentsError;
 
       setStudents(studentsData || []);
+
+      // Auto-save all students as Present by default if no performance data exists
+      if (studentsData && studentsData.length > 0) {
+        const { data: existingPerformance } = await supabase
+          .from('student_performance')
+          .select('student_name')
+          .eq('session_id', sessionId);
+
+        const existingNames = new Set((existingPerformance || []).map(p => p.student_name));
+
+        // Create records for students without performance data
+        const newRecords = studentsData
+          .filter(student => !existingNames.has(student.name))
+          .map(student => ({
+            session_id: sessionId,
+            student_name: student.name,
+            questions_asked: 0,
+            performance_rating: 5,
+            performance_comment: 'Present',
+          }));
+
+        if (newRecords.length > 0) {
+          const { error: insertError } = await supabase
+            .from('student_performance')
+            .insert(newRecords);
+
+          if (insertError) {
+            console.error('Error auto-saving student attendance:', insertError);
+          }
+        }
+      }
     } catch (error) {
       console.error('Error fetching students:', error);
       toast.error('Failed to load students');
@@ -485,7 +516,7 @@ export default function SessionRecording() {
     });
   };
 
-  const handleBatchSaveStudentPerformance = async () => {
+  const handleBatchSaveStudentPerformance = useCallback(async () => {
     try {
       setSavingStudents(true);
 
@@ -501,7 +532,7 @@ export default function SessionRecording() {
             student_name: student.name,
             questions_asked: data.questions_asked || 0,
             performance_rating: data.performance_rating || 5,
-            performance_comment: data.performance_comment || '',
+            performance_comment: data.performance_comment || 'Present',
           }, { onConflict: 'session_id,student_name' });
 
         if (error) {
@@ -519,7 +550,18 @@ export default function SessionRecording() {
     } finally {
       setSavingStudents(false);
     }
-  };
+  }, [studentFormData, students, sessionId]);
+
+  // Auto-save student performance when form data changes
+  useEffect(() => {
+    if (Object.keys(studentFormData).length > 0) {
+      const timer = setTimeout(() => {
+        handleBatchSaveStudentPerformance();
+      }, 2000); // Auto-save after 2 seconds of inactivity
+
+      return () => clearTimeout(timer);
+    }
+  }, [handleBatchSaveStudentPerformance]);
 
   const handleDeleteStudent = async (id: string | undefined) => {
     if (!id) return;
@@ -772,6 +814,16 @@ export default function SessionRecording() {
         {/* Page 1: Session Details & Performance by Facilitator */}
         {currentPage === 1 && (
           <div className="space-y-4">
+            {/* Unsaved Changes Warning */}
+            {Object.keys(studentFormData).length > 0 && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-start gap-3">
+                <div className="text-yellow-600 font-semibold">⚠️ Please Save Attendance</div>
+                <div className="text-sm text-yellow-700">
+                  You have unsaved attendance changes. Click the Save button below to save.
+                </div>
+              </div>
+            )}
+
             {/* Sub-tab a: Session Objective Only */}
             {currentSubTab === 'a' && (
               <div className="space-y-4">
@@ -933,11 +985,12 @@ export default function SessionRecording() {
                           const formDataForStudent = studentFormData[student.id];
                           const dbDataForStudent = studentPerformance.find(sp => sp.student_name === student.name);
 
+                          // Default to Present if no data exists
                           const perfData = formDataForStudent || dbDataForStudent || {
                             student_name: student.name,
                             questions_asked: 0,
                             performance_rating: 5,
-                            performance_comment: '',
+                            performance_comment: 'Present', // Default to Present
                           };
 
                           return (
@@ -952,6 +1005,7 @@ export default function SessionRecording() {
                               <div className="col-span-2 flex justify-center">
                                 {(() => {
                                   const isAbsent = perfData.performance_comment === 'Absent';
+                                  const isPresent = perfData.performance_comment === 'Present';
                                   return (
                                     <button
                                       type="button"
@@ -1281,6 +1335,8 @@ export default function SessionRecording() {
                 </Card>
               </div>
             )}
+            {/* Save Button for Page 1 */}
+            {/* Removed - using main navigation buttons at bottom */}
           </div>
         )}
 
@@ -1402,6 +1458,9 @@ export default function SessionRecording() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Save Button for Page 3 */}
+            {/* Removed - using main navigation buttons at bottom */}
           </div>
         )}
 
