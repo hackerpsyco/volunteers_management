@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { GraduationCap, Calendar } from 'lucide-react';
+import { GraduationCap, Calendar, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -133,6 +133,7 @@ export function AddSessionDialog({
     class_batch: '',
     meeting_link: '',
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -635,9 +636,43 @@ export function AddSessionDialog({
     }
   };
 
+  const handleClose = () => {
+    setSelectedDate(null);
+    setSelectedVolunteer('');
+    setSelectedFacilitator('');
+    setSelectedCoordinator('');
+    setSelectedCategory('');
+    setSelectedModule('');
+    setSelectedTopic(null);
+    setSelectedCentre('');
+    setSelectedSlot('');
+    setSelectedClass('');
+    setSelectedSubject('');
+    setSubjects([]);
+    setFormData({
+      title: '',
+      custom_title: '',
+      content_category: '',
+      module_name: '',
+      topics_covered: '',
+      videos: '',
+      quiz_content_ppt: '',
+      volunteer_name: '',
+      facilitator_name: '',
+      coordinator_name: '',
+      session_type_option: 'fresh',
+      class_batch: '',
+      meeting_link: '',
+    });
+    onOpenChange(false);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedDate || !user) return;
+    if (!selectedDate || !user || isSubmitting) return;
+
+    setIsSubmitting(true);
+    try {
 
     // Volunteer is optional now (can be null)
 
@@ -881,38 +916,10 @@ For any questions, contact the coordinator.
       handleClose();
       onSuccess();
     }
-  };
-
-  const handleClose = () => {
-    setSelectedDate(null);
-    setSelectedVolunteer('');
-    setSelectedFacilitator('');
-    setSelectedCoordinator('');
-    setSelectedCategory('');
-    setSelectedModule('');
-    setSelectedTopic(null);
-    setSelectedCentre('');
-    setSelectedSlot('');
-    setSelectedClass('');
-    setSelectedSubject('');
-    setSubjects([]);
-    setFormData({
-      title: '',
-      custom_title: '',
-      content_category: '',
-      module_name: '',
-      topics_covered: '',
-      videos: '',
-      quiz_content_ppt: '',
-      volunteer_name: '',
-      facilitator_name: '',
-      coordinator_name: '',
-      session_type_option: 'fresh',
-      class_batch: '',
-      meeting_link: '',
-    });
-    onOpenChange(false);
-  };
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -1327,10 +1334,19 @@ For any questions, contact the coordinator.
           </div>
 
           <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 pt-4">
-            <Button type="button" variant="outline" onClick={handleClose} className="w-full sm:w-auto text-sm sm:text-base">
+            <Button type="button" variant="outline" onClick={handleClose} className="w-full sm:w-auto text-sm sm:text-base" disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" className="w-full sm:w-auto text-sm sm:text-base">Schedule Session</Button>
+            <Button type="submit" className="w-full sm:w-auto text-sm sm:text-base" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Scheduling...
+                </>
+              ) : (
+                'Schedule Session'
+              )}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>
