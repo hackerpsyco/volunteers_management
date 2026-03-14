@@ -783,7 +783,7 @@ Session Type: ${formData.session_type_option === 'fresh' ? '🆕 Fresh Session' 
 
 👥 Volunteer, Facilitator & Coordinator 
 
-Volunteer:   ${formData.volunteer_name}
+Volunteer:   ${formData.volunteer_name} ${selectedVolunteerData?.work_email || selectedVolunteerData?.personal_email ? `(${[selectedVolunteerData.work_email, selectedVolunteerData.personal_email].filter(Boolean).join(', ')})` : ''}
 Facilitator: ${selectedFacilitatorData?.name || 'N/A'}
 Coordinator: ${selectedCoordinatorData?.name || 'N/A'}
 
@@ -809,7 +809,7 @@ For any questions, contact the coordinator.
             volunteerEmails: [
               selectedVolunteerData?.personal_email,
               selectedVolunteerData?.work_email
-            ].filter(email => email && email.trim()),
+            ].filter((email): email is string => !!(email && typeof email === 'string' && email.trim())),
             volunteerName: selectedVolunteerData?.name || '',
             facilitatorEmail: selectedFacilitatorData?.email || '',
             facilitatorName: selectedFacilitatorData?.name || '',

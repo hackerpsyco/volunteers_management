@@ -378,8 +378,8 @@ Topic:       ${formData.topics_covered || 'N/A'}
 Session Type: ${formData.session_type_option === 'fresh' ? '🆕 Fresh Session' : '🔄 Revision Session'}
 
 👥 VOLUNTEER, FACILITATOR & COORDINATOR
-
-Volunteer:   ${formData.volunteer_name || 'N/A'}
+ 
+Volunteer:   ${formData.volunteer_name || 'N/A'} ${volunteerData?.work_email || volunteerData?.personal_email ? `(${[volunteerData.work_email, volunteerData.personal_email].filter(Boolean).join(', ')})` : ''}
 Facilitator: ${formData.facilitator_name || 'N/A'}
 Coordinator: ${formData.coordinator_name || 'N/A'}
 
@@ -400,7 +400,7 @@ Session updated with new details.
             volunteerEmails: [
               volunteerData?.personal_email,
               volunteerData?.work_email
-            ].filter(email => email && email.trim()),
+            ].filter((email): email is string => !!(email && typeof email === 'string' && email.trim())),
             facilitatorEmail: facilitatorData?.email || '',
             coordinatorEmail: coordinatorData?.email || '',
           }),

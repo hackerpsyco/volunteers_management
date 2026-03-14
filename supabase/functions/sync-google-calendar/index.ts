@@ -27,29 +27,40 @@ interface CalendarSyncRequest {
   facilitatorEmail?: string;
   coordinatorEmail?: string;
 
-  classEmail?: string;     // ✅ NEW
+  classEmail?: string;
+  centreEmail?: string;
 
   googleEventId?: string;
 }
 
 /* -------------------- HELPERS -------------------- */
 
-// ✅ Safe attendee builder
+// ✅ Safe and deduplicated attendee builder
 function buildAttendees(body: CalendarSyncRequest) {
-  const emails = [
+  const rawEmails = [
     ...(body.volunteerEmails || []),
     body.volunteerEmail,
     body.facilitatorEmail,
     body.coordinatorEmail,
-    body.classEmail,      // ✅ NEW
+    body.classEmail,
+    body.centreEmail,
   ];
 
-  return emails
-    .filter(email => email && typeof email === 'string' && email.trim().length > 0)   // ✅ Skip NULL / empty / undefined
-    .map((email) => ({
-      email: email!.trim(),
-      responseStatus: "needsAction",
-    }));
+  // 1. Filter out invalid/empty values
+  // 2. Trim and lowercase for normalization
+  // 3. Use Set to deduplicate
+  const uniqueEmails = [
+    ...new Set(
+      rawEmails
+        .filter((email): email is string => !!(email && typeof email === 'string' && email.trim().length > 0))
+        .map(email => email.trim().toLowerCase())
+    )
+  ];
+
+  return uniqueEmails.map((email) => ({
+    email: email,
+    responseStatus: "needsAction",
+  }));
 }
 
 // PEM → DER

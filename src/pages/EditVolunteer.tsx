@@ -143,7 +143,8 @@ export default function EditVolunteer() {
       interested_topic: interestedTopic || undefined,
       preferred_day: preferredDay || undefined,
       preferred_class: preferredClass || undefined,
-      remarks: remarks || undefined
+      remarks: remarks || undefined,
+      volunteer_status: volunteerStatus,
     });
 
     if (!validation.success) {
