@@ -80,6 +80,12 @@ interface Volunteer {
   created_at: string;
 }
 
+interface RemarkEntry {
+  text: string;
+  createdAt: string;
+  createdBy: string;
+}
+
 type SortDirection = 'asc' | 'desc' | null;
 type SortColumn = keyof Volunteer | null;
 
@@ -111,7 +117,68 @@ export default function VolunteerList() {
     remarks: '',
     volunteer_status: 'active',
   });
+  const [remarksDialogOpen, setRemarksDialogOpen] = useState(false);
+  const [newRemark, setNewRemark] = useState('');
+  const [isSavingRemark, setIsSavingRemark] = useState(false);
   const navigate = useNavigate();
+
+  function parseRemarks(remarksStr: string | null): RemarkEntry[] {
+    if (!remarksStr) return [];
+    try {
+      const parsed = JSON.parse(remarksStr);
+      if (Array.isArray(parsed)) return parsed as RemarkEntry[];
+    } catch (e) {
+      if (remarksStr.trim()) {
+        return [{
+          text: remarksStr,
+          createdAt: 'Legacy',
+          createdBy: 'System'
+        }];
+      }
+    }
+    return [];
+  }
+
+  const handleSaveRemark = async () => {
+    if (!selectedVolunteer || !newRemark.trim()) return;
+
+    setIsSavingRemark(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const userEmail = user?.email || 'Unknown User';
+
+      const currentRemarks = parseRemarks(selectedVolunteer.remarks);
+      const newEntry: RemarkEntry = {
+        text: newRemark.trim(),
+        createdAt: new Date().toISOString(),
+        createdBy: userEmail,
+      };
+
+      const updatedRemarks = [newEntry, ...currentRemarks];
+      const remarksStr = JSON.stringify(updatedRemarks);
+
+      const { error } = await supabase
+        .from('volunteers')
+        .update({ remarks: remarksStr })
+        .eq('id', selectedVolunteer.id);
+
+      if (error) throw error;
+
+      setVolunteers(volunteers.map(v =>
+        v.id === selectedVolunteer.id ? { ...v, remarks: remarksStr } : v
+      ));
+
+      setSelectedVolunteer(prev => prev ? { ...prev, remarks: remarksStr } : null);
+
+      toast.success('Remark added successfully');
+      setNewRemark('');
+    } catch (error) {
+      console.error('Error saving remark:', error);
+      toast.error('Failed to save remark');
+    } finally {
+      setIsSavingRemark(false);
+    }
+  };
 
   useEffect(() => {
     fetchVolunteers();
@@ -550,6 +617,15 @@ export default function VolunteerList() {
                                   <BookOpen className="h-4 w-4 mr-2" />
                                   View Info
                                 </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setSelectedVolunteer(volunteer);
+                                    setRemarksDialogOpen(true);
+                                  }}
+                                >
+                                  <BookOpen className="h-4 w-4 mr-2" />
+                                  Remarks Log
+                                </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
                                   onClick={() => navigate(`/volunteers/edit/${volunteer.id}`)}
@@ -730,6 +806,16 @@ export default function VolunteerList() {
                             >
                               <BookOpen className="h-4 w-4" />
                               View Info
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setSelectedVolunteer(volunteer);
+                                setRemarksDialogOpen(true);
+                              }}
+                              className="gap-2"
+                            >
+                              <BookOpen className="h-4 w-4" />
+                              Remarks Log
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
@@ -985,6 +1071,69 @@ export default function VolunteerList() {
         </DialogContent>
       </Dialog>
 
+      {/* Remarks Dialog */}
+      <Dialog open={remarksDialogOpen} onOpenChange={setRemarksDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Remarks & Communication Log</DialogTitle>
+            <DialogDescription>
+              View history and add new remarks for {selectedVolunteer?.name}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto py-4 space-y-4">
+            {/* Add Remark Section */}
+            <div className="space-y-2 pb-4 border-b">
+              <Label htmlFor="new_remark" className="text-sm font-medium">Add New Remark</Label>
+              <div className="flex gap-2">
+                <Textarea
+                  id="new_remark"
+                  value={newRemark}
+                  onChange={(e) => setNewRemark(e.target.value)}
+                  placeholder="Type your note here..."
+                  className="flex-1 min-h-[60px]"
+                />
+                <Button
+                  onClick={handleSaveRemark}
+                  disabled={isSavingRemark || !newRemark.trim()}
+                  className="self-end"
+                >
+                  {isSavingRemark ? 'Adding...' : 'Add'}
+                </Button>
+              </div>
+            </div>
+
+            {/* History List */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">History</h4>
+              {selectedVolunteer && parseRemarks(selectedVolunteer.remarks).length > 0 ? (
+                <div className="space-y-3">
+                  {parseRemarks(selectedVolunteer.remarks).map((remark, index) => (
+                    <div key={index} className="p-3 bg-muted/50 rounded-lg border border-border/50 text-sm">
+                      <div className="flex justify-between items-start gap-2 mb-1">
+                        <span className="font-semibold text-foreground">{remark.createdBy}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {remark.createdAt === 'Legacy' ? 'Legacy' : new Date(remark.createdAt).toLocaleString()}
+                        </span>
+                      </div>
+                      <p className="text-muted-foreground whitespace-pre-wrap">{remark.text}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground italic">No remarks history yet.</p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRemarksDialogOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Volunteer Details Dialog */}
       <Dialog open={detailsDialogOpen} onOpenChange={setDetailsDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -1086,9 +1235,23 @@ export default function VolunteerList() {
                 </div>
 
                 <div className="mt-4 pt-4 border-t">
-                  <div className="text-muted-foreground text-sm mb-2">Remarks / Notes</div>
-                  <div className="p-3 bg-muted/50 rounded-md text-sm italic min-h-[60px]">
-                    {selectedVolunteer.remarks || 'No remarks provided.'}
+                  <div className="text-muted-foreground text-sm mb-2">Remarks / Notes History</div>
+                  <div className="space-y-2 max-h-[200px] overflow-y-auto p-2 border rounded-md bg-muted/20">
+                    {selectedVolunteer && parseRemarks(selectedVolunteer.remarks).length > 0 ? (
+                      parseRemarks(selectedVolunteer.remarks).map((remark, index) => (
+                        <div key={index} className="p-2 border-b last:border-b-0 text-xs">
+                          <div className="flex justify-between mb-1">
+                            <span className="font-semibold">{remark.createdBy}</span>
+                            <span className="text-muted-foreground">
+                              {remark.createdAt === 'Legacy' ? 'Legacy' : new Date(remark.createdAt).toLocaleString()}
+                            </span>
+                          </div>
+                          <p className="text-muted-foreground whitespace-pre-wrap">{remark.text}</p>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs text-muted-foreground italic">No remarks provided.</p>
+                    )}
                   </div>
                 </div>
               </div>
