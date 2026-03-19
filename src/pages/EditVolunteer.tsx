@@ -37,7 +37,6 @@ const volunteerSchema = z.object({
   interested_topic: z.string().trim().optional(),
   preferred_day: z.string().trim().optional(),
   preferred_class: z.string().trim().optional(),
-  remarks: z.string().trim().optional(),
   volunteer_status: z.string().trim().optional(),
 }).refine((data) => data.personal_email || data.work_email, {
   message: 'At least one email (personal or work) is required',
@@ -63,7 +62,6 @@ export default function EditVolunteer() {
   const [interestedTopic, setInterestedTopic] = useState('');
   const [preferredDay, setPreferredDay] = useState('none');
   const [preferredClass, setPreferredClass] = useState('');
-  const [remarks, setRemarks] = useState('');
   const [isOtherCity, setIsOtherCity] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(true);
@@ -103,7 +101,6 @@ export default function EditVolunteer() {
         setInterestedTopic(data.interested_topic || '');
         setPreferredDay(data.preferred_day || 'none');
         setPreferredClass(data.preferred_class || '');
-        setRemarks(data.remarks || '');
         setVolunteerStatus(data.volunteer_status || (data.is_active ? 'active' : 'inactive'));
 
         // Set isOtherCity based on fetched data
@@ -143,7 +140,6 @@ export default function EditVolunteer() {
       interested_topic: interestedTopic || undefined,
       preferred_day: preferredDay || undefined,
       preferred_class: preferredClass || undefined,
-      remarks: remarks || undefined,
       volunteer_status: volunteerStatus,
     });
 
@@ -173,7 +169,6 @@ export default function EditVolunteer() {
           interested_topic: validation.data.interested_topic || null,
           preferred_day: validation.data.preferred_day === 'none' ? null : validation.data.preferred_day || null,
           preferred_class: validation.data.preferred_class || null,
-          remarks: validation.data.remarks || null,
           volunteer_status: validation.data.volunteer_status,
           is_active: validation.data.volunteer_status === 'active',
         })
@@ -522,15 +517,7 @@ export default function EditVolunteer() {
                   </Select>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="remarks">Remarks</Label>
-                  <Textarea
-                    id="remarks"
-                    value={remarks}
-                    onChange={(e) => setRemarks(e.target.value)}
-                    placeholder="Any additional notes..."
-                  />
-                </div>
+
               </div>
 
               <div className="flex gap-3 pt-4">
