@@ -71,6 +71,7 @@ export default function FeedbackSelection() {
   const [isAddFeedbackDialogOpen, setIsAddFeedbackDialogOpen] = useState(false);
   const [committedSessions, setCommittedSessions] = useState<FeedbackSession[]>([]);
   const [loadingCommitted, setLoadingCommitted] = useState(false);
+  const [dialogFilter, setDialogFilter] = useState<string>('recent');
 
   useEffect(() => {
     fetchFeedbackSessions();
@@ -180,6 +181,33 @@ export default function FeedbackSelection() {
     } finally {
       setLoadingCommitted(false);
     }
+  };
+
+  const getFilteredCommittedSessions = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    // Use ISO string comparison as done elsewhere in the file for safety
+    const todayString = today.toISOString().split('T')[0];
+
+    const offsetDate = new Date(today);
+    offsetDate.setDate(today.getDate() + 2);
+    const offsetString = offsetDate.toISOString().split('T')[0];
+
+    return committedSessions.filter(session => {
+      const sessionDateString = session.session_date;
+
+      if (dialogFilter === 'present') {
+        return sessionDateString === todayString;
+      } else if (dialogFilter === 'past') {
+        return sessionDateString < todayString;
+      } else if (dialogFilter === 'upcoming') {
+        return sessionDateString > todayString;
+      } else if (dialogFilter === 'recent') {
+        // Recent includes past and next 2 days
+        return sessionDateString <= offsetString;
+      }
+      return true;
+    });
   };
 
   return (
@@ -356,6 +384,22 @@ export default function FeedbackSelection() {
             </DialogDescription>
           </DialogHeader>
 
+          <div className="flex justify-start mb-4">
+            <div className="w-[180px]">
+              <Select value={dialogFilter} onValueChange={setDialogFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Filter sessions" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="recent">Recent</SelectItem>
+                  <SelectItem value="present">Today</SelectItem>
+                  <SelectItem value="past">Past</SelectItem>
+                  <SelectItem value="upcoming">Upcoming</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           {loadingCommitted ? (
             <div className="flex justify-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -366,7 +410,10 @@ export default function FeedbackSelection() {
             </div>
           ) : (
             <div className="space-y-3">
-              {committedSessions.map((session) => {
+              {getFilteredCommittedSessions().length === 0 ? (
+                <p className="text-center text-muted-foreground py-4">No sessions match the selected filter</p>
+              ) : (
+                getFilteredCommittedSessions().map((session) => {
                 const sessionDate = new Date(session.session_date);
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
@@ -411,7 +458,7 @@ export default function FeedbackSelection() {
                     </div>
                   </Button>
                 );
-              })}
+              }))}
             </div>
           )}
         </DialogContent>
