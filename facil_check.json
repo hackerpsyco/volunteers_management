@@ -1,0 +1,93 @@
+[
+  {
+    "id": "1a3494ab-2858-4811-b50e-f1337860adca",
+    "name": "Afifa Khan",
+    "email": "afifa01.wes@gmail.com",
+    "phone": "7974384313",
+    "status": "active",
+    "created_at": "2026-01-31T18:37:22.863862+00:00",
+    "updated_at": "2026-01-31T18:37:22.863862+00:00",
+    "location": "Dhanpuri",
+    "google_calendar_token": null,
+    "google_calendar_email": null,
+    "email_notifications": true
+  },
+  {
+    "id": "82ffed00-d990-40dc-8afb-12d4e74e0939",
+    "name": "Fazila Ambara",
+    "email": "fazila01.wes@gmail.com",
+    "phone": "6265081303",
+    "status": "active",
+    "created_at": "2026-01-31T18:38:14.495477+00:00",
+    "updated_at": "2026-01-31T18:38:14.495477+00:00",
+    "location": "Dhanpuri",
+    "google_calendar_token": null,
+    "google_calendar_email": null,
+    "email_notifications": true
+  },
+  {
+    "id": "d97a805d-cdf8-40fe-ab87-e4559859ea4a",
+    "name": "Muskan Bee",
+    "email": "muskan01.wes@gmail.com",
+    "phone": "7805967609",
+    "status": "active",
+    "created_at": "2026-01-31T18:39:32.592705+00:00",
+    "updated_at": "2026-01-31T18:39:32.592705+00:00",
+    "location": "Dhanpuri",
+    "google_calendar_token": null,
+    "google_calendar_email": null,
+    "email_notifications": true
+  },
+  {
+    "id": "b61ca40b-857e-4e60-ac1f-238079ed63cd",
+    "name": "Riya Soni",
+    "email": "riya.wes01@gmail.com",
+    "phone": "8871648637",
+    "status": "active",
+    "created_at": "2026-01-31T18:40:26.158266+00:00",
+    "updated_at": "2026-01-31T18:40:26.158266+00:00",
+    "location": "Dhanpuri",
+    "google_calendar_token": null,
+    "google_calendar_email": null,
+    "email_notifications": true
+  },
+  {
+    "id": "e2fd66d7-69c2-440b-a5ed-4567562f9940",
+    "name": "Piyush Tamoli",
+    "email": "piyushmodi812@gmail.com",
+    "phone": "123456",
+    "status": "active",
+    "created_at": "2026-01-28T08:22:43.913019+00:00",
+    "updated_at": "2026-01-28T08:22:43.913019+00:00",
+    "location": "bhopal",
+    "google_calendar_token": null,
+    "google_calendar_email": null,
+    "email_notifications": true
+  },
+  {
+    "id": "2968da52-3057-4567-bf87-9effbe8583bc",
+    "name": "Alisha Siddiqui",
+    "email": "alisha.wessdc@gmail.com",
+    "phone": "9302009987",
+    "status": "active",
+    "created_at": "2026-02-19T08:32:04.427167+00:00",
+    "updated_at": "2026-02-19T08:32:04.427167+00:00",
+    "location": "",
+    "google_calendar_token": null,
+    "google_calendar_email": null,
+    "email_notifications": true
+  },
+  {
+    "id": "d8d788ae-172d-42d4-ae6b-08261c07a94d",
+    "name": "Priyanshi",
+    "email": "priyanshikourav@gmail.com",
+    "phone": "",
+    "status": "active",
+    "created_at": "2026-03-24T17:57:11.995086+00:00",
+    "updated_at": "2026-03-24T17:57:11.995086+00:00",
+    "location": "",
+    "google_calendar_token": null,
+    "google_calendar_email": null,
+    "email_notifications": true
+  }
+]

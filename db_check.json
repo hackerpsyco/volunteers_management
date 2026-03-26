@@ -1,0 +1,283 @@
+{
+  "users": [
+    {
+      "email": "afifa01.wes@gmail.com",
+      "full_name": "afifa ",
+      "role_id": 4
+    },
+    {
+      "email": "piyushtamoli9@gmail.com",
+      "full_name": "PIYUSH TAMOLI",
+      "role_id": 5
+    },
+    {
+      "email": "nargish.ccc2526@gmail.com",
+      "full_name": "Narghis Khan",
+      "role_id": 5
+    },
+    {
+      "email": "ittehad.ccc2526@gmail.com",
+      "full_name": "Mohammad Ittehad",
+      "role_id": 5
+    },
+    {
+      "email": "mahakkhan.ccc2526@gmail.com",
+      "full_name": "Mahak Khan",
+      "role_id": 5
+    },
+    {
+      "email": "anjali.ccc2526@gmail.com",
+      "full_name": "Anjali Morya",
+      "role_id": 5
+    },
+    {
+      "email": "akashverma.ccc2526@gmail.com",
+      "full_name": "Akash Verma",
+      "role_id": 5
+    },
+    {
+      "email": "parasbarman.ccc2526@gmail.com",
+      "full_name": "Paras Barman",
+      "role_id": 5
+    },
+    {
+      "email": "nashreen.ccc2526@gmail.com",
+      "full_name": "Nasreen Bano",
+      "role_id": 5
+    },
+    {
+      "email": "sonali.ccc2526@gmail.com",
+      "full_name": "Sonali Malaiya",
+      "role_id": 5
+    },
+    {
+      "email": "harshita.ccc2526@gmail.com",
+      "full_name": "Harsita Panika",
+      "role_id": 5
+    },
+    {
+      "email": "anchal.ccc2526@gmail.com",
+      "full_name": "Anchal Singh Gond",
+      "role_id": 5
+    },
+    {
+      "email": "arzoo.ccc2526@gmail.com",
+      "full_name": "Aarzoo Khanam",
+      "role_id": 5
+    },
+    {
+      "email": "piyushmodi812@gmail.com",
+      "full_name": "wes Admin",
+      "role_id": 1
+    },
+    {
+      "email": "vaishnavi.ccc2526@gmail.com",
+      "full_name": "Vaishnavi Varman",
+      "role_id": 5
+    },
+    {
+      "email": "aasifa.ccc2526@gmail.com",
+      "full_name": "Aasifa Begam",
+      "role_id": 5
+    },
+    {
+      "email": "alisha.wessdc@gmail.com",
+      "full_name": "Alisha",
+      "role_id": 3
+    },
+    {
+      "email": "minakshibarmanccc@gmail.com",
+      "full_name": "Minakshi Barman",
+      "role_id": 5
+    },
+    {
+      "email": "alkamabeeccc@gmail.com",
+      "full_name": "Alkama Bee",
+      "role_id": 5
+    },
+    {
+      "email": "varsunnishaccc@gmail.com",
+      "full_name": "Warisun",
+      "role_id": 5
+    },
+    {
+      "email": "sarojpanika.ccc2526@gmail.com",
+      "full_name": "Saroj Panika",
+      "role_id": 5
+    },
+    {
+      "email": "shivamdahiya.ccc2526@gmail.com",
+      "full_name": "Shivam Dahiya",
+      "role_id": 5
+    },
+    {
+      "email": "priyanshikourav@gmail.com",
+      "full_name": "Priyanshi",
+      "role_id": 4
+    }
+  ],
+  "sessions": [
+    {
+      "id": "f7c15ec0-95a0-4b78-878e-8a50b28c3bbe",
+      "title": "56.2 Loops: for, while, range(), break, continue",
+      "facilitator_name": "Alisha",
+      "status": "committed"
+    },
+    {
+      "id": "d1251825-71d2-4bc9-b8e6-799aee983580",
+      "title": "55.3 Operators: Arithmetic, comparison, logical, assignment, precedence",
+      "facilitator_name": "Alisha",
+      "status": "committed"
+    },
+    {
+      "id": "4e195b5a-1c38-424f-b681-6b2d9ce2587d",
+      "title": "56.1 Conditional Statements: if, elif, else, nested conditions",
+      "facilitator_name": "Alisha",
+      "status": "committed"
+    },
+    {
+      "id": "24c26692-58a5-4251-a280-4e521f516d74",
+      "title": "10.6 - Basics of software licensing; read software license agreements.",
+      "facilitator_name": "Piyush Tamoli",
+      "status": "committed"
+    },
+    {
+      "id": "aa7aa0c4-36a9-4b3e-aa9e-a61431fb48c1",
+      "title": "58.2 Modules & Imports: Importing modules, math, random, custom modules",
+      "facilitator_name": "Alisha",
+      "status": "committed"
+    },
+    {
+      "id": "cd363a14-881d-4a49-aa31-2e6b5ce08ce1",
+      "title": "29.3 Simple Home Automation Demos",
+      "facilitator_name": "Afifa Khan",
+      "status": "committed"
+    },
+    {
+      "id": "40958139-08d4-4741-acee-c3667a70b111",
+      "title": "8.2 Greeting Kiosk and Emotion API Explorer",
+      "facilitator_name": "Alisha",
+      "status": "committed"
+    },
+    {
+      "id": "6d29a600-806c-4606-b8c2-395520b4f363",
+      "title": "50.1 Early-Warning Apps & Alerts",
+      "facilitator_name": "Alisha",
+      "status": "committed"
+    },
+    {
+      "id": "c1751486-f07d-4d42-82f3-b9ec5610eb01",
+      "title": "53.1 Intro and Prompt - Loveable  1",
+      "facilitator_name": "Alisha",
+      "status": "committed"
+    },
+    {
+      "id": "6199943a-2e1e-4a8d-a977-6fb088d19393",
+      "title": "58.1 Scope & Lambda: Local/global scope, lambda functions",
+      "facilitator_name": "Alisha",
+      "status": "committed"
+    },
+    {
+      "id": "ea92a18d-3155-4b3f-ba73-34f4e9eef822",
+      "title": "8.2 Greeting Kiosk and Emotion API Explorer",
+      "facilitator_name": "Alisha",
+      "status": "committed"
+    },
+    {
+      "id": "81bb6389-0044-48ce-84ec-d5f2a8acdcf0",
+      "title": "69.1 azure region : \nAzure geography : \nAV Zones :  \nPaired Region\nConsumption based billing : \nCapex and Opex\nWhy org use cloud : \nResource provider\nAVSets : fault and update domains",
+      "facilitator_name": "Alisha",
+      "status": "committed"
+    },
+    {
+      "id": "5307d6db-c62d-4f1a-b1bc-d994547043ab",
+      "title": "69.1 azure region : \nAzure geography : \nAV Zones :  \nPaired Region\nConsumption based billing : \nCapex and Opex\nWhy org use cloud : \nResource provider\nAVSets : fault and update domains",
+      "facilitator_name": "Alisha Siddiqui",
+      "status": "committed"
+    },
+    {
+      "id": "a7896e30-1da0-471b-a49a-a242f802f3e8",
+      "title": "7.3 Using Digital Tools to Preserve Historical Artifacts, Paintings & Other Art",
+      "facilitator_name": "Alisha",
+      "status": "committed"
+    },
+    {
+      "id": "cbb1572e-ce64-4f4e-bc76-6d3fbfeaa13f",
+      "title": "1.3 Hardware & Ports",
+      "facilitator_name": "Alisha Siddiqui",
+      "status": "committed"
+    },
+    {
+      "id": "11f7f5e9-eb22-454e-a718-601ab96d6e21",
+      "title": "56.2 Loops: for, while, range(), break, continue",
+      "facilitator_name": "Alisha Siddiqui",
+      "status": "committed"
+    },
+    {
+      "id": "8f701ff3-6005-46d7-bf98-e671cdbdbb31",
+      "title": "1.4 Virtualization Setup",
+      "facilitator_name": "Alisha Siddiqui",
+      "status": "committed"
+    },
+    {
+      "id": "df86a8d0-cfea-4b9b-937d-4fb7a2580345",
+      "title": "56.2 Loops: for, while, range(), break, continue",
+      "facilitator_name": "Alisha",
+      "status": "committed"
+    },
+    {
+      "id": "9f924a67-100a-47b2-aba0-bdf88ede71d3",
+      "title": "1.1 What is the Internet?",
+      "facilitator_name": "Alisha Siddiqui",
+      "status": "committed"
+    },
+    {
+      "id": "fb449cab-a6b3-49e9-801f-3e0053ada5c6",
+      "title": "1.2 Why People Hack (Motives)",
+      "facilitator_name": "Alisha Siddiqui",
+      "status": "committed"
+    },
+    {
+      "id": "369388e5-8526-4c76-8d5c-d409e3423ac8",
+      "title": "10.3 - Malware types and threats; install antivirus and scan your system.",
+      "facilitator_name": "Piyush Tamoli",
+      "status": "committed"
+    },
+    {
+      "id": "bc12a2f2-69ae-4109-8637-8cb37928f590",
+      "title": "Python operators and operator precedence",
+      "facilitator_name": "Priyansh",
+      "status": "committed"
+    },
+    {
+      "id": "d6df357c-c704-45d2-9f96-09b152b9d30a",
+      "title": "30.3 Energy Conservation Tips for Homes & Schools",
+      "facilitator_name": "Alisha Siddiqui",
+      "status": "committed"
+    },
+    {
+      "id": "4c3ecf83-6c8d-4011-9ed0-2550aef82ad9",
+      "title": "7.2 AI for Language Preservation",
+      "facilitator_name": "Alisha Siddiqui",
+      "status": "committed"
+    },
+    {
+      "id": "e0c9c88e-15d2-48fe-8115-a248b83cd792",
+      "title": "2.1 IP & MAC Addresses",
+      "facilitator_name": "Alisha Siddiqui",
+      "status": "committed"
+    },
+    {
+      "id": "3d64e386-5703-413c-b885-22b364b3b78d",
+      "title": "2.2 OSI Model",
+      "facilitator_name": "Alisha Siddiqui",
+      "status": "committed"
+    },
+    {
+      "id": "736c3c69-8886-4ae4-83e5-b43be92f6084",
+      "title": "45.3 Installing Linux on an Old PC",
+      "facilitator_name": "Alisha Siddiqui",
+      "status": "committed"
+    }
+  ]
+}

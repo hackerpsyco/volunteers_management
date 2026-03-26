@@ -60,6 +60,7 @@ export default function Dashboard() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<string>('all');
   const [loading, setLoading] = useState(true);
+  const [userRole, setUserRole] = useState<number | null>(null);
 
   useEffect(() => {
     async function checkUserRole() {
@@ -71,6 +72,10 @@ export default function Dashboard() {
           .select('role_id')
           .eq('id', user.id)
           .single();
+
+        if (profileData?.role_id) {
+          setUserRole(profileData.role_id);
+        }
 
         // Redirect students to their dashboard
         if (profileData?.role_id === 5) {
@@ -113,28 +118,66 @@ export default function Dashboard() {
 
   useEffect(() => {
     async function fetchDashboardData() {
+      if (!user?.id) return;
+
       try {
         setLoading(true);
+
+        // Fetch user profile first to get role and name
+        const { data: profileData } = await supabase
+          .from('user_profiles')
+          .select('role_id, full_name')
+          .eq('id', user.id)
+          .single();
+          
+        const isFacilitator = profileData?.role_id === 4;
+        const fullName = profileData?.full_name;
+
         // Fetch stats
         const volunteersResult = await supabase.from('volunteers').select('id', { count: 'exact', head: true });
-        const sessionsResult = await supabase.from('sessions').select('id', { count: 'exact', head: true });
+        
+        let targetName = fullName ? fullName.toLowerCase().trim() : '';
+        let facilName = '';
+        
+        if (isFacilitator && profileData?.email) {
+          const { data: fData } = await supabase.from('facilitators').select('name').eq('email', profileData.email).single();
+          if (fData?.name) {
+            facilName = fData.name.toLowerCase().trim();
+          }
+        }
+
+        const { data: allSessions } = await supabase.from('sessions').select('id, status, facilitator_name');
+        
+        let userSessions = allSessions || [];
+        
+        if (isFacilitator && (targetName || facilName)) {
+           userSessions = userSessions.filter(s => {
+             if (!s.facilitator_name) return false;
+             const fn = s.facilitator_name.toLowerCase().trim();
+             
+             // Check if either the target name or the facilitator table name is a substring of the session's facilitator name, or vice versa
+             const matchesProfile = targetName ? (fn.includes(targetName) || targetName.includes(fn)) : false;
+             const matchesFacil = facilName ? (fn.includes(facilName) || facilName.includes(fn)) : false;
+             
+             return matchesProfile || matchesFacil;
+           });
+        }
+        
+        const sessionsCount = userSessions.length;
+        
         const studentsResult = await supabase.from('students').select('id', { count: 'exact', head: true });
         const facilitatorsResult = await supabase.from('facilitators').select('id', { count: 'exact', head: true });
         const feedbackResult = await supabase.from('sessions').select('id', { count: 'exact', head: true }).not('recorded_at', 'is', null);
 
         setStats({
           totalVolunteers: volunteersResult.count || 0,
-          totalSessions: sessionsResult.count || 0,
+          totalSessions: sessionsCount,
           totalStudents: studentsResult.count || 0,
           totalFacilitators: facilitatorsResult.count || 0,
           totalFeedback: feedbackResult.count || 0,
         });
 
         // Fetch session status breakdown
-        const { data: sessionsData } = await supabase
-          .from('sessions')
-          .select('status');
-
         const statusCounts = {
           pending: 0,
           committed: 0,
@@ -142,7 +185,7 @@ export default function Dashboard() {
           completed: 0,
         };
 
-        sessionsData?.forEach((session: any) => {
+        userSessions.forEach((session: any) => {
           const status = session.status as keyof typeof statusCounts;
           if (status in statusCounts) {
             statusCounts[status]++;
@@ -158,7 +201,7 @@ export default function Dashboard() {
     }
 
     fetchDashboardData();
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     async function fetchCurriculumData() {
@@ -229,7 +272,7 @@ export default function Dashboard() {
 
         {/* Stats Cards Grid */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
-          {statCards.map((card, index) => {
+          {statCards.filter(card => !(card.label === 'Total Volunteers' && userRole === 4)).map((card, index) => {
             const Icon = card.icon;
             return (
               <div key={index} className="bg-card border border-border rounded-lg p-3 md:p-4">
@@ -258,7 +301,7 @@ export default function Dashboard() {
           </div>
 
           {/* Volunteer Session Stats - Middle */}
-          <VolunteerSessionStats />
+          {userRole !== 4 && <VolunteerSessionStats />}
 
           {/* Curriculum Categories */}
           <div className="bg-card border border-border rounded-lg p-3 md:p-4">

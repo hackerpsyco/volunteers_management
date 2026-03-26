@@ -1,0 +1,32 @@
+[
+  {
+    "id": 1,
+    "name": "Admin",
+    "description": null,
+    "created_at": "2026-02-04T09:50:27.228631+00:00"
+  },
+  {
+    "id": 2,
+    "name": "Supervisor",
+    "description": null,
+    "created_at": "2026-02-04T09:50:27.228631+00:00"
+  },
+  {
+    "id": 3,
+    "name": "Coordinator",
+    "description": null,
+    "created_at": "2026-02-04T09:50:27.228631+00:00"
+  },
+  {
+    "id": 4,
+    "name": "Facilitator",
+    "description": null,
+    "created_at": "2026-02-04T09:50:27.228631+00:00"
+  },
+  {
+    "id": 5,
+    "name": "Student",
+    "description": "Student role for viewing tasks and submitting work",
+    "created_at": "2026-02-22T16:44:18.548509+00:00"
+  }
+]

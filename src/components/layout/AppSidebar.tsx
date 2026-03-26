@@ -18,6 +18,7 @@ interface NavGroup {
   label: string;
   items: NavItem[];
   studentVisible: boolean;
+  hiddenRoles?: number[];
 }
 
 const navGroups: NavGroup[] = [
@@ -42,6 +43,7 @@ const navGroups: NavGroup[] = [
   {
     label: 'People Management',
     studentVisible: false,
+    hiddenRoles: [4],
     items: [
       { title: 'Guest Teacher & Speaker', url: '/volunteers', icon: Users, requiredRole: null, studentVisible: false },
       { title: 'Coordinators', url: '/coordinators', icon: Users2, requiredRole: null, studentVisible: false },
@@ -151,6 +153,7 @@ export function AppSidebar() {
             // Filter group visibility based on role
             if (userRole === 5 && !group.studentVisible) return null;
             if (userRole !== 5 && group.studentVisible) return null;
+            if (group.hiddenRoles && userRole !== null && group.hiddenRoles.includes(userRole)) return null;
 
             const visibleItems = group.items.filter((item) => {
               if (item.requiredRole !== null && userRole !== item.requiredRole) return false;
