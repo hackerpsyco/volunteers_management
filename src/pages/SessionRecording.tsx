@@ -54,7 +54,7 @@ interface StudentPerformance {
   student_name: string;
   questions_asked: number;
   performance_rating: number;
-  performance_comment: string;
+  performance_comment: string | null;
 }
 
 interface SessionHoursTracker {
@@ -517,11 +517,17 @@ export default function SessionRecording() {
   };
 
   const handleBatchSaveStudentPerformance = useCallback(async () => {
+    if (Object.keys(studentFormData).length === 0) return;
+
     try {
       setSavingStudents(true);
 
-      // Process all student form data
-      for (const [studentId, data] of Object.entries(studentFormData)) {
+      // Create a snapshot of current form data to save
+      const dataToSave = { ...studentFormData };
+      const studentIdsToClear = Object.keys(dataToSave);
+
+      // Process all student form data in the snapshot
+      for (const [studentId, data] of Object.entries(dataToSave)) {
         const student = students.find(s => s.id === studentId);
         if (!student) continue;
 
@@ -530,8 +536,8 @@ export default function SessionRecording() {
           .upsert({
             session_id: sessionId,
             student_name: student.name,
-            questions_asked: data.questions_asked || 0,
-            performance_rating: data.performance_rating || 5,
+            questions_asked: data.questions_asked ?? 0,
+            performance_rating: data.performance_rating ?? 5,
             performance_comment: data.performance_comment || 'Present',
           }, { onConflict: 'session_id,student_name' });
 
@@ -541,12 +547,23 @@ export default function SessionRecording() {
         }
       }
 
-      toast.success('Student performance saved successfully');
-      setStudentFormData({});
+      // Only clear the records that were actually saved
+      // This prevents wiping data that was changed while the save was in progress
+      setStudentFormData(prev => {
+        const newState = { ...prev };
+        studentIdsToClear.forEach(id => {
+          // Only delete if the data hasn't changed since we started saving
+          if (JSON.stringify(newState[id]) === JSON.stringify(dataToSave[id])) {
+            delete newState[id];
+          }
+        });
+        return newState;
+      });
+
       fetchStudentPerformance();
     } catch (error) {
       console.error('Error saving student performance:', error);
-      toast.error('Failed to save performance data');
+      toast.error('Failed to auto-save performance data');
     } finally {
       setSavingStudents(false);
     }
@@ -743,8 +760,8 @@ export default function SessionRecording() {
               setCurrentSubTab('a');
             }}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${currentPage === 1
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-muted text-muted-foreground hover:bg-muted/80'
               }`}
           >
             <div className="flex flex-col items-center">
@@ -755,8 +772,8 @@ export default function SessionRecording() {
           <button
             onClick={() => setCurrentPage(3)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${currentPage === 3
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-muted text-muted-foreground hover:bg-muted/80'
               }`}
           >
             <div className="flex flex-col items-center">
@@ -767,8 +784,8 @@ export default function SessionRecording() {
           <button
             onClick={() => setCurrentPage(2)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${currentPage === 2
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-muted text-muted-foreground hover:bg-muted/80'
               }`}
           >
             <div className="flex flex-col items-center">
@@ -784,8 +801,8 @@ export default function SessionRecording() {
             <button
               onClick={() => setCurrentSubTab('a')}
               className={`px-3 py-1 rounded text-xs font-medium transition-colors ${currentSubTab === 'a'
-                  ? 'bg-blue-100 text-blue-700 border border-blue-300'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
             >
               a) Session Objective
@@ -793,8 +810,8 @@ export default function SessionRecording() {
             <button
               onClick={() => setCurrentSubTab('b')}
               className={`px-3 py-1 rounded text-xs font-medium transition-colors ${currentSubTab === 'b'
-                  ? 'bg-blue-100 text-blue-700 border border-blue-300'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
             >
               b) Performance Details
@@ -802,8 +819,8 @@ export default function SessionRecording() {
             <button
               onClick={() => setCurrentSubTab('c')}
               className={`px-3 py-1 rounded text-xs font-medium transition-colors ${currentSubTab === 'c'
-                  ? 'bg-blue-100 text-blue-700 border border-blue-300'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
             >
               c) Student Homework Feedback
@@ -1004,18 +1021,27 @@ export default function SessionRecording() {
 
                               <div className="col-span-2 flex justify-center">
                                 {(() => {
-                                  const isAbsent = perfData.performance_comment === 'Absent';
-                                  const isPresent = perfData.performance_comment === 'Present';
+                                  const isAbsent = perfData.performance_comment === 'Absent' || perfData.performance_comment?.startsWith('Absent:');
                                   return (
                                     <button
                                       type="button"
                                       onClick={() => {
-                                        const newValue = isAbsent ? 'Present' : 'Absent';
+                                        let newValue = isAbsent ? 'Present' : 'Absent';
+
+                                        // If there was a comment, preserve it when switching status
+                                        if (perfData.performance_comment && !['Present', 'Absent'].includes(perfData.performance_comment)) {
+                                          const actualComment = perfData.performance_comment.startsWith('Absent: ')
+                                            ? perfData.performance_comment.replace('Absent: ', '')
+                                            : perfData.performance_comment;
+
+                                          newValue = isAbsent ? actualComment : `Absent: ${actualComment}`;
+                                        }
+
                                         handleSaveStudentPerformanceField(student.id, 'performance_comment', newValue);
                                       }}
                                       className={`w-8 h-8 rounded-full text-xs font-bold border-2 transition-colors ${isAbsent
-                                          ? 'bg-red-100 text-red-700 border-red-300 hover:bg-red-200'
-                                          : 'bg-green-100 text-green-700 border-green-300 hover:bg-green-200'
+                                        ? 'bg-red-100 text-red-700 border-red-300 hover:bg-red-200'
+                                        : 'bg-green-100 text-green-700 border-green-300 hover:bg-green-200'
                                         }`}
                                       title={isAbsent ? 'Absent - Click to mark Present' : 'Present - Click to mark Absent'}
                                     >
@@ -1055,9 +1081,13 @@ export default function SessionRecording() {
                               <div className="col-span-3">
                                 <Input
                                   type="text"
-                                  value={perfData.performance_comment === 'Absent' || perfData.performance_comment === 'Present' ? '' : perfData.performance_comment || ''}
+                                  value={perfData.performance_comment?.startsWith('Absent: ')
+                                    ? perfData.performance_comment.replace('Absent: ', '')
+                                    : (['Present', 'Absent'].includes(perfData.performance_comment || '') ? '' : perfData.performance_comment || '')}
                                   onChange={(e) => {
-                                    const newValue = e.target.value;
+                                    const comment = e.target.value;
+                                    const isAbsent = perfData.performance_comment === 'Absent' || perfData.performance_comment?.startsWith('Absent:');
+                                    const newValue = isAbsent ? (comment ? `Absent: ${comment}` : 'Absent') : comment;
                                     handleSaveStudentPerformanceField(student.id, 'performance_comment', newValue);
                                   }}
                                   placeholder="Comment..."
@@ -1274,9 +1304,9 @@ export default function SessionRecording() {
                               </div>
                               <div className="flex items-center gap-2">
                                 <span className={`px-2 py-1 rounded text-xs font-medium ${homework.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                                    homework.status === 'submitted' ? 'bg-blue-100 text-blue-800' :
-                                      homework.status === 'reviewed' ? 'bg-purple-100 text-purple-800' :
-                                        'bg-green-100 text-green-800'
+                                  homework.status === 'submitted' ? 'bg-blue-100 text-blue-800' :
+                                    homework.status === 'reviewed' ? 'bg-purple-100 text-purple-800' :
+                                      'bg-green-100 text-green-800'
                                   }`}>
                                   {homework.status}
                                 </span>
@@ -1474,8 +1504,8 @@ export default function SessionRecording() {
                   <button
                     onClick={() => setHoursSubTab('a')}
                     className={`px-3 py-1 rounded text-xs font-medium transition-colors ${hoursSubTab === 'a'
-                        ? 'bg-blue-100 text-blue-700 border border-blue-300'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                       }`}
                   >
                     a) Volunteer Hours
@@ -1483,8 +1513,8 @@ export default function SessionRecording() {
                   <button
                     onClick={() => setHoursSubTab('b')}
                     className={`px-3 py-1 rounded text-xs font-medium transition-colors ${hoursSubTab === 'b'
-                        ? 'bg-blue-100 text-blue-700 border border-blue-300'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                       }`}
                   >
                     b) Benevity ID
