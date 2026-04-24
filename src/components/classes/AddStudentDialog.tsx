@@ -44,6 +44,7 @@ export function AddStudentDialog({
     phone_number: '',
     roll_number: '',
     subject: '',
+    academic_year: '',
   });
 
   const handleAddStudent = async () => {
@@ -65,6 +66,7 @@ export function AddStudentDialog({
           phone_number: newStudent.phone_number || null,
           roll_number: newStudent.roll_number || null,
           subject: newStudent.subject || null,
+          academic_year: newStudent.academic_year || null,
         },
       ]);
 
@@ -80,6 +82,7 @@ export function AddStudentDialog({
         phone_number: '',
         roll_number: '',
         subject: '',
+        academic_year: '',
       });
       onOpenChange(false);
       onSuccess();
@@ -105,6 +108,7 @@ export function AddStudentDialog({
       phone_number: '',
       roll_number: '',
       subject: '',
+      academic_year: '',
     });
     onOpenChange(false);
   };
@@ -246,6 +250,26 @@ export function AddStudentDialog({
                   <SelectItem value="Commerce">Commerce</SelectItem>
                   <SelectItem value="Computer Science">Computer Science</SelectItem>
                   <SelectItem value="Arts">Arts</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="academic_year" className="text-sm">
+                Academic Year
+              </Label>
+              <Select
+                value={newStudent.academic_year}
+                onValueChange={(value) =>
+                  setNewStudent({ ...newStudent, academic_year: value })
+                }
+              >
+                <SelectTrigger id="academic_year" className="mt-1">
+                  <SelectValue placeholder="Select year" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="2025-26">2025-26</SelectItem>
+                  <SelectItem value="2026-27">2026-27</SelectItem>
+                  <SelectItem value="2027-28">2027-28</SelectItem>
                 </SelectContent>
               </Select>
             </div>

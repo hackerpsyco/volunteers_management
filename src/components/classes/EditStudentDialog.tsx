@@ -31,6 +31,7 @@ interface Student {
   phone_number: string | null;
   roll_number: string | null;
   subject: string | null;
+  academic_year: string | null;
 }
 
 interface EditStudentDialogProps {
@@ -73,6 +74,7 @@ export function EditStudentDialog({
           phone_number: editedStudent.phone_number || null,
           roll_number: editedStudent.roll_number || null,
           subject: editedStudent.subject || null,
+          academic_year: editedStudent.academic_year || null,
         })
         .eq('id', editedStudent.id);
 
@@ -233,6 +235,27 @@ export function EditStudentDialog({
                   <SelectItem value="Commerce">Commerce</SelectItem>
                   <SelectItem value="Computer Science">Computer Science</SelectItem>
                   <SelectItem value="Arts">Arts</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="academic_year" className="text-sm">
+                Academic Year
+              </Label>
+              <Select
+                value={editedStudent.academic_year || 'none'}
+                onValueChange={(value) =>
+                  setEditedStudent({ ...editedStudent, academic_year: value === 'none' ? null : value })
+                }
+              >
+                <SelectTrigger id="academic_year" className="mt-1">
+                  <SelectValue placeholder="Select year" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  <SelectItem value="2025-26">2025-26</SelectItem>
+                  <SelectItem value="2026-27">2026-27</SelectItem>
+                  <SelectItem value="2027-28">2027-28</SelectItem>
                 </SelectContent>
               </Select>
             </div>

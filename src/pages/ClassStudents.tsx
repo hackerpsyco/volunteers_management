@@ -48,6 +48,7 @@ interface Student {
   phone_number: string | null;
   roll_number: string | null;
   subject: string | null;
+  academic_year: string | null;
 }
 
 export default function ClassStudents() {
@@ -207,6 +208,7 @@ export default function ClassStudents() {
                         <TableHead>Phone</TableHead>
                         <TableHead className="w-[100px]">Roll Number</TableHead>
                         <TableHead className="w-[120px]">Subject</TableHead>
+                        <TableHead className="w-[120px]">Academic Year</TableHead>
                         <TableHead className="w-[60px]">Action</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -225,6 +227,7 @@ export default function ClassStudents() {
                           <TableCell className="text-sm">{student.phone_number || '-'}</TableCell>
                           <TableCell className="text-sm">{student.roll_number || '-'}</TableCell>
                           <TableCell className="text-sm">{student.subject || '-'}</TableCell>
+                          <TableCell className="text-sm">{student.academic_year || '-'}</TableCell>
                           <TableCell>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -289,6 +292,10 @@ export default function ClassStudents() {
                         <div>
                           <span className="text-muted-foreground block">Subject</span>
                           <span className="font-medium">{student.subject || '-'}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground block">Academic Year</span>
+                          <span className="font-medium">{student.academic_year || '-'}</span>
                         </div>
                         {student.email && (
                           <div className="col-span-2">
