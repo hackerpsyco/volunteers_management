@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Plus, ExternalLink, ClipboardList, ChevronDown, ChevronRight } from 'lucide-react';
+import { Search, Plus, ExternalLink, ClipboardList, ChevronDown, ChevronRight, Pencil, Trash2, Calendar, Clock, GraduationCap, BookOpen, Users, FileText, CheckCircle2 } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -46,6 +46,8 @@ interface TaskItem {
   student_name?: string;
   session_title?: string;
   class_name?: string;
+  academic_year?: string;
+  subject_name?: string;
 }
 
 interface TaskGroup {
@@ -54,6 +56,10 @@ interface TaskGroup {
   created_at: string;
   due_date: string;
   tasks: TaskItem[];
+  academic_year?: string;
+  subject_name?: string;
+  session_title?: string;
+  class_name?: string;
 }
 
 interface ClassOption {
@@ -97,22 +103,47 @@ export default function Tasks() {
     student_id: '',
     due_date: '',
     submission_link: '',
+    academic_year: '',
+    subject_id: '',
+  });
+
+  const [allSubjects, setAllSubjects] = useState<{ id: string, name: string }[]>([]);
+
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    title: '',
+    description: '',
+    class_id: '',
+    session_id: '',
+    due_date: '',
+    submission_link: '',
   });
 
   useEffect(() => {
     fetchClasses();
     fetchTasks();
+    fetchSubjects();
   }, []);
+
+  const fetchSubjects = async () => {
+    try {
+      const { data, error } = await supabase.from('subjects').select('id, name').order('name');
+      if (error) throw error;
+      setAllSubjects(data || []);
+    } catch (e) {
+      console.error('Error fetching subjects:', e);
+    }
+  };
 
   useEffect(() => {
     if (formData.class_id) {
-      fetchSessionsByClass(formData.class_id);
+      fetchSessionsByClass(formData.class_id, formData.subject_id);
       fetchStudentsByClass(formData.class_id);
     } else {
       setSessions([]);
       setStudents([]);
     }
-  }, [formData.class_id]);
+  }, [formData.class_id, formData.subject_id]);
 
   useEffect(() => {
     let filtered = tasks;
@@ -159,6 +190,10 @@ export default function Tasks() {
           created_at: task.created_at,
           due_date: task.due_date,
           tasks: [],
+          academic_year: task.academic_year,
+          subject_name: task.subject_name,
+          session_title: task.session_title,
+          class_name: task.class_name,
         });
       }
       grouped.get(key)!.tasks.push(task);
@@ -179,15 +214,20 @@ export default function Tasks() {
     }
   };
 
-  const fetchSessionsByClass = async (classId: string) => {
+  const fetchSessionsByClass = async (classId: string, subjectId?: string) => {
     try {
       const cls = classes.find((c) => c.id === classId);
       if (!cls) return;
-      const { data, error } = await (supabase as any)
+      let query = (supabase as any)
         .from('sessions')
         .select('id, title')
-        .eq('class_batch', cls.name)
-        .order('session_date', { ascending: false });
+        .eq('class_batch', cls.name);
+      
+      if (subjectId) {
+        query = query.eq('subject_id', subjectId);
+      }
+      
+      const { data, error } = await query.order('session_date', { ascending: false });
       if (error) throw error;
       setSessions(data || []);
     } catch (e) {
@@ -223,8 +263,17 @@ export default function Tasks() {
           status,
           student_id,
           session_id,
-          students:student_id(name),
-          sessions:session_id(title, class_batch)
+          created_at,
+          students:student_id(
+            name,
+            academic_year,
+            classes:class_id(name)
+          ),
+          sessions:session_id(
+            title,
+            class_batch,
+            subjects:subject_id(name)
+          )
         `)
         .order('created_at', { ascending: false });
       
@@ -240,10 +289,12 @@ export default function Tasks() {
         status: task.status || 'pending',
         submission_link: task.submission_link || '',
         due_date: task.deadline || '',
-        created_at: '',
+        created_at: task.created_at || '',
         student_name: task.students?.name || '-',
         session_title: task.sessions?.title || '-',
-        class_name: task.sessions?.class_batch || '-',
+        class_name: task.students?.classes?.name || task.sessions?.class_batch || '-',
+        academic_year: task.students?.academic_year || '-',
+        subject_name: task.sessions?.subjects?.name || '-',
       }));
 
       setTasks(enriched);
@@ -262,18 +313,21 @@ export default function Tasks() {
     }
 
     try {
-      // Fetch students if not already loaded
+      // Fetch students if not already loaded or if filtered by academic year
       let studentsToAssign = students;
-      if (studentsToAssign.length === 0) {
-        const { data: fetchedStudents, error: fetchError } = await supabase
-          .from('students')
-          .select('id, name')
-          .eq('class_id', formData.class_id)
-          .order('name');
-        
-        if (fetchError) throw fetchError;
-        studentsToAssign = fetchedStudents || [];
+      let query = supabase
+        .from('students')
+        .select('id, name')
+        .eq('class_id', formData.class_id);
+      
+      if (formData.academic_year) {
+        query = query.eq('academic_year', formData.academic_year);
       }
+
+      const { data: fetchedStudents, error: fetchError } = await query.order('name');
+        
+      if (fetchError) throw fetchError;
+      studentsToAssign = fetchedStudents || [];
 
       if (studentsToAssign.length === 0) {
         toast.error('No students found in this class');
@@ -297,11 +351,123 @@ export default function Tasks() {
 
       toast.success(`Task assigned to ${studentsToAssign.length} students`);
       setIsCreateOpen(false);
-      setFormData({ title: '', description: '', class_id: '', session_id: '', student_id: '', due_date: '', submission_link: '' });
+      setFormData({ title: '', description: '', class_id: '', session_id: '', student_id: '', due_date: '', submission_link: '', academic_year: '', subject_id: '' });
       fetchTasks();
     } catch (e) {
       console.error('Error creating task:', e);
       toast.error('Failed to create task');
+    }
+  };
+
+  const handleMarkCompleted = async (task: TaskItem) => {
+    try {
+      const { error: updateError } = await supabase
+        .from('student_task_feedback')
+        .update({ status: 'completed' })
+        .eq('id', task.id);
+
+      if (updateError) throw updateError;
+
+      // Add to earnings
+      const { error: earningError } = await supabase
+        .from('student_earnings')
+        .insert({
+          student_id: task.student_id,
+          task_id: task.id,
+          amount: 5,
+          description: `Completed task: ${task.title}`
+        });
+
+      if (earningError) {
+        console.error('Error adding earnings:', earningError);
+        // Don't fail the whole process if earning record fails, but notify
+        toast.warning('Task completed, but reward recording failed');
+      } else {
+        toast.success(`Task marked as completed! Reward of 5 units added.`);
+      }
+
+      // Refresh tasks
+      fetchTasks();
+      
+      // Update local state for the modal
+      if (selectedTaskGroup) {
+        const updatedTasks = selectedTaskGroup.tasks.map(t => 
+          t.id === task.id ? { ...t, status: 'completed' } : t
+        );
+        setSelectedTaskGroup({ ...selectedTaskGroup, tasks: updatedTasks });
+      }
+    } catch (e) {
+      console.error('Error completing task:', e);
+      toast.error('Failed to update task status');
+    }
+  };
+
+  const handleEditOpen = (group: TaskGroup) => {
+    setEditFormData({
+      title: group.title,
+      description: group.description,
+      class_id: group.tasks[0]?.class_id || '', // Note: grouping might not have class_id easily accessible if mixed, but usually tasks in a group share class info
+      session_id: group.tasks[0]?.session_id || '',
+      due_date: group.due_date ? new Date(group.due_date).toISOString().split('T')[0] : '',
+      submission_link: group.tasks[0]?.submission_link || '',
+    });
+    // We need to find the class_id from class_name if possible
+    const cls = classes.find(c => c.name === group.tasks[0]?.class_name);
+    if (cls) {
+      setEditFormData(prev => ({ ...prev, class_id: cls.id }));
+      fetchSessionsByClass(cls.id);
+    }
+    setIsEditOpen(true);
+  };
+
+  const handleUpdate = async () => {
+    if (!selectedTaskGroup) return;
+    
+    try {
+      const taskIds = selectedTaskGroup.tasks.map(t => t.id);
+      const { error } = await supabase
+        .from('student_task_feedback')
+        .update({
+          task_name: editFormData.title,
+          task_description: editFormData.description,
+          deadline: editFormData.due_date || null,
+          session_id: editFormData.session_id || null,
+          submission_link: editFormData.submission_link,
+        })
+        .in('id', taskIds);
+
+      if (error) throw error;
+
+      toast.success('Task updated for all students');
+      setIsEditOpen(false);
+      setSelectedTaskGroup(null);
+      fetchTasks();
+    } catch (e) {
+      console.error('Error updating task:', e);
+      toast.error('Failed to update task');
+    }
+  };
+
+  const handleDeleteGroup = async (group: TaskGroup) => {
+    if (!window.confirm(`Are you sure you want to delete "${group.title}"? This will remove it for all ${group.tasks.length} students.`)) {
+      return;
+    }
+
+    try {
+      const taskIds = group.tasks.map(t => t.id);
+      const { error } = await supabase
+        .from('student_task_feedback')
+        .delete()
+        .in('id', taskIds);
+
+      if (error) throw error;
+
+      toast.success('Task removed for all students');
+      setSelectedTaskGroup(null);
+      fetchTasks();
+    } catch (e) {
+      console.error('Error deleting task:', e);
+      toast.error('Failed to delete task');
     }
   };
 
@@ -489,28 +655,102 @@ export default function Tasks() {
                 >
                   ← Back
                 </button>
-                <DialogTitle>{selectedTaskGroup?.title}</DialogTitle>
+                <DialogTitle className="flex-1">{selectedTaskGroup?.title}</DialogTitle>
               </div>
             </DialogHeader>
             
             {selectedTaskGroup && (
               <div className="space-y-4">
-                {/* Task Summary */}
-                <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-                  <div>
-                    <span className="text-sm text-muted-foreground">Created</span>
-                    <p className="font-medium">{new Date(selectedTaskGroup.created_at || new Date()).toLocaleDateString()}</p>
+                {/* Task Summary Grid */}
+                <div className="bg-muted/30 rounded-xl p-6 border border-border">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-primary/10 rounded-lg text-primary">
+                        <Calendar className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Created</span>
+                        <p className="font-medium">{new Date(selectedTaskGroup.created_at || new Date()).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-orange-500/10 rounded-lg text-orange-600">
+                        <Clock className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Deadline</span>
+                        <p className="font-medium">{selectedTaskGroup.due_date ? new Date(selectedTaskGroup.due_date).toLocaleDateString() : '-'}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-blue-500/10 rounded-lg text-blue-600">
+                        <GraduationCap className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Academic Year</span>
+                        <p className="font-medium">{selectedTaskGroup.academic_year || '-'}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-purple-500/10 rounded-lg text-purple-600">
+                        <BookOpen className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Subject</span>
+                        <p className="font-medium">{selectedTaskGroup.subject_name || '-'}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-green-500/10 rounded-lg text-green-600">
+                        <Users className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Class</span>
+                        <p className="font-medium">{selectedTaskGroup.class_name || '-'}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-pink-500/10 rounded-lg text-pink-600">
+                        <FileText className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Session</span>
+                        <p className="font-medium">{selectedTaskGroup.session_title || '-'}</p>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-sm text-muted-foreground">Deadline</span>
-                    <p className="font-medium">{selectedTaskGroup.due_date ? new Date(selectedTaskGroup.due_date).toLocaleDateString() : '-'}</p>
-                  </div>
+
                   {selectedTaskGroup.description && (
-                    <div>
-                      <span className="text-sm text-muted-foreground">Description</span>
-                      <p className="font-medium">{selectedTaskGroup.description}</p>
+                    <div className="mt-6 pt-6 border-t border-border">
+                      <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold block mb-2">Description</span>
+                      <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">{selectedTaskGroup.description}</p>
                     </div>
                   )}
+
+                  {/* Action Buttons */}
+                  <div className="pt-6 flex gap-3 border-t border-border mt-6">
+                    <Button 
+                      variant="outline" 
+                      className="flex-1 gap-2 h-11"
+                      onClick={() => handleEditOpen(selectedTaskGroup!)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                      Edit Details
+                    </Button>
+                    <Button 
+                      variant="destructive" 
+                      className="flex-1 gap-2 h-11 shadow-sm"
+                      onClick={() => handleDeleteGroup(selectedTaskGroup!)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete Task
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Student Details */}
@@ -542,6 +782,17 @@ export default function Tasks() {
                               <ExternalLink className="h-4 w-4" />
                             </a>
                           )}
+                          {task.status !== 'completed' && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-green-600 hover:bg-green-50"
+                              onClick={() => handleMarkCompleted(task)}
+                              title="Mark as Completed"
+                            >
+                              <CheckCircle2 className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -549,6 +800,83 @@ export default function Tasks() {
                 </div>
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Task Dialog */}
+        <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Edit Task</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>Title *</Label>
+                <Input
+                  value={editFormData.title}
+                  onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
+                  placeholder="Task title"
+                />
+              </div>
+              <div>
+                <Label>Description</Label>
+                <Textarea
+                  value={editFormData.description}
+                  onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+                  placeholder="Task description"
+                />
+              </div>
+              <div>
+                <Label>Class (View Only)</Label>
+                <Select disabled value={editFormData.class_id}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select class" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {classes.map((cls) => (
+                      <SelectItem key={cls.id} value={cls.id}>{cls.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-muted-foreground mt-1">Class cannot be changed after creation</p>
+              </div>
+              <div>
+                <Label>Session</Label>
+                <Select
+                  value={editFormData.session_id}
+                  onValueChange={(v) => setEditFormData({ ...editFormData, session_id: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select session" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sessions.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>{s.title}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Due Date</Label>
+                <Input
+                  type="date"
+                  value={editFormData.due_date}
+                  onChange={(e) => setEditFormData({ ...editFormData, due_date: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label>Submission Link</Label>
+                <Input
+                  value={editFormData.submission_link}
+                  onChange={(e) => setEditFormData({ ...editFormData, submission_link: e.target.value })}
+                  placeholder="https://..."
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsEditOpen(false)}>Cancel</Button>
+              <Button onClick={handleUpdate}>Update Task</Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
 
@@ -576,6 +904,21 @@ export default function Tasks() {
                 />
               </div>
               <div>
+                <Label>Academic Year</Label>
+                <Select
+                  value={formData.academic_year}
+                  onValueChange={(v) => setFormData({ ...formData, academic_year: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Year" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="2025-26">2025-26</SelectItem>
+                    <SelectItem value="2026-27">2026-27</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
                 <Label>Class *</Label>
                 <Select
                   value={formData.class_id}
@@ -587,6 +930,22 @@ export default function Tasks() {
                   <SelectContent>
                     {classes.map((cls) => (
                       <SelectItem key={cls.id} value={cls.id}>{cls.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Subject</Label>
+                <Select
+                  value={formData.subject_id}
+                  onValueChange={(v) => setFormData({ ...formData, subject_id: v, session_id: '' })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select subject" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allSubjects.map((subject) => (
+                      <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

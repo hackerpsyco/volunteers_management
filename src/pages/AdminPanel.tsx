@@ -63,6 +63,7 @@ export default function AdminPanel() {
     full_name: '',
     role_id: '',
     password: '',
+    new_password: '',
   });
 
   useEffect(() => {
@@ -143,6 +144,7 @@ export default function AdminPanel() {
         full_name: user.full_name || '',
         role_id: user.role_id?.toString() || '',
         password: '',
+        new_password: '',
       });
     } else {
       setEditingUser(null);
@@ -151,6 +153,7 @@ export default function AdminPanel() {
         full_name: '',
         role_id: '',
         password: '',
+        new_password: '',
       });
     }
     setDialogOpen(true);
@@ -164,6 +167,7 @@ export default function AdminPanel() {
       full_name: '',
       role_id: '',
       password: '',
+      new_password: '',
     });
   };
 
@@ -186,7 +190,23 @@ export default function AdminPanel() {
           .eq('id', editingUser.id);
 
         if (error) throw error;
-        toast.success('User updated successfully');
+
+        // If a new password is provided, reset it using RPC
+        if (formData.new_password) {
+          const { error: rpcError } = await supabase.rpc('admin_reset_user_password', {
+            target_user_id: editingUser.id,
+            new_password: formData.new_password
+          });
+
+          if (rpcError) {
+            console.error('RPC update error:', rpcError);
+            toast.error(`User profile updated, but password reset failed: ${rpcError.message}`);
+          } else {
+            toast.success('User profile and password updated successfully');
+          }
+        } else {
+          toast.success('User updated successfully');
+        }
       } else {
         // Create new auth user with password
         if (!formData.password) {
@@ -412,6 +432,22 @@ export default function AdminPanel() {
                       className="mt-1"
                     />
                     <p className="text-xs text-muted-foreground mt-1">User will login with this password</p>
+                  </div>
+                )}
+                {editingUser && (
+                  <div>
+                    <Label htmlFor="new_password">Reset Password (Optional)</Label>
+                    <Input
+                      id="new_password"
+                      type="password"
+                      placeholder="Enter new password to reset"
+                      value={formData.new_password}
+                      onChange={(e) =>
+                        setFormData({ ...formData, new_password: e.target.value })
+                      }
+                      className="mt-1"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">Leave blank to keep current password</p>
                   </div>
                 )}
                 <div className="flex gap-3 pt-4">

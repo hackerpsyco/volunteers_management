@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Calendar, ListTodo } from 'lucide-react';
+import { Calendar, ListTodo, Clock, CheckCircle2, Wallet, ClipboardCheck } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { supabase } from '@/integrations/supabase/client';
@@ -43,6 +43,7 @@ export default function StudentDashboard() {
   const [selectedTask, setSelectedTask] = useState<StudentTask | null>(null);
   const [submissionLink, setSubmissionLink] = useState('');
   const [submissionDate, setSubmissionDate] = useState(new Date().toISOString().split('T')[0]);
+  const [totalEarnings, setTotalEarnings] = useState(0);
 
   useEffect(() => {
     if (user?.id) {
@@ -147,6 +148,17 @@ export default function StudentDashboard() {
         } else {
           setSessions(sessionsData || []);
         }
+
+        // Fetch Total Earnings
+        if (studentRecord) {
+          const { data: earningsData } = await supabase
+            .from('student_earnings')
+            .select('amount')
+            .eq('student_id', studentRecord.id);
+          
+          const total = (earningsData || []).reduce((sum, item) => sum + parseFloat(item.amount as any), 0);
+          setTotalEarnings(total);
+        }
       } else {
         // No class assigned - show empty state
         setTasks([]);
@@ -226,10 +238,56 @@ export default function StudentDashboard() {
   return (
     <DashboardLayout>
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Page Title */}
         <div>
-          <h1 className="text-3xl font-bold text-foreground">My Tasks</h1>
+          <h1 className="text-3xl font-bold text-foreground">My Dashboard</h1>
           <p className="text-sm text-muted-foreground">Welcome, {studentName}</p>
+        </div>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card className="bg-card border-border/50 shadow-sm overflow-hidden border-l-4 border-l-primary">
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total Tasks</CardTitle>
+              <ClipboardCheck className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{tasks.length}</div>
+              <p className="text-xs text-muted-foreground mt-1">Assigned to you</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-card border-border/50 shadow-sm overflow-hidden border-l-4 border-l-yellow-500">
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Pending Tasks</CardTitle>
+              <Clock className="h-4 w-4 text-yellow-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{tasks.filter(t => t.status === 'pending').length}</div>
+              <p className="text-xs text-muted-foreground mt-1">Action required</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-card border-border/50 shadow-sm overflow-hidden border-l-4 border-l-green-500">
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Completed</CardTitle>
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{tasks.filter(t => t.status === 'completed').length}</div>
+              <p className="text-xs text-muted-foreground mt-1">Successfully finished</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-card border-border/50 shadow-sm overflow-hidden border-l-4 border-l-purple-500">
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total Earnings</CardTitle>
+              <Wallet className="h-4 w-4 text-purple-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">₹{totalEarnings.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground mt-1">Tokens earned</p>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Tab Navigation */}

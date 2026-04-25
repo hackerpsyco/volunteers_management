@@ -1,4 +1,4 @@
-import { Home, LogOut, CalendarDays } from 'lucide-react';
+import { Home, LogOut, CalendarDays, CheckSquare, Wallet } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -8,7 +8,8 @@ import { useState } from 'react';
 const studentNavItems = [
   { title: 'My Dashboard', url: '/student-dashboard', icon: Home },
   { title: 'My Calendar', url: '/student-calendar', icon: CalendarDays },
-
+  { title: 'My Tasks', url: '/student-tasks', icon: CheckSquare },
+  { title: 'My Earnings', url: '/student-earnings', icon: Wallet },
 ];
 
 export function StudentSidebar() {

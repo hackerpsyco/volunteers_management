@@ -45,6 +45,7 @@ export function AddStudentDialog({
     roll_number: '',
     subject: '',
     academic_year: '',
+    designation: '',
   });
 
   const handleAddStudent = async () => {
@@ -67,6 +68,7 @@ export function AddStudentDialog({
           roll_number: newStudent.roll_number || null,
           subject: newStudent.subject || null,
           academic_year: newStudent.academic_year || null,
+          designation: newStudent.designation || null,
         },
       ]);
 
@@ -83,6 +85,7 @@ export function AddStudentDialog({
         roll_number: '',
         subject: '',
         academic_year: '',
+        designation: '',
       });
       onOpenChange(false);
       onSuccess();
@@ -109,6 +112,7 @@ export function AddStudentDialog({
       roll_number: '',
       subject: '',
       academic_year: '',
+      designation: '',
     });
     onOpenChange(false);
   };
@@ -270,6 +274,27 @@ export function AddStudentDialog({
                   <SelectItem value="2025-26">2025-26</SelectItem>
                   <SelectItem value="2026-27">2026-27</SelectItem>
                   <SelectItem value="2027-28">2027-28</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="designation" className="text-sm">
+                Designation
+              </Label>
+              <Select
+                value={newStudent.designation}
+                onValueChange={(value) =>
+                  setNewStudent({ ...newStudent, designation: value })
+                }
+              >
+                <SelectTrigger id="designation" className="mt-1">
+                  <SelectValue placeholder="Select designation" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ccc">ccc (11,12)</SelectItem>
+                  <SelectItem value="cccemp">cccemp (new college student)</SelectItem>
+                  <SelectItem value="intern">intern (college long time paid performance based)</SelectItem>
+                  <SelectItem value="fellow">fellow (seniour fellow paid fixed)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
