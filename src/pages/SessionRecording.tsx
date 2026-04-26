@@ -1021,7 +1021,13 @@ export default function SessionRecording() {
                                       type="button"
                                       onClick={() => {
                                         const newValue = isAbsent ? 'Present' : 'Absent';
-                                        handleSaveStudentPerformanceField(student.id, 'attendance_status', newValue);
+                                        setStudentFormData(prev => ({
+                                          ...prev,
+                                          [student.id]: { 
+                                            ...(prev[student.id] || dbDataForStudent || { attendance_status: 'Present', performance_rating: 0, questions_asked: 0, performance_comment: '' }), 
+                                            attendance_status: newValue 
+                                          }
+                                        }));
                                       }}
                                       className={`w-8 h-8 rounded-full text-xs font-bold border-2 transition-colors ${isAbsent
                                         ? 'bg-red-100 text-red-700 border-red-300 hover:bg-red-200'
@@ -1041,8 +1047,14 @@ export default function SessionRecording() {
                                   min="0"
                                   value={perfData.questions_asked ?? 0}
                                   onChange={(e) => {
-                                    const newValue = parseInt(e.target.value) || 0;
-                                    handleSaveStudentPerformanceField(student.id, 'questions_asked', newValue);
+                                    const val = parseInt(e.target.value) || 0;
+                                    setStudentFormData(prev => ({
+                                      ...prev,
+                                      [student.id]: { 
+                                        ...(prev[student.id] || dbDataForStudent || { attendance_status: 'Present', performance_rating: 0, questions_asked: 0, performance_comment: '' }), 
+                                        questions_asked: val 
+                                      }
+                                    }));
                                   }}
                                   className="h-8 text-xs p-1"
                                 />
@@ -1057,7 +1069,13 @@ export default function SessionRecording() {
                                   onChange={(e) => {
                                     const val = e.target.value;
                                     const newValue = val === '' ? 0 : parseInt(val);
-                                    handleSaveStudentPerformanceField(student.id, 'performance_rating', isNaN(newValue) ? 0 : newValue);
+                                    setStudentFormData(prev => ({
+                                      ...prev,
+                                      [student.id]: { 
+                                        ...(prev[student.id] || dbDataForStudent || { attendance_status: 'Present', performance_rating: 0, questions_asked: 0, performance_comment: '' }), 
+                                        performance_rating: isNaN(newValue) ? 0 : newValue 
+                                      }
+                                    }));
                                   }}
                                   className="h-8 text-xs p-1"
                                 />
@@ -1068,7 +1086,13 @@ export default function SessionRecording() {
                                   type="text"
                                   value={perfData.performance_comment || ''}
                                   onChange={(e) => {
-                                    handleSaveStudentPerformanceField(student.id, 'performance_comment', e.target.value);
+                                    setStudentFormData(prev => ({
+                                      ...prev,
+                                      [student.id]: { 
+                                        ...(prev[student.id] || dbDataForStudent || { attendance_status: 'Present', performance_rating: 0, questions_asked: 0, performance_comment: '' }), 
+                                        performance_comment: e.target.value 
+                                      }
+                                    }));
                                   }}
                                   placeholder="Comment..."
                                   className="h-8 text-xs p-1"
