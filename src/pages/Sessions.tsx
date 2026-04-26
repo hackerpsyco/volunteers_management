@@ -118,6 +118,7 @@ export default function Sessions() {
   const [subjectFilter, setSubjectFilter] = useState<string | null>(null);
   const [sortColumn, setSortColumn] = useState<keyof Session | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc' | null>(null);
+  const [academicYearFilter, setAcademicYearFilter] = useState<string | null>(null);
 
   useEffect(() => {
     fetchSessions();
@@ -321,6 +322,25 @@ export default function Sessions() {
       const toDate = new Date(dateToFilter);
       toDate.setHours(23, 59, 59, 999);
       filtered = filtered.filter(s => new Date(s.session_date) <= toDate);
+    }
+
+    // Apply academic year filter
+    if (academicYearFilter) {
+      filtered = filtered.filter(s => {
+        const sessionDate = new Date(s.session_date);
+        if (academicYearFilter === '2025-26') {
+          // April 2025 to April 2026
+          const start = new Date('2025-04-01');
+          const end = new Date('2026-04-30');
+          return sessionDate >= start && sessionDate <= end;
+        } else if (academicYearFilter === '2026-27') {
+          // May 2026 to April 2027
+          const start = new Date('2026-05-01');
+          const end = new Date('2027-04-30');
+          return sessionDate >= start && sessionDate <= end;
+        }
+        return true;
+      });
     }
 
     // Apply volunteer filter
@@ -636,6 +656,23 @@ export default function Sessions() {
                               {coordinator}
                             </SelectItem>
                           ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Academic Year Filter */}
+                    <div className="w-full sm:w-48">
+                      <label className="text-sm font-medium text-foreground mb-2 block">
+                        Academic Year
+                      </label>
+                      <Select value={academicYearFilter || 'all'} onValueChange={(value) => setAcademicYearFilter(value === 'all' ? null : value)}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select Year" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Years</SelectItem>
+                          <SelectItem value="2025-26">2025-26 (Apr-Apr)</SelectItem>
+                          <SelectItem value="2026-27">2026-27 (May-Apr)</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
