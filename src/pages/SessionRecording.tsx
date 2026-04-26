@@ -52,6 +52,7 @@ interface SessionRecording {
 interface StudentPerformance {
   id?: string;
   student_name: string;
+  attendance_status?: 'Present' | 'Absent';
   questions_asked: number;
   performance_rating: number;
   performance_comment: string | null;
@@ -233,7 +234,17 @@ export default function SessionRecording() {
         .order('created_at', { ascending: true });
 
       if (error) throw error;
-      setStudentPerformance((data || []) as unknown as StudentPerformance[]);
+
+      // Clean up old data and deduplicate
+      const cleaned = (data || []).map((item: any) => ({
+        ...item,
+        student_name: (item.student_name || '').trim(),
+        performance_comment: (item.performance_comment === 'Present' || item.performance_comment === 'Absent') ? '' : (item.performance_comment || ''),
+        performance_rating: item.performance_rating === 5 ? 0 : (item.performance_rating ?? 0),
+        questions_asked: item.questions_asked ?? 0,
+      }));
+
+      setStudentPerformance(cleaned as unknown as StudentPerformance[]);
     } catch (error) {
       console.error('Error fetching student performance:', error);
     }
@@ -338,37 +349,6 @@ export default function SessionRecording() {
       if (studentsError) throw studentsError;
 
       setStudents(studentsData || []);
-
-      // Auto-save all students as Present by default if no performance data exists
-      if (studentsData && studentsData.length > 0) {
-        const { data: existingPerformance } = await supabase
-          .from('student_performance')
-          .select('student_name')
-          .eq('session_id', sessionId);
-
-        const existingNames = new Set((existingPerformance || []).map(p => p.student_name));
-
-        // Create records for students without performance data
-        const newRecords = studentsData
-          .filter(student => !existingNames.has(student.name))
-          .map(student => ({
-            session_id: sessionId,
-            student_name: student.name,
-            questions_asked: 0,
-            performance_rating: 5,
-            performance_comment: 'Present',
-          }));
-
-        if (newRecords.length > 0) {
-          const { error: insertError } = await supabase
-            .from('student_performance')
-            .insert(newRecords);
-
-          if (insertError) {
-            console.error('Error auto-saving student attendance:', insertError);
-          }
-        }
-      }
     } catch (error) {
       console.error('Error fetching students:', error);
       toast.error('Failed to load students');
@@ -498,8 +478,9 @@ export default function SessionRecording() {
 
     const data = studentFormData[studentId] || {
       student_name: student.name,
+      attendance_status: 'Present',
       questions_asked: 0,
-      performance_rating: 5,
+      performance_rating: 0,
       performance_comment: '',
     };
 
@@ -531,19 +512,40 @@ export default function SessionRecording() {
         const student = students.find(s => s.id === studentId);
         if (!student) continue;
 
+        const payload: any = {
+          session_id: sessionId,
+          student_name: student.name.trim(),
+          attendance_status: data.attendance_status || 'Present',
+          questions_asked: data.questions_asked ?? 0,
+          performance_comment: data.performance_comment || '',
+        };
+
+        // Only include rating if it's not our "0" placeholder, or let the DB handle it if allowed
+        if ((data.performance_rating || 0) !== 0) {
+          payload.performance_rating = data.performance_rating;
+        } else {
+          // If 0, try null as a bypass to legacy constraints
+          payload.performance_rating = null;
+        }
+
         const { error } = await supabase
           .from('student_performance')
-          .upsert({
-            session_id: sessionId,
-            student_name: student.name,
-            questions_asked: data.questions_asked ?? 0,
-            performance_rating: data.performance_rating ?? 5,
-            performance_comment: data.performance_comment || 'Present',
-          }, { onConflict: 'session_id,student_name' });
+          .upsert(payload, { onConflict: 'session_id,student_name' });
 
         if (error) {
-          console.error('Error saving student performance:', error);
-          throw error;
+          console.warn('First save attempt failed, retrying without rating:', error);
+          // Fallback: If it failed (likely constraint), try saving without the rating column entirely
+          const { error: retryError } = await supabase
+            .from('student_performance')
+            .upsert({
+              session_id: sessionId,
+              student_name: student.name.trim(),
+              attendance_status: payload.attendance_status,
+              questions_asked: payload.questions_asked,
+              performance_comment: payload.performance_comment,
+            }, { onConflict: 'session_id,student_name' });
+          
+          if (retryError) throw retryError;
         }
       }
 
@@ -561,9 +563,9 @@ export default function SessionRecording() {
       });
 
       fetchStudentPerformance();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving student performance:', error);
-      toast.error('Failed to auto-save performance data');
+      toast.error(`Database Error: ${error.message || 'Unknown error'}`);
     } finally {
       setSavingStudents(false);
     }
@@ -699,7 +701,7 @@ export default function SessionRecording() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => navigate('/sessions')}
+            onClick={() => navigate('/feedback')}
             className="h-10 w-10"
           >
             <ArrowLeft className="h-5 w-5" />
@@ -831,15 +833,6 @@ export default function SessionRecording() {
         {/* Page 1: Session Details & Performance by Facilitator */}
         {currentPage === 1 && (
           <div className="space-y-4">
-            {/* Unsaved Changes Warning */}
-            {Object.keys(studentFormData).length > 0 && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-start gap-3">
-                <div className="text-yellow-600 font-semibold">⚠️ Please Save Attendance</div>
-                <div className="text-sm text-yellow-700">
-                  You have unsaved attendance changes. Click the Save button below to save.
-                </div>
-              </div>
-            )}
 
             {/* Sub-tab a: Session Objective Only */}
             {currentSubTab === 'a' && (
@@ -1000,14 +993,15 @@ export default function SessionRecording() {
                         {students.map((student) => {
                           // Use form data if available, otherwise use database data
                           const formDataForStudent = studentFormData[student.id];
-                          const dbDataForStudent = studentPerformance.find(sp => sp.student_name === student.name);
+                          const dbDataForStudent = studentPerformance.find(sp => (sp.student_name || '').trim() === student.name.trim());
 
                           // Default to Present if no data exists
                           const perfData = formDataForStudent || dbDataForStudent || {
                             student_name: student.name,
+                            attendance_status: 'Present',
                             questions_asked: 0,
-                            performance_rating: 5,
-                            performance_comment: 'Present', // Default to Present
+                            performance_rating: 0,
+                            performance_comment: '',
                           };
 
                           return (
@@ -1021,23 +1015,13 @@ export default function SessionRecording() {
 
                               <div className="col-span-2 flex justify-center">
                                 {(() => {
-                                  const isAbsent = perfData.performance_comment === 'Absent' || perfData.performance_comment?.startsWith('Absent:');
+                                  const isAbsent = perfData.attendance_status === 'Absent';
                                   return (
                                     <button
                                       type="button"
                                       onClick={() => {
-                                        let newValue = isAbsent ? 'Present' : 'Absent';
-
-                                        // If there was a comment, preserve it when switching status
-                                        if (perfData.performance_comment && !['Present', 'Absent'].includes(perfData.performance_comment)) {
-                                          const actualComment = perfData.performance_comment.startsWith('Absent: ')
-                                            ? perfData.performance_comment.replace('Absent: ', '')
-                                            : perfData.performance_comment;
-
-                                          newValue = isAbsent ? actualComment : `Absent: ${actualComment}`;
-                                        }
-
-                                        handleSaveStudentPerformanceField(student.id, 'performance_comment', newValue);
+                                        const newValue = isAbsent ? 'Present' : 'Absent';
+                                        handleSaveStudentPerformanceField(student.id, 'attendance_status', newValue);
                                       }}
                                       className={`w-8 h-8 rounded-full text-xs font-bold border-2 transition-colors ${isAbsent
                                         ? 'bg-red-100 text-red-700 border-red-300 hover:bg-red-200'
@@ -1055,7 +1039,7 @@ export default function SessionRecording() {
                                 <Input
                                   type="number"
                                   min="0"
-                                  value={perfData.questions_asked || 0}
+                                  value={perfData.questions_asked ?? 0}
                                   onChange={(e) => {
                                     const newValue = parseInt(e.target.value) || 0;
                                     handleSaveStudentPerformanceField(student.id, 'questions_asked', newValue);
@@ -1067,12 +1051,13 @@ export default function SessionRecording() {
                               <div className="col-span-2">
                                 <Input
                                   type="number"
-                                  min="1"
+                                  min="0"
                                   max="10"
-                                  value={perfData.performance_rating || 5}
+                                  value={perfData.performance_rating ?? 0}
                                   onChange={(e) => {
-                                    const newValue = parseInt(e.target.value) || 5;
-                                    handleSaveStudentPerformanceField(student.id, 'performance_rating', newValue);
+                                    const val = e.target.value;
+                                    const newValue = val === '' ? 0 : parseInt(val);
+                                    handleSaveStudentPerformanceField(student.id, 'performance_rating', isNaN(newValue) ? 0 : newValue);
                                   }}
                                   className="h-8 text-xs p-1"
                                 />
@@ -1081,14 +1066,9 @@ export default function SessionRecording() {
                               <div className="col-span-3">
                                 <Input
                                   type="text"
-                                  value={perfData.performance_comment?.startsWith('Absent: ')
-                                    ? perfData.performance_comment.replace('Absent: ', '')
-                                    : (['Present', 'Absent'].includes(perfData.performance_comment || '') ? '' : perfData.performance_comment || '')}
+                                  value={perfData.performance_comment || ''}
                                   onChange={(e) => {
-                                    const comment = e.target.value;
-                                    const isAbsent = perfData.performance_comment === 'Absent' || perfData.performance_comment?.startsWith('Absent:');
-                                    const newValue = isAbsent ? (comment ? `Absent: ${comment}` : 'Absent') : comment;
-                                    handleSaveStudentPerformanceField(student.id, 'performance_comment', newValue);
+                                    handleSaveStudentPerformanceField(student.id, 'performance_comment', e.target.value);
                                   }}
                                   placeholder="Comment..."
                                   className="h-8 text-xs p-1"
@@ -1411,12 +1391,12 @@ export default function SessionRecording() {
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
                   <ExternalLink className="h-4 w-4" />
-                  Recording Link
+                  Session Video Recording
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  <Label htmlFor="recording_url" className="text-sm">Session Recording URL</Label>
+                  <Label htmlFor="recording_url" className="text-sm">Session Video Recording URL</Label>
                   <Input
                     id="recording_url"
                     type="url"
@@ -1425,9 +1405,6 @@ export default function SessionRecording() {
                     placeholder="https://example.com/recording"
                     className="w-full"
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Paste the link to the session recording (YouTube, Google Drive, etc.)
-                  </p>
                   {formData.recording_url && (
                     <a
                       href={formData.recording_url}

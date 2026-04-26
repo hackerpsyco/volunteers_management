@@ -47,6 +47,7 @@ interface FeedbackData {
 interface StudentPerformance {
   id: string;
   student_name: string;
+  attendance_status?: 'Present' | 'Absent';
   questions_asked: number;
   performance_rating: number;
   performance_comment: string;
@@ -120,9 +121,16 @@ export default function FeedbackDetails() {
 
       if (error) throw error;
 
-      // Deduplicate by student name, keeping the latest record
-      const deduplicated = (data || []).reduce((acc: any[], current: any) => {
-        const x = acc.findIndex(item => item.student_name === current.student_name);
+      // Clean up old data and deduplicate
+      const cleaned = (data || []).map((item: any) => ({
+        ...item,
+        student_name: (item.student_name || '').trim(),
+        performance_comment: (item.performance_comment === 'Present' || item.performance_comment === 'Absent') ? '' : (item.performance_comment || ''),
+        performance_rating: item.performance_rating === 5 ? 0 : (item.performance_rating ?? 0),
+      }));
+
+      const deduplicated = cleaned.reduce((acc: any[], current: any) => {
+        const x = acc.findIndex(item => (item.student_name || '').trim() === (current.student_name || '').trim());
         if (x > -1) {
           acc[x] = current;
         } else {
@@ -413,8 +421,8 @@ export default function FeedbackDetails() {
                         {allStudents.length > 0 ? (
                           // Show all students from class with their performance data if available
                           allStudents.map((student, index) => {
-                            const perfData = studentPerformance.find(sp => sp.student_name === student.name);
-                            const isAbsent = perfData?.performance_comment === 'Absent';
+                            const perfData = studentPerformance.find(sp => (sp.student_name || '').trim() === student.name.trim());
+                            const isAbsent = perfData?.attendance_status === 'Absent';
                             const hasData = !!perfData;
                             
                             return (
@@ -436,7 +444,7 @@ export default function FeedbackDetails() {
                                 <TableCell className="text-center">{hasData ? perfData.questions_asked : '-'}</TableCell>
                                 <TableCell className="text-center font-medium">{hasData ? `${perfData.performance_rating}/10` : '-'}</TableCell>
                                 <TableCell className="max-w-[300px] truncate text-sm">
-                                  {hasData && !isAbsent && perfData.performance_comment !== 'Present' ? perfData.performance_comment || '-' : '-'}
+                                  {hasData ? perfData.performance_comment || '-' : '-'}
                                 </TableCell>
                               </TableRow>
                             );
@@ -444,7 +452,7 @@ export default function FeedbackDetails() {
                         ) : (
                           // Fallback to showing only students with performance data
                           studentPerformance.map((student, index) => {
-                            const isAbsent = student.performance_comment === 'Absent';
+                            const isAbsent = student.attendance_status === 'Absent';
                             return (
                               <TableRow key={student.id}>
                                 <TableCell className="font-medium">{index + 1}</TableCell>
@@ -457,7 +465,7 @@ export default function FeedbackDetails() {
                                 <TableCell className="text-center">{student.questions_asked}</TableCell>
                                 <TableCell className="text-center font-medium">{student.performance_rating}/10</TableCell>
                                 <TableCell className="max-w-[300px] truncate text-sm">
-                                  {isAbsent || student.performance_comment === 'Present' ? '-' : student.performance_comment || '-'}
+                                  {student.performance_comment || '-'}
                                 </TableCell>
                               </TableRow>
                             );
