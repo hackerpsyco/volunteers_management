@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Plus, Trash2, ArrowLeft, MoreVertical, Edit } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, MoreVertical, Edit, ArrowUpRight, Info } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,6 +19,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -32,6 +39,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { AddStudentDialog } from '@/components/classes/AddStudentDialog';
 import { EditStudentDialog } from '@/components/classes/EditStudentDialog';
+import { StudentInfoDialog } from '@/components/classes/StudentInfoDialog';
 
 interface Class {
   id: string;
@@ -50,7 +58,12 @@ interface Student {
   subject: string | null;
   academic_year: string | null;
   designation: string | null;
+  joining_year?: string | null;
+  promotion_history?: any;
 }
+
+type SortDirection = 'asc' | 'desc' | null;
+type SortColumn = keyof Student | null;
 
 export default function ClassStudents() {
   const { classId } = useParams<{ classId: string }>();
@@ -63,6 +76,128 @@ export default function ClassStudents() {
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
+  const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>('all');
+  const [selectedDesignation, setSelectedDesignation] = useState<string>('all');
+  const [infoDialogOpen, setInfoDialogOpen] = useState(false);
+  const [selectedStudentForInfo, setSelectedStudentForInfo] = useState<Student | null>(null);
+  const [sortColumn, setSortColumn] = useState<SortColumn>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+
+  const handleColumnSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      if (sortDirection === 'asc') setSortDirection('desc');
+      else if (sortDirection === 'desc') {
+        setSortColumn(null);
+        setSortDirection(null);
+      }
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  const getSortIndicator = (column: SortColumn) => {
+    if (sortColumn !== column) return '↕';
+    if (sortDirection === 'asc') return '↑';
+    if (sortDirection === 'desc') return '↓';
+    return '↕';
+  };
+
+  const promoteAcademicYear = (currentYear: string | null) => {
+    if (!currentYear) {
+      const nextYear = new Date().getFullYear();
+      return `${nextYear}-${(nextYear + 1).toString().slice(2)}`;
+    }
+    const match = currentYear.match(/^(\d{4})-(\d{2})$/);
+    if (match) {
+      const startYear = parseInt(match[1], 10);
+      const endYear = parseInt(match[2], 10);
+      return `${startYear + 1}-${(endYear + 1).toString().padStart(2, '0')}`;
+    }
+    const match2 = currentYear.match(/^(\d{4})-(\d{4})$/);
+    if (match2) {
+      const startYear = parseInt(match2[1], 10);
+      const endYear = parseInt(match2[2], 10);
+      return `${startYear + 1}-${startYear + 2}`;
+    }
+    return currentYear;
+  };
+
+  const getNextDesignation = (currentDesignation: string | null) => {
+    if (!currentDesignation) return currentDesignation;
+    const lower = currentDesignation.toLowerCase();
+    if (lower === 'ccc') return 'cccemp';
+    if (lower === 'cccemp') return 'intern';
+    if (lower === 'intern') return 'fellow';
+    return currentDesignation;
+  };
+
+  const handlePromoteStudent = async (student: Student) => {
+    if (!student.academic_year) {
+      toast.error('Student does not have an academic year set');
+      return;
+    }
+    
+    const nextYear = promoteAcademicYear(student.academic_year);
+    if (nextYear === student.academic_year) {
+      toast.error('Could not determine next academic year format');
+      return;
+    }
+
+    try {
+      const currentHistory = Array.isArray(student.promotion_history) ? student.promotion_history : [];
+      const newHistoryRecord = {
+        from: student.academic_year,
+        to: nextYear,
+        date: new Date().toISOString()
+      };
+      const updatedHistory = [...currentHistory, newHistoryRecord];
+
+      const nextDesignation = getNextDesignation(student.designation);
+
+      const { error } = await supabase
+        .from('students')
+        .update({ 
+          academic_year: nextYear,
+          designation: nextDesignation,
+          promotion_history: updatedHistory
+        })
+        .eq('id', student.id);
+
+      if (error) throw error;
+
+      setStudents(students.map((s) => (s.id === student.id ? { ...s, academic_year: nextYear, designation: nextDesignation, promotion_history: updatedHistory } : s)));
+      toast.success(`Student promoted to ${nextYear} (${nextDesignation || 'no designation change'})`);
+    } catch (error) {
+      console.error('Error promoting student:', error);
+      toast.error('Failed to promote student');
+    }
+  };
+
+  const filteredStudents = students.filter(student => {
+    if (selectedAcademicYear !== 'all' && student.academic_year !== selectedAcademicYear) return false;
+    if (selectedDesignation !== 'all' && student.designation !== selectedDesignation) return false;
+    return true;
+  }).sort((a, b) => {
+    if (!sortColumn || !sortDirection) return 0;
+    
+    const aValue = a[sortColumn];
+    const bValue = b[sortColumn];
+
+    if (aValue == null && bValue == null) return 0;
+    if (aValue == null) return sortDirection === 'asc' ? 1 : -1;
+    if (bValue == null) return sortDirection === 'asc' ? -1 : 1;
+
+    if (typeof aValue === 'string' && typeof bValue === 'string') {
+      const comparison = aValue.toLowerCase().localeCompare(bValue.toLowerCase());
+      return sortDirection === 'asc' ? comparison : -comparison;
+    }
+
+    return 0;
+  });
+
+  const academicYears = Array.from(new Set(students.map(s => s.academic_year).filter(Boolean))).sort() as string[];
+  const designations = Array.from(new Set(students.map(s => s.designation).filter(Boolean))).sort() as string[];
 
   useEffect(() => {
     if (classId) {
@@ -178,15 +313,42 @@ export default function ClassStudents() {
           </Button>
         </div>
 
+        {/* Filters */}
+        <div className="flex flex-wrap items-center gap-2 bg-muted/10 p-2 rounded-lg border border-border/60">
+          <Select value={selectedAcademicYear} onValueChange={setSelectedAcademicYear}>
+            <SelectTrigger className="h-9 w-[180px] text-xs bg-transparent">
+              <SelectValue placeholder="Academic Year" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Academic Years</SelectItem>
+              {academicYears.map(year => (
+                <SelectItem key={year} value={year}>{year}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={selectedDesignation} onValueChange={setSelectedDesignation}>
+            <SelectTrigger className="h-9 w-[180px] text-xs bg-transparent">
+              <SelectValue placeholder="Designation" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Designations</SelectItem>
+              {designations.map(desig => (
+                <SelectItem key={desig} value={desig}>{desig}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         {/* Students Table */}
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              Students ({students.length})
+              Students ({filteredStudents.length})
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {students.length === 0 ? (
+            {filteredStudents.length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-muted-foreground mb-4">No students added yet</p>
                 <Button onClick={() => setIsAddStudentOpen(true)}>
@@ -201,9 +363,24 @@ export default function ClassStudents() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-[100px]">Student ID</TableHead>
-                        <TableHead>Name</TableHead>
-                        <TableHead className="w-[80px]">Gender</TableHead>
+                        <TableHead 
+                          className="w-[100px] cursor-pointer hover:bg-muted/50 transition-colors"
+                          onClick={() => handleColumnSort('student_id')}
+                        >
+                          <div className="flex items-center gap-1">Student ID <span className="text-muted-foreground ml-1">{getSortIndicator('student_id')}</span></div>
+                        </TableHead>
+                        <TableHead 
+                          className="cursor-pointer hover:bg-muted/50 transition-colors"
+                          onClick={() => handleColumnSort('name')}
+                        >
+                          <div className="flex items-center gap-1">Name <span className="text-muted-foreground ml-1">{getSortIndicator('name')}</span></div>
+                        </TableHead>
+                        <TableHead 
+                          className="w-[90px] cursor-pointer hover:bg-muted/50 transition-colors"
+                          onClick={() => handleColumnSort('gender')}
+                        >
+                          <div className="flex items-center gap-1">Gender <span className="text-muted-foreground ml-1">{getSortIndicator('gender')}</span></div>
+                        </TableHead>
                         <TableHead className="w-[100px]">DOB</TableHead>
                         <TableHead>Email</TableHead>
                         <TableHead>Phone</TableHead>
@@ -215,7 +392,7 @@ export default function ClassStudents() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {students.map((student) => (
+                      {filteredStudents.map((student) => (
                         <TableRow key={student.id}>
                           <TableCell className="font-medium">{student.student_id}</TableCell>
                           <TableCell>{student.name}</TableCell>
@@ -239,6 +416,17 @@ export default function ClassStudents() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="bg-popover">
+                                <DropdownMenuItem onClick={() => {
+                                  setSelectedStudentForInfo(student);
+                                  setInfoDialogOpen(true);
+                                }}>
+                                  <Info className="h-4 w-4 mr-2" />
+                                  Info
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handlePromoteStudent(student)}>
+                                  <ArrowUpRight className="h-4 w-4 mr-2" />
+                                  Promote
+                                </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => handleEditStudent(student)}>
                                   <Edit className="h-4 w-4 mr-2" />
                                   Edit
@@ -264,7 +452,7 @@ export default function ClassStudents() {
 
                 {/* Mobile Card View */}
                 <div className="md:hidden space-y-4">
-                  {students.map((student) => (
+                  {filteredStudents.map((student) => (
                     <div key={student.id} className="bg-muted/50 rounded-lg p-4 space-y-3 border border-border">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
@@ -318,11 +506,32 @@ export default function ClassStudents() {
                         )}
                       </div>
 
-                      <div className="pt-2 border-t border-border flex gap-2">
+                      <div className="pt-2 border-t border-border flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setSelectedStudentForInfo(student);
+                            setInfoDialogOpen(true);
+                          }}
+                          className="flex-1 min-w-[45%]"
+                          variant="outline"
+                        >
+                          <Info className="h-4 w-4 mr-1" />
+                          Info
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => handlePromoteStudent(student)}
+                          className="flex-1 min-w-[45%]"
+                          variant="outline"
+                        >
+                          <ArrowUpRight className="h-4 w-4 mr-1" />
+                          Promote
+                        </Button>
                         <Button
                           size="sm"
                           onClick={() => handleEditStudent(student)}
-                          className="flex-1"
+                          className="flex-1 min-w-[30%]"
                         >
                           <Edit className="h-4 w-4 mr-1" />
                           Edit
@@ -334,7 +543,7 @@ export default function ClassStudents() {
                             setStudentToDelete(student);
                             setDeleteDialogOpen(true);
                           }}
-                          className="flex-1"
+                          className="flex-1 min-w-[30%]"
                         >
                           <Trash2 className="h-4 w-4 mr-1" />
                           Delete
@@ -385,6 +594,13 @@ export default function ClassStudents() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Student Info Dialog */}
+      <StudentInfoDialog
+        open={infoDialogOpen}
+        onOpenChange={setInfoDialogOpen}
+        student={selectedStudentForInfo}
+      />
     </DashboardLayout>
   );
 }
