@@ -49,7 +49,7 @@ export default function StudentEarnings() {
           earned_at,
           description,
           task_id,
-          student_task_feedback:task_id(task_name)
+          student_task_feedback(task_name)
         `)
         .eq('student_id', student.id)
         .order('earned_at', { ascending: false });

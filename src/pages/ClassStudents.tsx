@@ -40,6 +40,7 @@ import { toast } from 'sonner';
 import { AddStudentDialog } from '@/components/classes/AddStudentDialog';
 import { EditStudentDialog } from '@/components/classes/EditStudentDialog';
 import { StudentInfoDialog } from '@/components/classes/StudentInfoDialog';
+import { PromoteStudentDialog } from '@/components/classes/PromoteStudentDialog';
 
 interface Class {
   id: string;
@@ -80,6 +81,8 @@ export default function ClassStudents() {
   const [selectedDesignation, setSelectedDesignation] = useState<string>('all');
   const [infoDialogOpen, setInfoDialogOpen] = useState(false);
   const [selectedStudentForInfo, setSelectedStudentForInfo] = useState<Student | null>(null);
+  const [isPromoteStudentOpen, setIsPromoteStudentOpen] = useState(false);
+  const [studentToPromote, setStudentToPromote] = useState<Student | null>(null);
   const [sortColumn, setSortColumn] = useState<SortColumn>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
 
@@ -103,71 +106,36 @@ export default function ClassStudents() {
     return '↕';
   };
 
-  const promoteAcademicYear = (currentYear: string | null) => {
-    if (!currentYear) {
-      const nextYear = new Date().getFullYear();
-      return `${nextYear}-${(nextYear + 1).toString().slice(2)}`;
-    }
-    const match = currentYear.match(/^(\d{4})-(\d{2})$/);
-    if (match) {
-      const startYear = parseInt(match[1], 10);
-      const endYear = parseInt(match[2], 10);
-      return `${startYear + 1}-${(endYear + 1).toString().padStart(2, '0')}`;
-    }
-    const match2 = currentYear.match(/^(\d{4})-(\d{4})$/);
-    if (match2) {
-      const startYear = parseInt(match2[1], 10);
-      const endYear = parseInt(match2[2], 10);
-      return `${startYear + 1}-${startYear + 2}`;
-    }
-    return currentYear;
+  const handlePromoteClick = (student: Student) => {
+    setStudentToPromote(student);
+    setIsPromoteStudentOpen(true);
   };
 
-  const getNextDesignation = (currentDesignation: string | null) => {
-    if (!currentDesignation) return currentDesignation;
-    const lower = currentDesignation.toLowerCase();
-    if (lower === 'ccc') return 'cccemp';
-    if (lower === 'cccemp') return 'intern';
-    if (lower === 'intern') return 'fellow';
-    return currentDesignation;
-  };
-
-  const handlePromoteStudent = async (student: Student) => {
-    if (!student.academic_year) {
-      toast.error('Student does not have an academic year set');
-      return;
-    }
+  const handlePromoteConfirm = async (academicYear: string, designation: string) => {
+    if (!studentToPromote) return;
     
-    const nextYear = promoteAcademicYear(student.academic_year);
-    if (nextYear === student.academic_year) {
-      toast.error('Could not determine next academic year format');
-      return;
-    }
-
     try {
-      const currentHistory = Array.isArray(student.promotion_history) ? student.promotion_history : [];
+      const currentHistory = Array.isArray(studentToPromote.promotion_history) ? studentToPromote.promotion_history : [];
       const newHistoryRecord = {
-        from: student.academic_year,
-        to: nextYear,
+        from: studentToPromote.academic_year,
+        to: academicYear,
         date: new Date().toISOString()
       };
       const updatedHistory = [...currentHistory, newHistoryRecord];
 
-      const nextDesignation = getNextDesignation(student.designation);
-
       const { error } = await supabase
         .from('students')
         .update({ 
-          academic_year: nextYear,
-          designation: nextDesignation,
+          academic_year: academicYear,
+          designation: designation,
           promotion_history: updatedHistory
         })
-        .eq('id', student.id);
+        .eq('id', studentToPromote.id);
 
       if (error) throw error;
 
-      setStudents(students.map((s) => (s.id === student.id ? { ...s, academic_year: nextYear, designation: nextDesignation, promotion_history: updatedHistory } : s)));
-      toast.success(`Student promoted to ${nextYear} (${nextDesignation || 'no designation change'})`);
+      setStudents(students.map((s) => (s.id === studentToPromote.id ? { ...s, academic_year: academicYear, designation: designation, promotion_history: updatedHistory } : s)));
+      toast.success(`Student promoted to ${academicYear} (${designation || 'no designation change'})`);
     } catch (error) {
       console.error('Error promoting student:', error);
       toast.error('Failed to promote student');
@@ -423,7 +391,7 @@ export default function ClassStudents() {
                                   <Info className="h-4 w-4 mr-2" />
                                   Info
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handlePromoteStudent(student)}>
+                                <DropdownMenuItem onClick={() => handlePromoteClick(student)}>
                                   <ArrowUpRight className="h-4 w-4 mr-2" />
                                   Promote
                                 </DropdownMenuItem>
@@ -521,7 +489,7 @@ export default function ClassStudents() {
                         </Button>
                         <Button
                           size="sm"
-                          onClick={() => handlePromoteStudent(student)}
+                          onClick={() => handlePromoteClick(student)}
                           className="flex-1 min-w-[45%]"
                           variant="outline"
                         >
@@ -600,6 +568,14 @@ export default function ClassStudents() {
         open={infoDialogOpen}
         onOpenChange={setInfoDialogOpen}
         student={selectedStudentForInfo}
+      />
+
+      {/* Promote Student Dialog */}
+      <PromoteStudentDialog
+        open={isPromoteStudentOpen}
+        onOpenChange={setIsPromoteStudentOpen}
+        student={studentToPromote}
+        onConfirm={handlePromoteConfirm}
       />
     </DashboardLayout>
   );

@@ -48,6 +48,7 @@ interface TaskItem {
   class_name?: string;
   academic_year?: string;
   subject_name?: string;
+  earning_amount?: number;
 }
 
 interface TaskGroup {
@@ -60,6 +61,7 @@ interface TaskGroup {
   subject_name?: string;
   session_title?: string;
   class_name?: string;
+  earning_amount?: number;
 }
 
 interface ClassOption {
@@ -105,6 +107,7 @@ export default function Tasks() {
     submission_link: '',
     academic_year: '',
     subject_id: '',
+    earning_amount: '5',
   });
 
   const [allSubjects, setAllSubjects] = useState<{ id: string, name: string }[]>([]);
@@ -117,6 +120,7 @@ export default function Tasks() {
     session_id: '',
     due_date: '',
     submission_link: '',
+    earning_amount: '5',
   });
 
   useEffect(() => {
@@ -194,6 +198,7 @@ export default function Tasks() {
           subject_name: task.subject_name,
           session_title: task.session_title,
           class_name: task.class_name,
+          earning_amount: task.earning_amount,
         });
       }
       grouped.get(key)!.tasks.push(task);
@@ -263,6 +268,7 @@ export default function Tasks() {
           status,
           student_id,
           session_id,
+          earning_amount,
           created_at,
           students:student_id(
             name,
@@ -295,6 +301,7 @@ export default function Tasks() {
         class_name: task.students?.classes?.name || task.sessions?.class_batch || '-',
         academic_year: task.students?.academic_year || '-',
         subject_name: task.sessions?.subjects?.name || '-',
+        earning_amount: task.earning_amount || 5,
       }));
 
       setTasks(enriched);
@@ -343,6 +350,7 @@ export default function Tasks() {
         task_description: formData.description || null,
         deadline: formData.due_date || null,
         submission_link: formData.submission_link || null,
+        earning_amount: Number(formData.earning_amount) || 5,
         status: 'pending',
       }));
 
@@ -351,7 +359,7 @@ export default function Tasks() {
 
       toast.success(`Task assigned to ${studentsToAssign.length} students`);
       setIsCreateOpen(false);
-      setFormData({ title: '', description: '', class_id: '', session_id: '', student_id: '', due_date: '', submission_link: '', academic_year: '', subject_id: '' });
+      setFormData({ title: '', description: '', class_id: '', session_id: '', student_id: '', due_date: '', submission_link: '', academic_year: '', subject_id: '', earning_amount: '5' });
       fetchTasks();
     } catch (e) {
       console.error('Error creating task:', e);
@@ -374,7 +382,7 @@ export default function Tasks() {
         .insert({
           student_id: task.student_id,
           task_id: task.id,
-          amount: 5,
+          amount: task.earning_amount || 5,
           description: `Completed task: ${task.title}`
         });
 
@@ -383,7 +391,7 @@ export default function Tasks() {
         // Don't fail the whole process if earning record fails, but notify
         toast.warning('Task completed, but reward recording failed');
       } else {
-        toast.success(`Task marked as completed! Reward of 5 units added.`);
+        toast.success(`Task marked as completed! Reward of ${task.earning_amount || 5} units added.`);
       }
 
       // Refresh tasks
@@ -410,6 +418,7 @@ export default function Tasks() {
       session_id: group.tasks[0]?.session_id || '',
       due_date: group.due_date ? new Date(group.due_date).toISOString().split('T')[0] : '',
       submission_link: group.tasks[0]?.submission_link || '',
+      earning_amount: group.tasks[0]?.earning_amount?.toString() || '5',
     });
     // We need to find the class_id from class_name if possible
     const cls = classes.find(c => c.name === group.tasks[0]?.class_name);
@@ -433,6 +442,7 @@ export default function Tasks() {
           deadline: editFormData.due_date || null,
           session_id: editFormData.session_id || null,
           submission_link: editFormData.submission_link,
+          earning_amount: Number(editFormData.earning_amount) || 5,
         })
         .in('id', taskIds);
 
@@ -872,6 +882,16 @@ export default function Tasks() {
                   placeholder="https://..."
                 />
               </div>
+              <div>
+                <Label>Earning Amount</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={editFormData.earning_amount}
+                  onChange={(e) => setEditFormData({ ...editFormData, earning_amount: e.target.value })}
+                  placeholder="e.g. 5"
+                />
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsEditOpen(false)}>Cancel</Button>
@@ -980,6 +1000,16 @@ export default function Tasks() {
                   value={formData.submission_link}
                   onChange={(e) => setFormData({ ...formData, submission_link: e.target.value })}
                   placeholder="https://..."
+                />
+              </div>
+              <div>
+                <Label>Earning Amount</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={formData.earning_amount}
+                  onChange={(e) => setFormData({ ...formData, earning_amount: e.target.value })}
+                  placeholder="e.g. 5"
                 />
               </div>
             </div>

@@ -28,6 +28,7 @@ interface StudentTask {
   feedback_notes?: string;
   submission_link?: string;
   created_at: string;
+  earning_amount?: number;
 }
 
 export default function StudentTasks() {
@@ -230,8 +231,9 @@ export default function StudentTasks() {
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center justify-between pt-4 border-t border-border mt-2">
-                    <div className="text-xs text-muted-foreground font-medium">
-                      TYPE: {task.feedback_type.toUpperCase()}
+                    <div className="text-xs text-muted-foreground font-medium flex gap-3">
+                      <span>TYPE: {task.feedback_type.toUpperCase()}</span>
+                      <span className="text-primary font-bold">Earn: {task.earning_amount || 5}</span>
                     </div>
                     <Button 
                       variant="ghost" 
@@ -268,6 +270,10 @@ export default function StudentTasks() {
                     <div>
                       <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Deadline</span>
                       <p className="font-medium">{new Date(selectedTask.deadline).toLocaleDateString()}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Earning</span>
+                      <p className="font-medium text-primary">{selectedTask.earning_amount || 5} units</p>
                     </div>
                   </div>
                   {selectedTask.task_description && (

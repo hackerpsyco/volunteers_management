@@ -55,6 +55,7 @@ const App = () => (
             <Route path="/sessions/:sessionId/feedback-details" element={<FeedbackDetails />} />
             <Route path="/student-performance/:sessionId" element={<StudentPerformance />} />
             <Route path="/curriculum" element={<Curriculum />} />
+            <Route path="/student-curriculum" element={<Curriculum isStudent={true} />} />
             <Route path="/facilitators" element={<Facilitators />} />
             <Route path="/coordinators" element={<Coordinators />} />
             <Route path="/centres" element={<Centres />} />

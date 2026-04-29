@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Trash2, Upload, MoreVertical, Plus, Search } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -104,7 +105,8 @@ interface SessionInfo {
   session_types: Set<string>;
 }
 
-export default function Curriculum() {
+export default function Curriculum({ isStudent = false }: { isStudent?: boolean }) {
+  const { user } = useAuth();
   const [curriculum, setCurriculum] = useState<CurriculumItem[]>([]);
   const [filteredCurriculum, setFilteredCurriculum] = useState<CurriculumItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -133,8 +135,12 @@ export default function Curriculum() {
   const [sessionCategoryFilter, setSessionCategoryFilter] = useState<string>('all');
 
   useEffect(() => {
-    fetchClasses();
-  }, []);
+    if (isStudent) {
+      if (user?.email) fetchClasses();
+    } else {
+      fetchClasses();
+    }
+  }, [isStudent, user?.email]);
 
   useEffect(() => {
     // When class changes, fetch subjects for that class & reset subject filter
@@ -307,6 +313,18 @@ export default function Curriculum() {
       if (error) throw error;
       const classList = data || [];
       setClasses(classList);
+
+      if (isStudent && user?.email) {
+        const { data: student } = await supabase
+          .from('students')
+          .select('class_id')
+          .eq('email', user.email)
+          .single();
+        if (student?.class_id) {
+          setSelectedClass(student.class_id);
+          return;
+        }
+      }
 
       // Auto-select "WES Fellows" class if available
       if (!selectedClass) {
@@ -500,22 +518,26 @@ export default function Curriculum() {
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-            <Button
-              onClick={() => setIsAddTopicOpen(true)}
-              variant="outline"
-              className="gap-2 w-full sm:w-auto"
-            >
-              <Plus className="h-4 w-4" />
-              Add Topic
-            </Button>
-            <Button
-              onClick={() => setIsImportOpen(true)}
-              variant="outline"
-              className="gap-2 w-full sm:w-auto"
-            >
-              <Upload className="h-4 w-4" />
-              Import Curriculum
-            </Button>
+            {!isStudent && (
+              <>
+                <Button
+                  onClick={() => setIsAddTopicOpen(true)}
+                  variant="outline"
+                  className="gap-2 w-full sm:w-auto"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Topic
+                </Button>
+                <Button
+                  onClick={() => setIsImportOpen(true)}
+                  variant="outline"
+                  className="gap-2 w-full sm:w-auto"
+                >
+                  <Upload className="h-4 w-4" />
+                  Import Curriculum
+                </Button>
+              </>
+            )}
           </div>
         </div>
 
@@ -536,23 +558,25 @@ export default function Curriculum() {
             </div>
           </div>
 
-          <div className="w-full sm:w-64">
-            <label className="text-sm font-medium text-foreground mb-2 block">
-              Filter by Class
-            </label>
-            <Select value={selectedClass} onValueChange={setSelectedClass}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select a class" />
-              </SelectTrigger>
-              <SelectContent>
-                {classes.map((cls) => (
-                  <SelectItem key={cls.id} value={cls.id}>
-                    {cls.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {!isStudent && (
+            <div className="w-full sm:w-64">
+              <label className="text-sm font-medium text-foreground mb-2 block">
+                Filter by Class
+              </label>
+              <Select value={selectedClass} onValueChange={setSelectedClass}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select a class" />
+                </SelectTrigger>
+                <SelectContent>
+                  {classes.map((cls) => (
+                    <SelectItem key={cls.id} value={cls.id}>
+                      {cls.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="w-full sm:w-64">
             <label className="text-sm font-medium text-foreground mb-2 block">
@@ -647,22 +671,24 @@ export default function Curriculum() {
             </Select>
           </div>
 
-          <div className="w-full sm:w-64">
-            <label className="text-sm font-medium text-foreground mb-2 block">
-              Filter by Session Category
-            </label>
-            <Select value={sessionCategoryFilter} onValueChange={setSessionCategoryFilter}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select session category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories (GT/GS/LT)</SelectItem>
-                <SelectItem value="guest_teacher">Guest Teacher (GT)</SelectItem>
-                <SelectItem value="guest_speaker">Guest Speaker (GS)</SelectItem>
-                <SelectItem value="local_teacher">Local Teacher (LT)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          {!isStudent && (
+            <div className="w-full sm:w-64">
+              <label className="text-sm font-medium text-foreground mb-2 block">
+                Filter by Session Category
+              </label>
+              <Select value={sessionCategoryFilter} onValueChange={setSessionCategoryFilter}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select session category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories (GT/GS/LT)</SelectItem>
+                  <SelectItem value="guest_teacher">Guest Teacher (GT)</SelectItem>
+                  <SelectItem value="guest_speaker">Guest Speaker (GS)</SelectItem>
+                  <SelectItem value="local_teacher">Local Teacher (LT)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {(selectedCategory !== 'all' || selectedClass !== '' || selectedSubject !== '' || statusFilter !== 'all' || sessionTypeFilter !== 'all' || searchQuery.trim()) && (
             <div className="text-sm text-muted-foreground">
@@ -718,7 +744,7 @@ export default function Curriculum() {
                         <TableHead>PPT/Quiz</TableHead>
                         <TableHead>Fresh Session</TableHead>
                         <TableHead>Revision Session</TableHead>
-                        <TableHead className="w-[60px]">Actions</TableHead>
+                        {!isStudent && <TableHead className="w-[60px]">Actions</TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -848,8 +874,9 @@ export default function Curriculum() {
                               );
                             })()}
                           </TableCell>
-                          <TableCell>
-                            <DropdownMenu>
+                          {!isStudent && (
+                            <TableCell>
+                              <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="icon" className="h-8 w-8">
                                   <MoreVertical className="h-4 w-4" />
@@ -885,6 +912,7 @@ export default function Curriculum() {
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </TableCell>
+                          )}
                         </TableRow>
                       ))}
                     </TableBody>

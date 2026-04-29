@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
+import { Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface StudentInfoDialogProps {
   open: boolean;
@@ -12,10 +15,12 @@ interface StudentInfoDialogProps {
 export function StudentInfoDialog({ open, onOpenChange, student }: StudentInfoDialogProps) {
   const [tasks, setTasks] = useState<any[]>([]);
   const [earnings, setEarnings] = useState<any[]>([]);
+  const [localHistory, setLocalHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (open && student) {
+      setLocalHistory(Array.isArray(student.promotion_history) ? student.promotion_history : []);
       fetchStudentData();
     }
   }, [open, student]);
@@ -48,13 +53,33 @@ export function StudentInfoDialog({ open, onOpenChange, student }: StudentInfoDi
     }
   };
 
+  const handleDeleteHistoryRecord = async (indexToDelete: number) => {
+    if (!student) return;
+    try {
+      const updatedHistory = localHistory.filter((_, index) => index !== indexToDelete);
+      
+      const { error } = await supabase
+        .from('students')
+        .update({ promotion_history: updatedHistory })
+        .eq('id', student.id);
+
+      if (error) throw error;
+      
+      setLocalHistory(updatedHistory);
+      toast.success('Promotion history record deleted');
+      // Update the prop object temporarily so if dialog closes and re-opens without refresh it stays deleted
+      student.promotion_history = updatedHistory;
+    } catch (error) {
+      console.error('Error deleting history record:', error);
+      toast.error('Failed to delete history record');
+    }
+  };
+
   if (!student) return null;
 
   const completedTasks = tasks.filter(t => t.status === 'completed');
   const pendingTasks = tasks.filter(t => t.status === 'pending');
   const totalEarnings = earnings.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
-  
-  const history = Array.isArray(student.promotion_history) ? student.promotion_history : [];
 
   const getCalculatedJoiningYear = () => {
     if (student.joining_year) return student.joining_year;
@@ -129,19 +154,29 @@ export function StudentInfoDialog({ open, onOpenChange, student }: StudentInfoDi
             <Card>
               <CardContent className="pt-6">
                 <h3 className="font-semibold mb-4">Promotion History</h3>
-                {history.length === 0 ? (
+                {localHistory.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No promotion history available.</p>
                 ) : (
                   <div className="space-y-4">
-                    {history.map((record: any, index: number) => (
+                    {localHistory.map((record: any, index: number) => (
                       <div key={index} className="flex justify-between items-center border-b pb-2 last:border-0">
                         <div>
                           <span className="font-medium">{record.from}</span>
                           <span className="mx-2 text-muted-foreground">→</span>
                           <span className="font-medium text-primary">{record.to}</span>
                         </div>
-                        <div className="text-xs text-muted-foreground">
-                          {new Date(record.date).toLocaleDateString()}
+                        <div className="flex items-center gap-3">
+                          <div className="text-xs text-muted-foreground">
+                            {new Date(record.date).toLocaleDateString()}
+                          </div>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-6 w-6 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            onClick={() => handleDeleteHistoryRecord(index)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       </div>
                     ))}
