@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Search, Plus, ExternalLink, ClipboardList, ChevronDown, ChevronRight, Pencil, Trash2, Calendar, Clock, GraduationCap, BookOpen, Users, FileText, CheckCircle2 } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -90,6 +91,7 @@ export default function Tasks() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterDate, setFilterDate] = useState('');
   const [selectedTaskGroup, setSelectedTaskGroup] = useState<TaskGroup | null>(null);
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
 
   const [classes, setClasses] = useState<ClassOption[]>([]);
   const [sessions, setSessions] = useState<SessionOption[]>([]);
@@ -655,161 +657,210 @@ export default function Tasks() {
         </Card>
 
         {/* Task Detail Modal */}
-        <Dialog open={!!selectedTaskGroup} onOpenChange={(open) => !open && setSelectedTaskGroup(null)}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setSelectedTaskGroup(null)}
-                  className="text-muted-foreground hover:text-foreground"
+        <Dialog open={!!selectedTaskGroup} onOpenChange={(open) => {
+          if (!open) {
+            setSelectedTaskGroup(null);
+            setIsDescriptionExpanded(false);
+          }
+        }}>
+          <DialogContent className="max-w-3xl max-h-[95vh] flex flex-col p-0 overflow-hidden">
+            <DialogHeader className="p-6 pb-2 border-b border-border">
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedTaskGroup(null);
+                    setIsDescriptionExpanded(false);
+                  }}
+                  className="h-8 w-8 p-0"
                 >
-                  ← Back
-                </button>
-                <DialogTitle className="flex-1">{selectedTaskGroup?.title}</DialogTitle>
+                  <ChevronRight className="h-5 w-5 rotate-180" />
+                </Button>
+                <DialogTitle className="text-xl font-bold truncate">
+                  {selectedTaskGroup?.title}
+                </DialogTitle>
               </div>
             </DialogHeader>
             
-            {selectedTaskGroup && (
-              <div className="space-y-4">
-                {/* Task Summary Grid */}
-                <div className="bg-muted/30 rounded-xl p-6 border border-border">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-                    <div className="flex items-start gap-3">
-                      <div className="p-2 bg-primary/10 rounded-lg text-primary">
-                        <Calendar className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Created</span>
-                        <p className="font-medium">{new Date(selectedTaskGroup.created_at || new Date()).toLocaleDateString()}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3">
-                      <div className="p-2 bg-orange-500/10 rounded-lg text-orange-600">
-                        <Clock className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Deadline</span>
-                        <p className="font-medium">{selectedTaskGroup.due_date ? new Date(selectedTaskGroup.due_date).toLocaleDateString() : '-'}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3">
-                      <div className="p-2 bg-blue-500/10 rounded-lg text-blue-600">
-                        <GraduationCap className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Academic Year</span>
-                        <p className="font-medium">{selectedTaskGroup.academic_year || '-'}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3">
-                      <div className="p-2 bg-purple-500/10 rounded-lg text-purple-600">
-                        <BookOpen className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Subject</span>
-                        <p className="font-medium">{selectedTaskGroup.subject_name || '-'}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3">
-                      <div className="p-2 bg-green-500/10 rounded-lg text-green-600">
-                        <Users className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Class</span>
-                        <p className="font-medium">{selectedTaskGroup.class_name || '-'}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3">
-                      <div className="p-2 bg-pink-500/10 rounded-lg text-pink-600">
-                        <FileText className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Session</span>
-                        <p className="font-medium">{selectedTaskGroup.session_title || '-'}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {selectedTaskGroup.description && (
-                    <div className="mt-6 pt-6 border-t border-border">
-                      <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold block mb-2">Description</span>
-                      <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">{selectedTaskGroup.description}</p>
-                    </div>
-                  )}
-
-                  {/* Action Buttons */}
-                  <div className="pt-6 flex gap-3 border-t border-border mt-6">
-                    <Button 
-                      variant="outline" 
-                      className="flex-1 gap-2 h-11"
-                      onClick={() => handleEditOpen(selectedTaskGroup!)}
-                    >
-                      <Pencil className="h-4 w-4" />
-                      Edit Details
-                    </Button>
-                    <Button 
-                      variant="destructive" 
-                      className="flex-1 gap-2 h-11 shadow-sm"
-                      onClick={() => handleDeleteGroup(selectedTaskGroup!)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Delete Task
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Student Details */}
-                <div>
-                  <h3 className="font-semibold text-lg mb-3">Student Details ({selectedTaskGroup.tasks.length})</h3>
-                  <div className="space-y-2">
-                    {selectedTaskGroup.tasks.map((task) => (
-                      <div key={task.id} className="flex items-center justify-between p-3 bg-muted/30 rounded border border-border text-sm">
-                        <div className="flex-1">
-                          <div className="font-medium text-foreground">{task.student_name}</div>
-                          <div className="text-xs text-muted-foreground">{task.class_name}</div>
+            <div className="flex-1 overflow-y-auto p-6 space-y-8">
+              {selectedTaskGroup && (
+                <>
+                  {/* Task Summary Grid */}
+                  <div className="bg-muted/30 rounded-xl p-6 border border-border">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 bg-primary/10 rounded-lg text-primary">
+                          <Calendar className="h-4 w-4" />
                         </div>
-                        <div className="flex items-center gap-3">
-                          <Badge variant={
-                            task.status === 'completed' ? 'default' :
-                            task.status === 'submitted' ? 'secondary' :
-                            task.status === 'in_progress' ? 'outline' :
-                            'secondary'
-                          }>
-                            {task.status}
-                          </Badge>
-                          {task.submission_link && (
-                            <a
-                              href={task.submission_link}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-primary hover:underline"
-                            >
-                              <ExternalLink className="h-4 w-4" />
-                            </a>
-                          )}
-                          {task.status !== 'completed' && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-green-600 hover:bg-green-50"
-                              onClick={() => handleMarkCompleted(task)}
-                              title="Mark as Completed"
-                            >
-                              <CheckCircle2 className="h-4 w-4" />
-                            </Button>
+                        <div>
+                          <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Created</span>
+                          <p className="font-medium">{new Date(selectedTaskGroup.created_at || new Date()).toLocaleDateString()}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 bg-orange-500/10 rounded-lg text-orange-600">
+                          <Clock className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Deadline</span>
+                          <p className="font-medium">{selectedTaskGroup.due_date ? new Date(selectedTaskGroup.due_date).toLocaleDateString() : '-'}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 bg-blue-500/10 rounded-lg text-blue-600">
+                          <GraduationCap className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Academic Year</span>
+                          <p className="font-medium">{selectedTaskGroup.academic_year || '-'}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 bg-purple-500/10 rounded-lg text-purple-600">
+                          <BookOpen className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Subject</span>
+                          <p className="font-medium">{selectedTaskGroup.subject_name || '-'}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 bg-green-500/10 rounded-lg text-green-600">
+                          <Users className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Class</span>
+                          <p className="font-medium">{selectedTaskGroup.class_name || '-'}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 bg-pink-500/10 rounded-lg text-pink-600">
+                          <FileText className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Session</span>
+                          <p className="font-medium">{selectedTaskGroup.session_title || '-'}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {selectedTaskGroup.description && (
+                      <div className="mt-6 pt-6 border-t border-border">
+                        <span className="text-xs text-muted-foreground uppercase tracking-wider font-bold block mb-2 text-primary">Description</span>
+                        <div className="relative bg-muted/50 p-4 rounded-lg border border-border/50">
+                          <p className={cn(
+                            "text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap transition-all duration-300",
+                            !isDescriptionExpanded && selectedTaskGroup.description.length > 250 && "line-clamp-3"
+                          )}>
+                            {selectedTaskGroup.description}
+                          </p>
+                          {selectedTaskGroup.description.length > 250 && (
+                            <div className={cn(
+                              "flex justify-center mt-2",
+                              !isDescriptionExpanded && "absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-muted/80 to-transparent flex items-end pb-1"
+                            )}>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs font-bold text-primary hover:bg-primary/10"
+                                onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                              >
+                                {isDescriptionExpanded ? "Show Less ↑" : "Read More ↓"}
+                              </Button>
+                            </div>
                           )}
                         </div>
                       </div>
-                    ))}
+                    )}
+
+                    {/* Action Buttons */}
+                    <div className="pt-6 flex gap-3 border-t border-border mt-6">
+                      <Button 
+                        variant="outline" 
+                        className="flex-1 gap-2 h-11"
+                        onClick={() => handleEditOpen(selectedTaskGroup!)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                        Edit Details
+                      </Button>
+                      <Button 
+                        variant="destructive" 
+                        className="flex-1 gap-2 h-11 shadow-sm"
+                        onClick={() => handleDeleteGroup(selectedTaskGroup!)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete Task
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              </div>
-            )}
+
+                  {/* Student Details */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-bold text-lg flex items-center gap-2">
+                        <Users className="h-5 w-5 text-primary" />
+                        Assigned Students
+                        <Badge variant="secondary" className="ml-2">
+                          {selectedTaskGroup?.tasks.length}
+                        </Badge>
+                      </h3>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 gap-3">
+                      {selectedTaskGroup?.tasks.map((task) => (
+                        <div key={task.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-card rounded-xl border border-border hover:border-primary/30 transition-all group shadow-sm">
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold flex-shrink-0">
+                              {task.student_name?.[0]}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="font-semibold text-foreground truncate">{task.student_name}</div>
+                              <div className="text-xs text-muted-foreground flex items-center gap-2 mt-0.5">
+                                <span>ID: {task.student_id.slice(0, 8)}</span>
+                                <span>•</span>
+                                <span>{task.class_name}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between sm:justify-end gap-4 mt-3 sm:mt-0 pt-3 sm:pt-0 border-t sm:border-t-0 border-border">
+                            <div className="sm:text-right">
+                              {getStatusBadge(task.status)}
+                            </div>
+                            
+                            <div className="flex items-center gap-2">
+                              {task.submission_link && (
+                                <Button variant="ghost" size="icon" asChild className="h-9 w-9 text-blue-600 hover:bg-blue-50">
+                                  <a href={task.submission_link} target="_blank" rel="noopener noreferrer">
+                                    <ExternalLink className="h-4 w-4" />
+                                  </a>
+                                </Button>
+                              )}
+                              {task.status !== 'completed' && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-9 text-green-600 border-green-200 hover:bg-green-50 hover:text-green-700 font-semibold"
+                                  onClick={() => handleMarkCompleted(task)}
+                                >
+                                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                                  Done
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </DialogContent>
         </Dialog>
 

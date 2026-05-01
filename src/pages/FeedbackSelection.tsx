@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FileText, MoreVertical, Eye, Plus, Search, X, GraduationCap, Upload } from 'lucide-react';
+import { FileText, MoreVertical, Eye, Plus, Search, X, GraduationCap, Upload, Check, ChevronsUpDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -35,6 +35,9 @@ import {
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { TruncatedText } from '@/components/ui/truncated-text';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -66,6 +69,10 @@ interface FeedbackSession {
   recorded_at: string | null;
   subject_name?: string | null;
   recording_url?: string | null;
+  facilitator_feedback_status?: string;
+  coordinator_feedback_status?: string;
+  supervisor_feedback_status?: string;
+  admin_feedback_status?: string;
 }
 
 export default function FeedbackSelection() {
@@ -86,11 +93,15 @@ export default function FeedbackSelection() {
   const [dateToFilter, setDateToFilter] = useState<string>('');
   const [sortColumn, setSortColumn] = useState<keyof FeedbackSession | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc' | null>(null);
+  const [facilitatorStatusFilter, setFacilitatorStatusFilter] = useState<string | null>(null);
+  const [coordinatorStatusFilter, setCoordinatorStatusFilter] = useState<string | null>(null);
+  const [supervisorStatusFilter, setSupervisorStatusFilter] = useState<string | null>(null);
 
   const [isAddFeedbackDialogOpen, setIsAddFeedbackDialogOpen] = useState(false);
   const [committedSessions, setCommittedSessions] = useState<FeedbackSession[]>([]);
   const [loadingCommitted, setLoadingCommitted] = useState(false);
   const [dialogFilter, setDialogFilter] = useState<string>('recent');
+  const [isVolunteerPopoverOpen, setIsVolunteerPopoverOpen] = useState(false);
 
   useEffect(() => {
     fetchFeedbackSessions();
@@ -188,6 +199,17 @@ export default function FeedbackSelection() {
     if (facilitatorFilter) filtered = filtered.filter(s => s.facilitator_name === facilitatorFilter);
     if (coordinatorFilter) filtered = filtered.filter(s => s.coordinator_name === coordinatorFilter);
 
+    // New status filters
+    if (facilitatorStatusFilter) {
+      filtered = filtered.filter(s => (s.facilitator_feedback_status || 'pending') === facilitatorStatusFilter);
+    }
+    if (coordinatorStatusFilter) {
+      filtered = filtered.filter(s => (s.coordinator_feedback_status || 'pending') === coordinatorStatusFilter);
+    }
+    if (supervisorStatusFilter) {
+      filtered = filtered.filter(s => (s.supervisor_feedback_status || 'pending') === supervisorStatusFilter);
+    }
+
     // Sorting
     if (sortColumn && sortDirection) {
       filtered = [...filtered].sort((a, b) => {
@@ -224,6 +246,13 @@ export default function FeedbackSelection() {
   const getSortIndicator = (column: keyof FeedbackSession) => {
     if (sortColumn !== column) return '↕';
     return sortDirection === 'asc' ? '↑' : '↓';
+  };
+
+  const getStatusBadge = (status: string | undefined) => {
+    const s = status || 'pending';
+    if (s === 'done') return <Badge variant="secondary" className="bg-blue-100 text-blue-700 hover:bg-blue-200 border-blue-200">Done</Badge>;
+    if (s === 'submitted') return <Badge variant="default" className="bg-green-600 hover:bg-green-700">Submit</Badge>;
+    return <Badge variant="outline" className="text-muted-foreground border-dashed">Pending</Badge>;
   };
 
   const handleViewDetails = (sessionId: string) => {
@@ -371,15 +400,66 @@ export default function FeedbackSelection() {
               {/* Row 2 */}
               <div>
                 <label className="text-xs font-medium mb-1 block">Volunteer</label>
-                <Select value={volunteerFilter || 'all'} onValueChange={(v) => setVolunteerFilter(v === 'all' ? null : v)}>
-                  <SelectTrigger className="h-9 truncate"><SelectValue placeholder="All Volunteers" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Volunteers</SelectItem>
-                    {[...new Set(feedbackSessions.map(s => s.volunteer_name).filter(Boolean))].sort().map(s => (
-                      <SelectItem key={s} value={s!}>{s}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={isVolunteerPopoverOpen} onOpenChange={setIsVolunteerPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={isVolunteerPopoverOpen}
+                      className="w-full h-9 justify-between font-normal text-xs px-3"
+                    >
+                      <span className="truncate">
+                        {volunteerFilter ? volunteerFilter : "All Volunteers"}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[200px] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Search volunteer..." className="h-8 text-xs" />
+                      <CommandList>
+                        <CommandEmpty className="text-xs py-2 px-4">No volunteer found.</CommandEmpty>
+                        <CommandGroup>
+                          <CommandItem
+                            value="all"
+                            onSelect={() => {
+                              setVolunteerFilter(null);
+                              setIsVolunteerPopoverOpen(false);
+                            }}
+                            className="text-xs"
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-3 w-3",
+                                !volunteerFilter ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            All Volunteers
+                          </CommandItem>
+                          {[...new Set(feedbackSessions.map(s => s.volunteer_name).filter(Boolean))].sort().map((v) => (
+                            <CommandItem
+                              key={v}
+                              value={v!}
+                              onSelect={() => {
+                                setVolunteerFilter(v!);
+                                setIsVolunteerPopoverOpen(false);
+                              }}
+                              className="text-xs"
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-3 w-3",
+                                  volunteerFilter === v ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {v}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
 
               <div>
@@ -413,6 +493,70 @@ export default function FeedbackSelection() {
               </div>
             </div>
 
+            {/* Status Filter Row */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 border-t border-border pt-4">
+              <div>
+                <label className="text-xs font-medium mb-1 block">Facilitator Status</label>
+                <Select value={facilitatorStatusFilter || 'all'} onValueChange={(v) => setFacilitatorStatusFilter(v === 'all' ? null : v)}>
+                  <SelectTrigger className="h-9"><SelectValue placeholder="All Status" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="done">Done</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium mb-1 block">Coordinator Status</label>
+                <Select value={coordinatorStatusFilter || 'all'} onValueChange={(v) => setCoordinatorStatusFilter(v === 'all' ? null : v)}>
+                  <SelectTrigger className="h-9"><SelectValue placeholder="All Status" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="done">Done</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium mb-1 block">Supervisor Status</label>
+                <Select value={supervisorStatusFilter || 'all'} onValueChange={(v) => setSupervisorStatusFilter(v === 'all' ? null : v)}>
+                  <SelectTrigger className="h-9"><SelectValue placeholder="All Status" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="done">Done</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-end pb-1">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => {
+                    setFacilitatorStatusFilter(null);
+                    setCoordinatorStatusFilter(null);
+                    setSupervisorStatusFilter(null);
+                    setSearchQuery('');
+                    setSubjectFilter(null);
+                    setTimeFilter(null);
+                    setSessionTypeFilter(null);
+                    setVolunteerFilter(null);
+                    setFacilitatorFilter(null);
+                    setCoordinatorFilter(null);
+                    setDateFromFilter('');
+                    setDateToFilter('');
+                  }}
+                  className="text-xs h-9 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3 w-3 mr-2" />
+                  Clear All Filters
+                </Button>
+              </div>
+            </div>
+
             {/* Table */}
             {loading ? (
               <div className="flex justify-center py-8">
@@ -440,8 +584,10 @@ export default function FeedbackSelection() {
                       <TableHead>Coordinator</TableHead>
                       <TableHead>Facilitator</TableHead>
                       <TableHead>Class</TableHead>
-                      <TableHead>Session Date</TableHead>
-                      <TableHead>Recording</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Facilitator Status</TableHead>
+                      <TableHead>Coordinator Status</TableHead>
+                      <TableHead>Supervisor Status</TableHead>
                       <TableHead className="w-[60px]">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -464,11 +610,9 @@ export default function FeedbackSelection() {
                         <TableCell className="whitespace-nowrap">
                           {new Date(session.session_date).toLocaleDateString('en-GB')}
                         </TableCell>
-                        <TableCell>
-                          {session.recording_url ? (
-                            <a href={session.recording_url} target="_blank" rel="noreferrer" className="text-primary hover:underline">Link</a>
-                          ) : '-'}
-                        </TableCell>
+                        <TableCell>{getStatusBadge(session.facilitator_feedback_status)}</TableCell>
+                        <TableCell>{getStatusBadge(session.coordinator_feedback_status)}</TableCell>
+                        <TableCell>{getStatusBadge(session.supervisor_feedback_status)}</TableCell>
                         <TableCell>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>

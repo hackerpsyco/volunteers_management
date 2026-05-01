@@ -73,6 +73,26 @@ export function AddStudentDialog({
       ]);
 
       if (error) throw error;
+      
+      // Automatic account creation if email is provided
+      if (newStudent.email) {
+        try {
+          const { error: accountError } = await supabase.rpc('ensure_student_account', {
+            student_email: newStudent.email.trim(),
+            student_full_name: newStudent.name.trim(),
+            student_class_id: classId
+          });
+          
+          if (accountError) {
+            console.error('Error creating student account:', accountError);
+            toast.error('Student added, but account creation failed: ' + accountError.message);
+          } else {
+            console.log('Student account ensured successfully');
+          }
+        } catch (accError) {
+          console.error('Exception creating student account:', accError);
+        }
+      }
 
       toast.success('Student added successfully');
       setNewStudent({

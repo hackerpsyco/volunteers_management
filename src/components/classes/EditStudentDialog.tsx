@@ -81,6 +81,42 @@ export function EditStudentDialog({
         .eq('id', editedStudent.id);
 
       if (error) throw error;
+      
+      // Automatic account creation/update if email is provided
+      if (editedStudent.email) {
+        try {
+          // Find the class_id for the student if not already present in editedStudent
+          // In this component, class_id might not be in the student object passed as prop
+          // But we can try to get it from the editedStudent if available or from the student record
+          // Looking at the Student interface, class_id is NOT included.
+          // Let's fetch it if needed, or assume it doesn't change here.
+          // Wait, I should probably include class_id in the Student interface or fetch it.
+          
+          // Let's check if we have class_id. 
+          // If not, we might need to fetch the student's class_id from the database.
+          const { data: studentData } = await supabase
+            .from('students')
+            .select('class_id')
+            .eq('id', editedStudent.id)
+            .single();
+            
+          const classId = studentData?.class_id;
+
+          if (classId) {
+            const { error: accountError } = await supabase.rpc('ensure_student_account', {
+              student_email: editedStudent.email.trim(),
+              student_full_name: editedStudent.name.trim(),
+              student_class_id: classId
+            });
+            
+            if (accountError) {
+              console.error('Error ensuring student account:', accountError);
+            }
+          }
+        } catch (accError) {
+          console.error('Exception ensuring student account:', accError);
+        }
+      }
 
       toast.success('Student updated successfully');
       onOpenChange(false);

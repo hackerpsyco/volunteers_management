@@ -4,6 +4,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import wesLogo from '@/assets/wes-logo.jpg';
 import { useState } from 'react';
+import { ResetPasswordDialog } from './ResetPasswordDialog';
+import { KeyRound } from 'lucide-react';
 
 const studentNavItems = [
   { title: 'My Dashboard', url: '/student-dashboard', icon: Home },
@@ -15,8 +17,9 @@ const studentNavItems = [
 
 export function StudentSidebar() {
   const { signOut } = useAuth();
-  const location = useLocation();
+   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
 
   const handleSignOut = async () => {
     await signOut();
@@ -42,7 +45,7 @@ export function StudentSidebar() {
 
       {/* Sidebar */}
       <aside className={cn(
-        "fixed md:static w-64 min-h-screen bg-card border-r border-border flex flex-col transition-transform duration-300 z-40",
+        "fixed md:sticky md:top-0 h-screen w-64 bg-card border-r border-border flex flex-col transition-transform duration-300 z-40",
         isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
       )}>
         {/* Logo Section */}
@@ -61,7 +64,7 @@ export function StudentSidebar() {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-3 md:p-4 space-y-1 md:space-y-2">
+        <nav className="flex-1 p-3 md:p-4 space-y-1 md:space-y-2 overflow-y-auto">
           {studentNavItems.map((item) => {
             const isActive = location.pathname === item.url;
             return (
@@ -84,8 +87,20 @@ export function StudentSidebar() {
           })}
         </nav>
 
-        {/* Sign Out Button */}
-        <div className="p-3 md:p-4 border-t border-border">
+         {/* Bottom Actions */}
+        <div className="p-3 md:p-4 border-t border-border space-y-1">
+          <button
+            onClick={() => setIsResetDialogOpen(true)}
+            className={cn(
+              'flex items-center gap-3 w-full px-3 md:px-4 py-2 md:py-3 rounded-lg transition-colors',
+              'text-sm md:text-base font-medium',
+              'text-muted-foreground hover:bg-accent hover:text-foreground'
+            )}
+          >
+            <KeyRound className="h-5 w-5 flex-shrink-0" />
+            <span className="truncate">Reset Password</span>
+          </button>
+          
           <button
             onClick={handleSignOut}
             className={cn(
@@ -99,6 +114,11 @@ export function StudentSidebar() {
           </button>
         </div>
       </aside>
+
+      <ResetPasswordDialog 
+        open={isResetDialogOpen} 
+        onOpenChange={setIsResetDialogOpen} 
+      />
 
       {/* Mobile Overlay */}
       {isOpen && (

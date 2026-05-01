@@ -65,6 +65,8 @@ export default function AdminPanel() {
     password: '',
     new_password: '',
   });
+  const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   useEffect(() => {
     if (user?.id) {
@@ -469,10 +471,45 @@ export default function AdminPanel() {
         {/* Users Table */}
         <Card>
           <CardHeader>
-            <CardTitle>Users</CardTitle>
-            <CardDescription>
-              Manage all users and their role assignments
-            </CardDescription>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <CardTitle>Users</CardTitle>
+                <CardDescription>
+                  Manage all users and their role assignments
+                </CardDescription>
+              </div>
+              <div className="flex flex-col sm:flex-row items-center gap-2">
+                <div className="relative w-full sm:w-64">
+                  <Input
+                    placeholder="Search name or email..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="h-9 pr-8"
+                  />
+                  {searchQuery && (
+                    <button 
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+                <Select value={roleFilter} onValueChange={setRoleFilter}>
+                  <SelectTrigger className="w-full sm:w-48 h-9">
+                    <SelectValue placeholder="Filter by Role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Roles</SelectItem>
+                    {roles.map((role) => (
+                      <SelectItem key={role.id} value={role.id.toString()}>
+                        {role.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -497,7 +534,15 @@ export default function AdminPanel() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {users.map((user) => (
+                    {users
+                      .filter(u => {
+                        const matchesRole = roleFilter === 'all' || u.role_id?.toString() === roleFilter;
+                        const matchesSearch = !searchQuery || 
+                          u.email.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          (u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()));
+                        return matchesRole && matchesSearch;
+                      })
+                      .map((user) => (
                       <TableRow key={user.id}>
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-2">

@@ -383,6 +383,8 @@ export default function SessionRecording() {
           coordinator_session_strength: formData.coordinator_session_strength,
           class_batch: formData.class_batch,
           recorded_at: new Date().toISOString(),
+          ...(currentPage === 1 ? { facilitator_feedback_status: 'done' } : {}),
+          ...(currentPage === 3 ? { coordinator_feedback_status: 'done' } : {}),
         } as any)
         .eq('id', sessionId);
 
@@ -459,6 +461,20 @@ export default function SessionRecording() {
           ]);
 
         if (error) throw error;
+      }
+
+      // Update the supervisor and admin status in the main sessions table
+      const { error: sessionError } = await supabase
+        .from('sessions')
+        .update({
+          supervisor_feedback_status: 'done',
+          admin_feedback_status: 'submitted',
+          status: 'completed'
+        })
+        .eq('id', sessionId);
+
+      if (sessionError) {
+        console.warn('Hours saved but failed to update session status:', sessionError);
       }
 
       toast.success('Hours tracker saved successfully');
@@ -1671,7 +1687,7 @@ export default function SessionRecording() {
             )}
           </>
         )}
-
+        
         {/* Navigation Buttons */}
         <div className="flex gap-3 justify-between">
           <Button
@@ -1694,7 +1710,7 @@ export default function SessionRecording() {
               </Button>
             )}
 
-            {currentPage < 4 && (
+            {currentPage < 3 && (
               <Button
                 onClick={() => setCurrentPage(currentPage + 1)}
                 variant="outline"

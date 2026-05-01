@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { ListTodo, Search, Filter, Clock, CheckCircle2, History } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -38,6 +39,7 @@ export default function StudentTasks() {
   const [filter, setFilter] = useState<'all' | 'pending' | 'submitted' | 'upcoming'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTask, setSelectedTask] = useState<StudentTask | null>(null);
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [submissionLink, setSubmissionLink] = useState('');
 
   useEffect(() => {
@@ -253,8 +255,13 @@ export default function StudentTasks() {
           </div>
         )}
 
-        <Dialog open={!!selectedTask} onOpenChange={(open) => !open && setSelectedTask(null)}>
-          <DialogContent className="max-w-xl">
+        <Dialog open={!!selectedTask} onOpenChange={(open) => {
+          if (!open) {
+            setSelectedTask(null);
+            setIsDescriptionExpanded(false);
+          }
+        }}>
+          <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="text-2xl font-bold">{selectedTask?.task_name}</DialogTitle>
             </DialogHeader>
@@ -277,9 +284,26 @@ export default function StudentTasks() {
                     </div>
                   </div>
                   {selectedTask.task_description && (
-                    <div>
-                      <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Description</span>
-                      <p className="text-sm mt-1 whitespace-pre-wrap">{selectedTask.task_description}</p>
+                    <div className="mt-4 pt-4 border-t border-border">
+                      <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider text-primary">Description</span>
+                      <div className="relative mt-2">
+                        <p className={cn(
+                          "text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap transition-all duration-300",
+                          !isDescriptionExpanded && selectedTask.task_description.length > 200 && "line-clamp-3"
+                        )}>
+                          {selectedTask.task_description}
+                        </p>
+                        {selectedTask.task_description.length > 200 && (
+                          <Button
+                            variant="link"
+                            size="sm"
+                            className="p-0 h-auto text-primary mt-1 hover:no-underline font-semibold"
+                            onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                          >
+                            {isDescriptionExpanded ? "Show Less ↑" : "Read More ↓"}
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>

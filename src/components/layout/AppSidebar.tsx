@@ -129,7 +129,7 @@ export function AppSidebar() {
 
       {/* Sidebar */}
       <aside className={cn(
-        "fixed md:static w-64 min-h-screen bg-card border-r border-border flex flex-col transition-transform duration-300 z-40",
+        "fixed md:sticky md:top-0 h-screen w-64 bg-card border-r border-border flex flex-col transition-transform duration-300 z-40",
         isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
       )}>
         {/* Logo Section */}
