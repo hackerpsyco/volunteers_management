@@ -410,7 +410,7 @@ export default function AddVolunteer() {
                       id="interestedTopic"
                       value={interestedTopic}
                       onChange={(e) => setInterestedTopic(e.target.value)}
-                      placeholder="e.g. AI"
+                      placeholder="e.g. Artificial Intelligence"
                     />
                   </div>
                 </div>

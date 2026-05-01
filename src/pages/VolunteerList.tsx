@@ -981,7 +981,7 @@ export default function VolunteerList() {
                 onChange={(e) =>
                   setPreferencesData({ ...preferencesData, interested_topic: e.target.value })
                 }
-                placeholder="e.g., AI, Web Development"
+                placeholder="e.g., Artificial Intelligence, Web Development"
               />
             </div>
 

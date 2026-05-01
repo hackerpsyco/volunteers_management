@@ -101,10 +101,10 @@ export default function Dashboard() {
         if (error) throw error;
         setSubjects(data || []);
 
-        // Find "AI" or "Artificial Intelligence" to set as default
+        // Find "Artificial Intelligence" to set as default
         const aiSubject = data?.find(s =>
-          s.name.toLowerCase() === 'ai' ||
-          s.name.toLowerCase().includes('artificial intelligence')
+          s.name === 'Artificial Intelligence' ||
+          s.name.toLowerCase() === 'ai'
         );
         if (aiSubject) {
           setSelectedSubject(aiSubject.id);

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, Save, ChevronRight, ChevronLeft, Plus, Trash2, Shield, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Save, ChevronRight, ChevronLeft, Plus, Trash2, Shield, ExternalLink, Mic, MicOff } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { cn } from '@/lib/utils';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -126,7 +127,55 @@ export default function SessionRecording() {
     task_description: '',
     submission_link: '',
     feedback_notes: '',
+    earning_amount: '5',
   });
+
+  const [isListening, setIsListening] = useState(false);
+
+  const toggleVoiceTyping = () => {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      toast.error('Voice typing is not supported in this browser.');
+      return;
+    }
+
+    if (isListening) {
+      setIsListening(false);
+      return;
+    }
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => {
+      setIsListening(true);
+      toast.info('Listening... Speak now.');
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error('Speech recognition error', event.error);
+      setIsListening(false);
+      toast.error('Voice typing failed: ' + event.error);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setNewHomework(prev => ({
+        ...prev,
+        task_description: (prev.task_description ? prev.task_description + ' ' : '') + transcript
+      }));
+      toast.success('Text added!');
+    };
+
+    recognition.start();
+  };
 
   useEffect(() => {
     if (user?.id) {
@@ -285,6 +334,7 @@ export default function SessionRecording() {
           submission_link,
           status,
           feedback_notes,
+          earning_amount,
           students:student_id(name)
         `)
         .eq('session_id', sessionId)
@@ -642,6 +692,7 @@ export default function SessionRecording() {
         deadline: newHomework.deadline || null,
         submission_link: newHomework.submission_link || null,
         feedback_notes: newHomework.feedback_notes || null,
+        earning_amount: Number(newHomework.earning_amount) || 5,
         status: 'pending',
       }));
 
@@ -660,6 +711,7 @@ export default function SessionRecording() {
         task_description: '',
         submission_link: '',
         feedback_notes: '',
+        earning_amount: '5',
       });
       fetchHomeworkRecords();
     } catch (error) {
@@ -1247,9 +1299,36 @@ export default function SessionRecording() {
                           className="mt-1"
                         />
                       </div>
+                      <div>
+                        <Label htmlFor="hw_earning" className="text-sm">Earning Amount</Label>
+                        <Input
+                          id="hw_earning"
+                          type="number"
+                          min="0"
+                          value={newHomework.earning_amount}
+                          onChange={(e) => setNewHomework({ ...newHomework, earning_amount: e.target.value })}
+                          placeholder="e.g. 5"
+                          className="mt-1"
+                        />
+                      </div>
                     </div>
                     <div>
-                      <Label htmlFor="hw_description" className="text-sm">Task Description</Label>
+                      <div className="flex items-center justify-between mb-1">
+                        <Label htmlFor="hw_description" className="text-sm">Task Description</Label>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={toggleVoiceTyping}
+                          className={cn(
+                            "h-7 gap-1.5 text-[10px] font-bold uppercase tracking-wider transition-all",
+                            isListening ? "text-red-500 bg-red-50 animate-pulse border border-red-200" : "text-primary hover:bg-primary/10"
+                          )}
+                        >
+                          {isListening ? <MicOff className="h-3 w-3" /> : <Mic className="h-3 w-3" />}
+                          {isListening ? 'Stop Listening' : 'Speak to Type'}
+                        </Button>
+                      </div>
                       <Textarea
                         id="hw_description"
                         placeholder="Describe the task or assignment"
@@ -1354,6 +1433,12 @@ export default function SessionRecording() {
                                   {homework.deadline
                                     ? new Date(homework.deadline).toLocaleDateString()
                                     : '-'}
+                                </p>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Earning</span>
+                                <p className="font-medium text-green-600 font-bold">
+                                  {homework.earning_amount || 5} units
                                 </p>
                               </div>
                             </div>

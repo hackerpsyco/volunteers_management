@@ -133,6 +133,29 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sessionTypeFilter, setSessionTypeFilter] = useState<string>('all');
   const [sessionCategoryFilter, setSessionCategoryFilter] = useState<string>('all');
+  const [sortColumn, setSortColumn] = useState<keyof CurriculumItem | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc' | null>(null);
+
+  const handleColumnSort = (column: keyof CurriculumItem) => {
+    if (sortColumn === column) {
+      if (sortDirection === 'asc') {
+        setSortDirection('desc');
+      } else if (sortDirection === 'desc') {
+        setSortColumn(null);
+        setSortDirection(null);
+      }
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  const getSortIndicator = (column: keyof CurriculumItem) => {
+    if (sortColumn !== column) return '↕';
+    if (sortDirection === 'asc') return '↑';
+    if (sortDirection === 'desc') return '↓';
+    return '↕';
+  };
 
   useEffect(() => {
     if (isStudent) {
@@ -245,8 +268,34 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
       });
     }
     
+    // Apply column sorting
+    if (sortColumn && sortDirection) {
+      filtered = [...filtered].sort((a, b) => {
+        const aValue = a[sortColumn];
+        const bValue = b[sortColumn];
+
+        // Handle null/undefined values
+        if (aValue == null && bValue == null) return 0;
+        if (aValue == null) return sortDirection === 'asc' ? 1 : -1;
+        if (bValue == null) return sortDirection === 'asc' ? -1 : 1;
+
+        // String comparison (case-insensitive)
+        if (typeof aValue === 'string' && typeof bValue === 'string') {
+          const comparison = aValue.toLowerCase().localeCompare(bValue.toLowerCase());
+          return sortDirection === 'asc' ? comparison : -comparison;
+        }
+
+        // Number comparison
+        if (typeof aValue === 'number' && typeof bValue === 'number') {
+          return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+        }
+
+        return 0;
+      });
+    }
+    
     setFilteredCurriculum(filtered);
-  }, [selectedCategory, selectedSubject, selectedModule, selectedTopic, curriculum, searchQuery, sessionInfo, statusFilter, sessionTypeFilter]);
+  }, [selectedCategory, selectedSubject, selectedModule, selectedTopic, curriculum, searchQuery, sessionInfo, statusFilter, sessionTypeFilter, sortColumn, sortDirection]);
 
   const fetchCurriculum = async (classId?: string) => {
     try {
@@ -290,7 +339,7 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
           updated_at: item.updated_at,
           class_id: item.class_id,
           subject_id: item.subject_id,
-          subject_name: item.subjects?.name || 'AI',
+          subject_name: item.subjects?.name || 'Artificial Intelligence',
         };
       });
 
@@ -736,10 +785,38 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Subject</TableHead>
-                        <TableHead>Category</TableHead>
-                        <TableHead>Module No & Module Name</TableHead>
-                        <TableHead>Topics Covered</TableHead>
+                        <TableHead className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleColumnSort('subject_name')}>
+                          <div className="flex items-center gap-1">
+                            Subject
+                            <span className={sortColumn === 'subject_name' ? 'font-bold' : 'text-muted-foreground'}>
+                              {getSortIndicator('subject_name')}
+                            </span>
+                          </div>
+                        </TableHead>
+                        <TableHead className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleColumnSort('content_category')}>
+                          <div className="flex items-center gap-1">
+                            Category
+                            <span className={sortColumn === 'content_category' ? 'font-bold' : 'text-muted-foreground'}>
+                              {getSortIndicator('content_category')}
+                            </span>
+                          </div>
+                        </TableHead>
+                        <TableHead className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleColumnSort('module_title')}>
+                          <div className="flex items-center gap-1">
+                            Module No & Module Name
+                            <span className={sortColumn === 'module_title' ? 'font-bold' : 'text-muted-foreground'}>
+                              {getSortIndicator('module_title')}
+                            </span>
+                          </div>
+                        </TableHead>
+                        <TableHead className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleColumnSort('topic_title')}>
+                          <div className="flex items-center gap-1">
+                            Topics Covered
+                            <span className={sortColumn === 'topic_title' ? 'font-bold' : 'text-muted-foreground'}>
+                              {getSortIndicator('topic_title')}
+                            </span>
+                          </div>
+                        </TableHead>
                         <TableHead>Videos</TableHead>
                         <TableHead>PPT/Quiz</TableHead>
                         <TableHead>Fresh Session</TableHead>

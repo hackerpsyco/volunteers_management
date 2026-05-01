@@ -277,7 +277,7 @@ export function BulkUploadDialog({ open, onOpenChange, onSuccess }: BulkUploadDi
         'Regular Volunteering': 'true',
         'Frequency of Volunteering in a month': '2',
         'Interested Area': 'Technology',
-        'Interested Topic': 'AI & Machine Learning',
+        'Interested Topic': 'Artificial Intelligence',
         'Preferred day': 'Saturday',
         'Preferred class': 'Class 8',
         'Any remark': 'Available on weekends',

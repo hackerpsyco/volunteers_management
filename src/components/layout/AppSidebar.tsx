@@ -34,9 +34,9 @@ const navGroups: NavGroup[] = [
     label: 'Session Management',
     studentVisible: false,
     items: [
+      { title: 'Curriculum', url: '/curriculum', icon: BookOpen, requiredRole: null, studentVisible: false },
       { title: 'Session Planner', url: '/sessions', icon: BookOpen, requiredRole: null, studentVisible: false },
       { title: 'Record & Feedback', url: '/feedback', icon: FileText, requiredRole: null, studentVisible: false },
-      { title: 'Curriculum', url: '/curriculum', icon: BookOpen, requiredRole: null, studentVisible: false },
       { title: 'Tasks & Projects', url: '/tasks', icon: ClipboardList, requiredRole: null, studentVisible: false },
     ]
   },
@@ -45,11 +45,9 @@ const navGroups: NavGroup[] = [
     studentVisible: false,
     hiddenRoles: [4],
     items: [
-      { title: 'Guest Teacher & Speaker', url: '/volunteers', icon: Users, requiredRole: null, studentVisible: false },
-      { title: 'Coordinators', url: '/coordinators', icon: Users2, requiredRole: null, studentVisible: false },
       { title: 'Facilitator', url: '/facilitators', icon: Users2, requiredRole: null, studentVisible: false },
-
-
+      { title: 'Coordinators', url: '/coordinators', icon: Users2, requiredRole: null, studentVisible: false },
+      { title: 'Guest Teacher & Speaker', url: '/volunteers', icon: Users, requiredRole: null, studentVisible: false },
     ],
   },
   {
