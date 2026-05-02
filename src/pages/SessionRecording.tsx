@@ -1281,13 +1281,23 @@ export default function SessionRecording() {
                       </div>
                       <div>
                         <Label htmlFor="hw_type" className="text-sm">Task Type</Label>
-                        <Input
-                          id="hw_type"
-                          placeholder="homework, assignment, project, etc."
+                        <Select
                           value={newHomework.task_type}
-                          onChange={(e) => setNewHomework({ ...newHomework, task_type: e.target.value })}
-                          className="mt-1"
-                        />
+                          onValueChange={(v) => setNewHomework({ ...newHomework, task_type: v })}
+                        >
+                          <SelectTrigger id="hw_type" className="mt-1">
+                            <SelectValue placeholder="Select task type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="English Reading & speaking Task">English Reading & speaking Task</SelectItem>
+                            <SelectItem value="CCC - Computers - Task">CCC - Computers - Task</SelectItem>
+                            <SelectItem value="GT Session Task">GT Session Task</SelectItem>
+                            <SelectItem value="Mentor connect Task">Mentor connect Task</SelectItem>
+                            <SelectItem value="Bonus for 100% attendance">Bonus for 100% attendance</SelectItem>
+                            <SelectItem value="homework">Homework</SelectItem>
+                            <SelectItem value="task">Other Task</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div>
                         <Label htmlFor="hw_deadline" className="text-sm">Deadline</Label>

@@ -206,10 +206,14 @@ export function AddStudentTaskFeedbackDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="task">Task</SelectItem>
+                <SelectItem value="English Reading & speaking Task">English Reading & speaking Task</SelectItem>
+                <SelectItem value="CCC - Computers - Task">CCC - Computers - Task</SelectItem>
+                <SelectItem value="GT Session Task">GT Session Task</SelectItem>
+                <SelectItem value="Mentor connect Task">Mentor connect Task</SelectItem>
+                <SelectItem value="Bonus for 100% attendance">Bonus for 100% attendance</SelectItem>
+                <SelectItem value="task">Other Task</SelectItem>
                 <SelectItem value="homework">Homework</SelectItem>
                 <SelectItem value="assignment">Assignment</SelectItem>
-                <SelectItem value="deadline">Deadline</SelectItem>
                 <SelectItem value="project">Project</SelectItem>
               </SelectContent>
             </Select>

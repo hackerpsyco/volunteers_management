@@ -50,6 +50,7 @@ interface TaskItem {
   academic_year?: string;
   subject_name?: string;
   earning_amount?: number;
+  task_type?: string;
 }
 
 interface TaskGroup {
@@ -63,6 +64,7 @@ interface TaskGroup {
   session_title?: string;
   class_name?: string;
   earning_amount?: number;
+  task_type?: string;
 }
 
 interface ClassOption {
@@ -79,6 +81,15 @@ interface StudentOption {
   id: string;
   name: string;
 }
+
+const TASK_TYPE_OPTIONS = [
+  { value: 'English Reading & speaking Task', label: 'English Reading & speaking Task' },
+  { value: 'CCC - Computers - Task', label: 'CCC - Computers - Task' },
+  { value: 'GT Session Task', label: 'GT Session Task' },
+  { value: 'Mentor connect Task', label: 'Mentor connect Task' },
+  { value: 'Bonus for 100% attendance', label: 'Bonus for 100% attendance' },
+  { value: 'task', label: 'Other Task' },
+];
 
 export default function Tasks() {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
@@ -110,6 +121,7 @@ export default function Tasks() {
     academic_year: '',
     subject_id: '',
     earning_amount: '5',
+    task_type: 'task',
   });
 
   const [allSubjects, setAllSubjects] = useState<{ id: string, name: string }[]>([]);
@@ -123,6 +135,7 @@ export default function Tasks() {
     due_date: '',
     submission_link: '',
     earning_amount: '5',
+    task_type: 'task',
   });
 
   useEffect(() => {
@@ -201,6 +214,7 @@ export default function Tasks() {
           session_title: task.session_title,
           class_name: task.class_name,
           earning_amount: task.earning_amount,
+          task_type: task.task_type,
         });
       }
       grouped.get(key)!.tasks.push(task);
@@ -271,6 +285,7 @@ export default function Tasks() {
           student_id,
           session_id,
           earning_amount,
+          feedback_type,
           created_at,
           students:student_id(
             name,
@@ -304,6 +319,7 @@ export default function Tasks() {
         academic_year: task.students?.academic_year || '-',
         subject_name: task.sessions?.subjects?.name || '-',
         earning_amount: task.earning_amount || 5,
+        task_type: task.feedback_type || 'task',
       }));
 
       setTasks(enriched);
@@ -347,13 +363,13 @@ export default function Tasks() {
       const taskRecords = studentsToAssign.map(student => ({
         session_id: formData.session_id || null,
         student_id: student.id,
-        feedback_type: 'homework',
         task_name: formData.title,
         task_description: formData.description || null,
         deadline: formData.due_date || null,
         submission_link: formData.submission_link || null,
         earning_amount: Number(formData.earning_amount) || 5,
         status: 'pending',
+        feedback_type: formData.task_type || 'task',
       }));
 
       const { error } = await supabase.from('student_task_feedback').insert(taskRecords);
@@ -361,7 +377,7 @@ export default function Tasks() {
 
       toast.success(`Task assigned to ${studentsToAssign.length} students`);
       setIsCreateOpen(false);
-      setFormData({ title: '', description: '', class_id: '', session_id: '', student_id: '', due_date: '', submission_link: '', academic_year: '', subject_id: '', earning_amount: '5' });
+      setFormData({ title: '', description: '', class_id: '', session_id: '', student_id: '', due_date: '', submission_link: '', academic_year: '', subject_id: '', earning_amount: '5', task_type: 'task' });
       fetchTasks();
     } catch (e) {
       console.error('Error creating task:', e);
@@ -421,6 +437,7 @@ export default function Tasks() {
       due_date: group.due_date ? new Date(group.due_date).toISOString().split('T')[0] : '',
       submission_link: group.tasks[0]?.submission_link || '',
       earning_amount: group.tasks[0]?.earning_amount?.toString() || '5',
+      task_type: group.tasks[0]?.task_type || 'task',
     });
     // We need to find the class_id from class_name if possible
     const cls = classes.find(c => c.name === group.tasks[0]?.class_name);
@@ -445,6 +462,7 @@ export default function Tasks() {
           session_id: editFormData.session_id || null,
           submission_link: editFormData.submission_link,
           earning_amount: Number(editFormData.earning_amount) || 5,
+          feedback_type: editFormData.task_type || 'task',
         })
         .in('id', taskIds);
 
@@ -646,6 +664,7 @@ export default function Tasks() {
                           <span>Created: {new Date(group.created_at || new Date()).toLocaleDateString()}</span>
                           <span>Deadline: {group.due_date ? new Date(group.due_date).toLocaleDateString() : '-'}</span>
                           <span className="font-medium text-foreground">{group.tasks.length} student{group.tasks.length !== 1 ? 's' : ''}</span>
+                          <Badge variant="outline" className="bg-primary/5 text-[10px] h-5">{group.task_type || 'task'}</Badge>
                         </div>
                       </div>
                     </div>
@@ -739,16 +758,26 @@ export default function Tasks() {
                         </div>
                       </div>
 
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 bg-pink-500/10 rounded-lg text-pink-600">
-                          <FileText className="h-4 w-4" />
+                        <div className="flex items-start gap-3">
+                          <div className="p-2 bg-pink-500/10 rounded-lg text-pink-600">
+                            <FileText className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Session</span>
+                            <p className="font-medium">{selectedTaskGroup.session_title || '-'}</p>
+                          </div>
                         </div>
-                        <div>
-                          <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Session</span>
-                          <p className="font-medium">{selectedTaskGroup.session_title || '-'}</p>
+
+                        <div className="flex items-start gap-3">
+                          <div className="p-2 bg-yellow-500/10 rounded-lg text-yellow-600">
+                            <ClipboardList className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Task Type</span>
+                            <p className="font-medium">{selectedTaskGroup.task_type || 'task'}</p>
+                          </div>
                         </div>
                       </div>
-                    </div>
 
                     {selectedTaskGroup.description && (
                       <div className="mt-6 pt-6 border-t border-border">
@@ -918,6 +947,22 @@ export default function Tasks() {
                 </Select>
               </div>
               <div>
+                <Label>Task Type</Label>
+                <Select
+                  value={editFormData.task_type}
+                  onValueChange={(v) => setEditFormData({ ...editFormData, task_type: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select task type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TASK_TYPE_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
                 <Label>Due Date</Label>
                 <Input
                   type="date"
@@ -1017,6 +1062,22 @@ export default function Tasks() {
                   <SelectContent>
                     {allSubjects.map((subject) => (
                       <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Task Type</Label>
+                <Select
+                  value={formData.task_type}
+                  onValueChange={(v) => setFormData({ ...formData, task_type: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select task type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TASK_TYPE_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
