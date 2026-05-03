@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Users, Search, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
+import { useAcademicYear } from '@/contexts/AcademicYearContext';
 
 interface Volunteer {
   id: string;
@@ -36,11 +37,12 @@ export function VolunteerSessionStats() {
     availableSessions: 0,
   });
   const [loading, setLoading] = useState(false);
+  const { selectedYear, getDateRange } = useAcademicYear();
 
   // Fetch volunteers and rankings on mount
   useEffect(() => {
     fetchVolunteersAndRankings();
-  }, []);
+  }, [selectedYear]);
 
   // Filter volunteers based on search input
   useEffect(() => {
@@ -86,10 +88,13 @@ export function VolunteerSessionStats() {
       setVolunteers(volData || []);
       setFilteredVolunteers(volData || []);
 
-      // Fetch session counts for rankings
+      // Fetch session counts for rankings filtered by academic year
+      const { startDate, endDate } = getDateRange();
       const { data: sessData, error: sessError } = await supabase
         .from('sessions')
-        .select('volunteer_id');
+        .select('volunteer_id')
+        .gte('session_date', startDate.toISOString().split('T')[0])
+        .lte('session_date', endDate.toISOString().split('T')[0]);
 
       if (sessError) throw sessError;
 
@@ -117,12 +122,14 @@ export function VolunteerSessionStats() {
     try {
       setLoading(true);
 
-      // Fetch all sessions for this volunteer using a helper to avoid type inference issues
-      // @ts-ignore - Supabase type inference issue
+      // Fetch all sessions for this volunteer filtered by academic year
+      const { startDate, endDate } = getDateRange();
       const { data: sessions, error } = await supabase
         .from('sessions')
         .select('status')
-        .eq('volunteer_id', volunteerId);
+        .eq('volunteer_id', volunteerId)
+        .gte('session_date', startDate.toISOString().split('T')[0])
+        .lte('session_date', endDate.toISOString().split('T')[0]);
 
       if (error) throw error;
 

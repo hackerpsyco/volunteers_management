@@ -1,0 +1,375 @@
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { useAcademicYear } from '@/contexts/AcademicYearContext';
+import { cn } from '@/lib/utils';
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from '@/components/ui/table';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { 
+  MoreVertical, 
+  CheckCircle2, 
+  ExternalLink,
+  ClipboardList,
+  Search,
+  User,
+  CheckCircle,
+  Clock,
+  ChevronDown
+} from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { Progress } from "@/components/ui/progress";
+
+interface TaskRecord {
+  id: string;
+  task_name: string;
+  status: string;
+  deadline: string;
+  submission_link: string | null;
+  feedback_type: string;
+  student_id: string;
+}
+
+interface StudentGroup {
+  id: string;
+  name: string;
+  tasks: TaskRecord[];
+  completedCount: number;
+  totalCount: number;
+  progress: number;
+}
+
+export default function ClassTaskReview() {
+  const { user } = useAuth();
+  const [studentGroups, setStudentGroups] = useState<StudentGroup[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [className, setClassName] = useState('');
+  const { selectedYear, getDateRange } = useAcademicYear();
+
+  useEffect(() => {
+    if (user?.email) {
+      loadClassTasks();
+    }
+  }, [user, selectedYear]);
+
+  const loadClassTasks = async () => {
+    try {
+      setLoading(true);
+
+      // 1. Get the current student's class_id
+      const { data: student, error: studentError } = await (supabase as any)
+        .from('students')
+        .select('id, class_id, classes(name)')
+        .ilike('email', user?.email || '')
+        .maybeSingle();
+
+      if (studentError || !student) {
+        console.error('Error fetching student record:', studentError);
+        setLoading(false);
+        return;
+      }
+
+      if (!student.id || !student.class_id) {
+        console.error('Student ID or Class ID is missing');
+        setLoading(false);
+        return;
+      }
+
+      setClassName((student.classes as any)?.name || 'My Class');
+
+      // 2. Get all students assigned to this monitor (current logged-in student)
+      const { data: classmates, error: classmatesError } = await supabase
+        .from('students')
+        .select('id, name')
+        .eq('monitor_id', student.id)
+        .order('name', { ascending: true });
+
+      if (classmatesError) throw classmatesError;
+
+      if (classmates.length === 0) {
+        setStudentGroups([]);
+        setLoading(false);
+        return;
+      }
+
+      const classmateIds = classmates.map(c => c.id);
+
+      // 3. Get tasks for all classmates filtered by academic year
+      const { startDate, endDate } = getDateRange();
+      const { data: tasksData, error: tasksError } = await supabase
+        .from('student_task_feedback')
+        .select(`
+          id,
+          task_name,
+          status,
+          deadline,
+          submission_link,
+          feedback_type,
+          student_id,
+          created_at
+        `)
+        .in('student_id', classmateIds)
+        .gte('created_at', startDate.toISOString())
+        .lte('created_at', endDate.toISOString())
+        .order('deadline', { ascending: true });
+
+      if (tasksError) throw tasksError;
+
+      // 4. Group tasks by student
+      const groups: StudentGroup[] = classmates.map(s => {
+        const studentTasks = (tasksData || []).filter(t => t.student_id === s.id);
+        const completed = studentTasks.filter(t => t.status === 'completed').length;
+        const total = studentTasks.length;
+        return {
+          id: s.id,
+          name: s.name,
+          tasks: studentTasks,
+          completedCount: completed,
+          totalCount: total,
+          progress: total > 0 ? Math.round((completed / total) * 100) : 0
+        };
+      });
+
+      setStudentGroups(groups);
+    } catch (error: any) {
+      console.error('Detailed error loading class tasks:', error);
+      toast.error('Failed to load class tasks: ' + (error.message || 'Unknown error'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMarkCompleted = async (taskId: string, studentId: string, taskName: string) => {
+    try {
+      const { error: updateError } = await supabase
+        .from('student_task_feedback')
+        .update({ status: 'completed', updated_at: new Date().toISOString() })
+        .eq('id', taskId);
+
+      if (updateError) throw updateError;
+
+      // Add earning record
+      await supabase.from('student_earnings').insert({
+        student_id: studentId,
+        task_id: taskId,
+        amount: 5,
+        description: `Completed task: ${taskName} (Verified by Class Monitor)`
+      });
+
+      toast.success('Task marked as completed');
+      loadClassTasks();
+    } catch (error) {
+      console.error('Error completing task:', error);
+      toast.error('Failed to update task status');
+    }
+  };
+
+  const filteredGroups = studentGroups.filter(g => 
+    g.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    g.tasks.some(t => t.task_name.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
+  return (
+    <DashboardLayout>
+      <div className="space-y-6 max-w-6xl mx-auto">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold flex items-center gap-3">
+              <ClipboardList className="h-9 w-9 text-primary" />
+              My Assigned Students
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              Monitoring tasks for your assigned students in <span className="font-semibold text-foreground">{className}</span>
+            </p>
+          </div>
+          <div className="relative w-full md:w-80">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search student or task..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 h-11 bg-card border-primary/20 focus:border-primary shadow-sm"
+            />
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-24 gap-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            <p className="text-muted-foreground animate-pulse">Loading class data...</p>
+          </div>
+        ) : filteredGroups.length === 0 ? (
+          <Card className="border-dashed border-2 py-12">
+            <CardContent className="flex flex-col items-center justify-center text-center">
+              <div className="bg-muted p-4 rounded-full mb-4">
+                <Search className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <h3 className="text-lg font-semibold">No students assigned to you yet</h3>
+              <p className="text-muted-foreground">Ask an administrator to assign students to you for monitoring</p>
+              <div className="mt-4 text-xs text-muted-foreground border-t pt-4">
+                Logged in as: <span className="font-mono">{user?.email}</span>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Accordion type="multiple" className="space-y-4">
+            {filteredGroups.map((group) => (
+              <AccordionItem 
+                key={group.id} 
+                value={group.id}
+                className="bg-card border border-border/60 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+              >
+                <AccordionTrigger className="px-6 py-4 hover:no-underline">
+                  <div className="flex flex-1 items-center justify-between gap-4 pr-4">
+                    <div className="flex items-center gap-4">
+                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                        <User className="h-5 w-5" />
+                      </div>
+                      <div className="text-left">
+                        <h3 className="font-bold text-lg leading-tight">{group.name}</h3>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant="outline" className="text-[10px] uppercase font-bold py-0 h-5">
+                            {group.completedCount}/{group.totalCount} Tasks
+                          </Badge>
+                          {group.progress === 100 && (
+                            <Badge className="bg-green-500 hover:bg-green-600 text-white text-[10px] py-0 h-5">
+                              Completed
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="hidden md:flex flex-col items-end gap-1 w-48">
+                      <div className="flex justify-between w-full text-[10px] font-bold text-muted-foreground">
+                        <span>PROGRESS</span>
+                        <span>{group.progress}%</span>
+                      </div>
+                      <Progress value={group.progress} className="h-1.5 w-full" />
+                    </div>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="px-6 pb-6 pt-0">
+                  <div className="mt-4 border rounded-lg overflow-hidden bg-muted/30">
+                    <Table>
+                      <TableHeader className="bg-muted/50">
+                        <TableRow>
+                          <TableHead className="text-xs uppercase font-bold">Category</TableHead>
+                          <TableHead className="text-xs uppercase font-bold">Task Details</TableHead>
+                          <TableHead className="text-xs uppercase font-bold">Deadline</TableHead>
+                          <TableHead className="text-xs uppercase font-bold">Status</TableHead>
+                          <TableHead className="text-xs uppercase font-bold">Submission</TableHead>
+                          <TableHead className="text-xs uppercase font-bold text-right">Action</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {group.tasks.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={6} className="text-center py-8 text-muted-foreground text-sm italic">
+                              No tasks assigned to this student.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          group.tasks.map((task) => (
+                            <TableRow key={task.id} className="hover:bg-muted/50 transition-colors">
+                              <TableCell>
+                                <Badge variant="secondary" className="text-[10px] bg-blue-50 text-blue-700 border-blue-100">
+                                  {task.feedback_type}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="font-medium max-w-[200px] truncate">
+                                {task.task_name}
+                              </TableCell>
+                              <TableCell className="text-xs">
+                                <div className="flex items-center gap-1 text-muted-foreground">
+                                  <Clock className="h-3 w-3" />
+                                  {new Date(task.deadline).toLocaleDateString()}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-1.5">
+                                  {task.status === 'completed' ? (
+                                    <CheckCircle className="h-4 w-4 text-green-500" />
+                                  ) : (
+                                    <div className="h-2 w-2 rounded-full bg-yellow-500" />
+                                  )}
+                                  <span className={cn(
+                                    "text-xs font-medium",
+                                    task.status === 'completed' ? "text-green-600" : "text-yellow-600"
+                                  )}>
+                                    {task.status}
+                                  </span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                {task.submission_link ? (
+                                  <a
+                                    href={task.submission_link.startsWith('http') ? task.submission_link : `https://${task.submission_link}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-primary hover:text-primary/80 text-xs font-semibold"
+                                  >
+                                    <ExternalLink className="h-3 w-3" />
+                                    Review
+                                  </a>
+                                ) : (
+                                  <span className="text-muted-foreground text-xs italic">Pending</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted">
+                                      <MoreVertical className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem 
+                                      onClick={() => handleMarkCompleted(task.id, group.id, task.task_name)}
+                                      disabled={task.status === 'completed'}
+                                      className="text-green-600 font-medium focus:text-green-600 focus:bg-green-50"
+                                    >
+                                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                                      Verify Completion
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+        )}
+      </div>
+    </DashboardLayout>
+  );
+}

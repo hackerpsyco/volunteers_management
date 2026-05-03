@@ -1,11 +1,11 @@
-import { Home, LogOut, CalendarDays, CheckSquare, Wallet, BookOpen } from 'lucide-react';
+import { Home, LogOut, CalendarDays, CheckSquare, Wallet, BookOpen, KeyRound } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import wesLogo from '@/assets/wes-logo.jpg';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ResetPasswordDialog } from './ResetPasswordDialog';
-import { KeyRound } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 const studentNavItems = [
   { title: 'My Dashboard', url: '/student-dashboard', icon: Home },
@@ -15,11 +15,33 @@ const studentNavItems = [
   { title: 'My Curriculum', url: '/student-curriculum', icon: BookOpen },
 ];
 
+const monitorNavItems = [
+  { title: 'Class Task Review', url: '/class-task-review', icon: CheckSquare },
+];
+
 export function StudentSidebar() {
-  const { signOut } = useAuth();
-   const location = useLocation();
+  const { user, signOut } = useAuth();
+  const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
+  const [designation, setDesignation] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user?.email) {
+      const fetchDesignation = async () => {
+        const { data, error } = await supabase
+          .from('students')
+          .select('designation')
+          .eq('email', user.email)
+          .single();
+        
+        if (data) {
+          setDesignation(data.designation);
+        }
+      };
+      fetchDesignation();
+    }
+  }, [user]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -85,6 +107,34 @@ export function StudentSidebar() {
               </NavLink>
             );
           })}
+
+          {designation === '4 WES Senior Fellow' && (
+            <>
+              <div className="pt-4 pb-2">
+                <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground px-4">Class Monitor</p>
+              </div>
+              {monitorNavItems.map((item) => {
+                const isActive = location.pathname === item.url;
+                return (
+                  <NavLink
+                    key={item.title}
+                    to={item.url}
+                    onClick={() => setIsOpen(false)}
+                    className={cn(
+                      'flex items-center gap-3 px-3 md:px-4 py-2 md:py-3 rounded-lg transition-colors',
+                      'text-sm md:text-base font-medium',
+                      isActive
+                        ? 'bg-primary text-primary-foreground'
+                        : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                    )}
+                  >
+                    <item.icon className="h-5 w-5 flex-shrink-0" />
+                    <span className="truncate">{item.title}</span>
+                  </NavLink>
+                );
+              })}
+            </>
+          )}
         </nav>
 
          {/* Bottom Actions */}

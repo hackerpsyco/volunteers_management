@@ -50,10 +50,12 @@ export function EditStudentDialog({
 }: EditStudentDialogProps) {
   const [saving, setSaving] = useState(false);
   const [editedStudent, setEditedStudent] = useState<Student | null>(null);
+  const [originalEmail, setOriginalEmail] = useState<string | null>(null);
 
   useEffect(() => {
     if (student) {
       setEditedStudent(student);
+      setOriginalEmail(student.email);
     }
   }, [student, open]);
 
@@ -103,14 +105,20 @@ export function EditStudentDialog({
           const classId = studentData?.class_id;
 
           if (classId) {
+            console.log('Ensuring student account for:', editedStudent.email, 'Old email:', originalEmail);
             const { error: accountError } = await supabase.rpc('ensure_student_account', {
               student_email: editedStudent.email.trim(),
               student_full_name: editedStudent.name.trim(),
-              student_class_id: classId
+              student_class_id: classId,
+              old_email: originalEmail?.trim() || null
             });
             
             if (accountError) {
               console.error('Error ensuring student account:', accountError);
+              toast.error('Student updated, but account sync failed: ' + accountError.message);
+            } else {
+              // Update original email for next potential save without closing dialog
+              setOriginalEmail(editedStudent.email.trim());
             }
           }
         } catch (accError) {
@@ -312,10 +320,10 @@ export function EditStudentDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">None</SelectItem>
-                  <SelectItem value="ccc">ccc (11,12)</SelectItem>
-                  <SelectItem value="cccemp">cccemp (new college student)</SelectItem>
-                  <SelectItem value="intern">intern (college long time paid performance based)</SelectItem>
-                  <SelectItem value="fellow">fellow (seniour fellow paid fixed)</SelectItem>
+                  <SelectItem value="1 Certified computer course">1 Certified computer course</SelectItem>
+                  <SelectItem value="2 Certified computer course_EMP">2 Certified computer course_EMP</SelectItem>
+                  <SelectItem value="3 WES Intern/Junior Fellow">3 WES Intern/Junior Fellow</SelectItem>
+                  <SelectItem value="4 WES Senior Fellow">4 WES Senior Fellow</SelectItem>
                 </SelectContent>
               </Select>
             </div>

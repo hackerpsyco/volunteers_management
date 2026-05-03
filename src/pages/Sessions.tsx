@@ -48,6 +48,7 @@ import { Badge } from '@/components/ui/badge';
 import { TruncatedText } from '@/components/ui/truncated-text';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useAcademicYear } from '@/contexts/AcademicYearContext';
 import { SessionTypeDialog } from '@/components/sessions/SessionTypeDialog';
 import { AddSessionDialog } from '@/components/sessions/AddSessionDialog';
 import { ImportSessionsDialog } from '@/components/sessions/ImportSessionsDialog';
@@ -118,7 +119,7 @@ export default function Sessions() {
   const [subjectFilter, setSubjectFilter] = useState<string | null>(null);
   const [sortColumn, setSortColumn] = useState<keyof Session | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc' | null>(null);
-  const [academicYearFilter, setAcademicYearFilter] = useState<string | null>(null);
+  const { selectedYear, getDateRange } = useAcademicYear();
 
   useEffect(() => {
     fetchSessions();
@@ -325,21 +326,11 @@ export default function Sessions() {
     }
 
     // Apply academic year filter
-    if (academicYearFilter) {
+    if (selectedYear) {
+      const { startDate, endDate } = getDateRange();
       filtered = filtered.filter(s => {
         const sessionDate = new Date(s.session_date);
-        if (academicYearFilter === '2025-26') {
-          // April 2025 to April 2026
-          const start = new Date('2025-04-01');
-          const end = new Date('2026-04-30');
-          return sessionDate >= start && sessionDate <= end;
-        } else if (academicYearFilter === '2026-27') {
-          // May 2026 to April 2027
-          const start = new Date('2026-05-01');
-          const end = new Date('2027-04-30');
-          return sessionDate >= start && sessionDate <= end;
-        }
-        return true;
+        return sessionDate >= startDate && sessionDate <= endDate;
       });
     }
 
@@ -660,21 +651,14 @@ export default function Sessions() {
                       </Select>
                     </div>
 
-                    {/* Academic Year Filter */}
+                    {/* Academic Year Filter Info */}
                     <div className="w-full sm:w-48">
                       <label className="text-sm font-medium text-foreground mb-2 block">
                         Academic Year
                       </label>
-                      <Select value={academicYearFilter || 'all'} onValueChange={(value) => setAcademicYearFilter(value === 'all' ? null : value)}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select Year" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Years</SelectItem>
-                          <SelectItem value="2025-26">2025-26 (Apr-Apr)</SelectItem>
-                          <SelectItem value="2026-27">2026-27 (May-Apr)</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <div className="h-10 flex items-center px-3 border border-border rounded-md bg-muted/50 text-sm font-medium">
+                        {selectedYear}
+                      </div>
                     </div>
 
                     {/* Category Sort */}

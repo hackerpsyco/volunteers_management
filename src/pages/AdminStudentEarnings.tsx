@@ -32,6 +32,7 @@ import {
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
+import { useAcademicYear } from '@/contexts/AcademicYearContext';
 
 interface StudentEarning {
   student_id: string;
@@ -82,12 +83,13 @@ export default function AdminStudentEarnings() {
   const [rewardConfigs, setRewardConfigs] = useState<RewardConfig[]>([]);
   const [isEditingConfigs, setIsEditingConfigs] = useState(false);
   const [editingConfigs, setEditingConfigs] = useState<RewardConfig[]>([]);
+  const { selectedYear, getDateRange } = useAcademicYear();
 
   useEffect(() => {
     fetchClasses();
     fetchStudentEarnings();
     fetchRewardConfigs();
-  }, []);
+  }, [selectedYear]);
 
   const fetchRewardConfigs = async () => {
     try {
@@ -137,10 +139,16 @@ export default function AdminStudentEarnings() {
 
       if (studentError) throw studentError;
 
+      const { startDate, endDate } = getDateRange();
       const aggregated = (students || []).map((s: any) => {
-        const total = (s.student_earnings || []).reduce((sum: number, e: any) => sum + parseFloat(e.amount), 0);
-        const lastDate = (s.student_earnings || []).length > 0 
-          ? (s.student_earnings || []).sort((a: any, b: any) => new Date(b.earned_at).getTime() - new Date(a.earned_at).getTime())[0].earned_at
+        const filteredEarnings = (s.student_earnings || []).filter((e: any) => {
+          const earnedAt = new Date(e.earned_at);
+          return earnedAt >= startDate && earnedAt <= endDate;
+        });
+        
+        const total = filteredEarnings.reduce((sum: number, e: any) => sum + parseFloat(e.amount), 0);
+        const lastDate = filteredEarnings.length > 0 
+          ? filteredEarnings.sort((a: any, b: any) => new Date(b.earned_at).getTime() - new Date(a.earned_at).getTime())[0].earned_at
           : null;
 
         return {
@@ -164,10 +172,13 @@ export default function AdminStudentEarnings() {
   const fetchStudentRecords = async (studentId: string) => {
     try {
       setLoadingRecords(true);
+      const { startDate, endDate } = getDateRange();
       const { data, error } = await supabase
         .from('student_earnings')
         .select('*')
         .eq('student_id', studentId)
+        .gte('earned_at', startDate.toISOString())
+        .lte('earned_at', endDate.toISOString())
         .order('earned_at', { ascending: false });
 
       if (error) throw error;

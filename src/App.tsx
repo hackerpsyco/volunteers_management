@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { AcademicYearProvider } from "@/contexts/AcademicYearContext";
 import Auth from "./pages/Auth";
 import { StudentAuth } from "./pages/StudentAuth";
 import Dashboard from "./pages/Dashboard";
@@ -31,6 +32,7 @@ import Tasks from "./pages/Tasks";
 import StudentTasks from "./pages/StudentTasks";
 import StudentEarnings from "./pages/StudentEarnings";
 import AdminStudentEarnings from "./pages/AdminStudentEarnings";
+import ClassTaskReview from "@/pages/ClassTaskReview";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -38,45 +40,47 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Navigate to="/auth" replace />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/student-auth" element={<StudentAuth />} />
-            <Route path="/student-dashboard" element={<StudentDashboard />} />
-            <Route path="/student-calendar" element={<StudentCalendar />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/calendar" element={<Calendar />} />
-            <Route path="/sessions" element={<Sessions />} />
-            <Route path="/feedback" element={<FeedbackSelection />} />
-            <Route path="/sessions/:sessionId/recording" element={<SessionRecording />} />
-            <Route path="/sessions/:sessionId/feedback-details" element={<FeedbackDetails />} />
-            <Route path="/student-performance/:sessionId" element={<StudentPerformance />} />
-            <Route path="/curriculum" element={<Curriculum />} />
-            <Route path="/student-curriculum" element={<Curriculum isStudent={true} />} />
-            <Route path="/facilitators" element={<Facilitators />} />
-            <Route path="/coordinators" element={<Coordinators />} />
-            <Route path="/centres" element={<Centres />} />
-            <Route path="/classes" element={<Classes />} />
-            <Route path="/classes/:classId/students" element={<ClassStudents />} />
-            <Route path="/volunteers/edit/:id" element={<EditVolunteer />} /> 
-            <Route path="/volunteers" element={<VolunteerList />} />
-            <Route path="/volunteers/add" element={<AddVolunteer />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/profile/edit" element={<EditProfile />} />
-            <Route path="/tasks" element={<Tasks />} />
-            <Route path="/student-tasks" element={<StudentTasks />} />
-            <Route path="/student-earnings" element={<StudentEarnings />} />
-            <Route path="/admin-earnings" element={<AdminStudentEarnings />} />
-            <Route path="/admin" element={<AdminPanel />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
+      <AcademicYearProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Navigate to="/auth" replace />} />
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/student-auth" element={<StudentAuth />} />
+              <Route path="/student-dashboard" element={<StudentDashboard />} />
+              <Route path="/student-calendar" element={<StudentCalendar />} />
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/calendar" element={<Calendar />} />
+              <Route path="/sessions" element={<Sessions />} />
+              <Route path="/feedback" element={<FeedbackSelection />} />
+              <Route path="/sessions/:sessionId/recording" element={<SessionRecording />} />
+              <Route path="/sessions/:sessionId/feedback-details" element={<FeedbackDetails />} />
+              <Route path="/student-performance/:sessionId" element={<StudentPerformance />} />
+              <Route path="/curriculum" element={<Curriculum />} />
+              <Route path="/student-curriculum" element={<Curriculum isStudent={true} />} />
+              <Route path="/facilitators" element={<Facilitators />} />
+              <Route path="/coordinators" element={<Coordinators />} />
+              <Route path="/centres" element={<Centres />} />
+              <Route path="/classes" element={<Classes />} />
+              <Route path="/classes/:classId/students" element={<ClassStudents />} />
+              <Route path="/volunteers/edit/:id" element={<EditVolunteer />} /> 
+              <Route path="/volunteers" element={<VolunteerList />} />
+              <Route path="/volunteers/add" element={<AddVolunteer />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/profile/edit" element={<EditProfile />} />
+              <Route path="/tasks" element={<Tasks />} />
+              <Route path="/student-tasks" element={<StudentTasks />} />
+              <Route path="/student-earnings" element={<StudentEarnings />} />
+              <Route path="/admin-earnings" element={<AdminStudentEarnings />} />
+              <Route path="/class-task-review" element={<ClassTaskReview />} />
+              <Route path="/admin" element={<AdminPanel />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </AcademicYearProvider>
     </AuthProvider>
   </QueryClientProvider>
 );

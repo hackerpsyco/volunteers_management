@@ -32,6 +32,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useAcademicYear } from '@/contexts/AcademicYearContext';
 
 interface TaskItem {
   id: string;
@@ -102,6 +103,7 @@ export default function Tasks() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterDate, setFilterDate] = useState('');
   const [selectedTaskGroup, setSelectedTaskGroup] = useState<TaskGroup | null>(null);
+  const { selectedYear, getDateRange } = useAcademicYear();
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
 
   const [classes, setClasses] = useState<ClassOption[]>([]);
@@ -118,7 +120,7 @@ export default function Tasks() {
     student_id: '',
     due_date: '',
     submission_link: '',
-    academic_year: '',
+    academic_year: selectedYear,
     subject_id: '',
     earning_amount: '5',
     task_type: 'task',
@@ -142,7 +144,7 @@ export default function Tasks() {
     fetchClasses();
     fetchTasks();
     fetchSubjects();
-  }, []);
+  }, [selectedYear]);
 
   const fetchSubjects = async () => {
     try {
@@ -273,32 +275,36 @@ export default function Tasks() {
   const fetchTasks = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('student_task_feedback')
-        .select(`
-          id,
-          task_name,
-          task_description,
-          deadline,
-          submission_link,
-          status,
-          student_id,
-          session_id,
-          earning_amount,
-          feedback_type,
-          created_at,
-          students:student_id(
-            name,
-            academic_year,
-            classes:class_id(name)
-          ),
-          sessions:session_id(
-            title,
-            class_batch,
-            subjects:subject_id(name)
-          )
-        `)
-        .order('created_at', { ascending: false });
+        // Fetch tasks filtered by academic year range
+        const { startDate, endDate } = getDateRange();
+        const { data, error } = await supabase
+          .from('student_task_feedback')
+          .select(`
+            id,
+            task_name,
+            task_description,
+            deadline,
+            submission_link,
+            status,
+            student_id,
+            session_id,
+            earning_amount,
+            feedback_type,
+            created_at,
+            students:student_id(
+              name,
+              academic_year,
+              classes:class_id(name)
+            ),
+            sessions:session_id(
+              title,
+              class_batch,
+              subjects:subject_id(name)
+            )
+          `)
+          .gte('created_at', startDate.toISOString())
+          .lte('created_at', endDate.toISOString())
+          .order('created_at', { ascending: false });
       
       if (error) throw error;
 

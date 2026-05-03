@@ -311,10 +311,10 @@ export function AddStudentDialog({
                   <SelectValue placeholder="Select designation" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ccc">ccc (11,12)</SelectItem>
-                  <SelectItem value="cccemp">cccemp (new college student)</SelectItem>
-                  <SelectItem value="intern">intern (college long time paid performance based)</SelectItem>
-                  <SelectItem value="fellow">fellow (seniour fellow paid fixed)</SelectItem>
+                  <SelectItem value="1 Certified computer course">1 Certified computer course</SelectItem>
+                  <SelectItem value="2 Certified computer course_EMP">2 Certified computer course_EMP</SelectItem>
+                  <SelectItem value="3 WES Intern/Junior Fellow">3 WES Intern/Junior Fellow</SelectItem>
+                  <SelectItem value="4 WES Senior Fellow">4 WES Senior Fellow</SelectItem>
                 </SelectContent>
               </Select>
             </div>

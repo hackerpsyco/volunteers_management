@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Trash2, Upload, MoreVertical, Plus, Search } from 'lucide-react';
+import { Trash2, Upload, MoreVertical, Plus, Search, ListTodo } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -46,6 +46,7 @@ import {
 import { TruncatedText } from '@/components/ui/truncated-text';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useAcademicYear } from '@/contexts/AcademicYearContext';
 import { UnifiedImportDialog } from '@/components/sessions/UnifiedImportDialog';
 import { Input } from '@/components/ui/input';
 import { EditCurriculumDialog } from '@/components/curriculum/EditCurriculumDialog';
@@ -135,6 +136,56 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
   const [sessionCategoryFilter, setSessionCategoryFilter] = useState<string>('all');
   const [sortColumn, setSortColumn] = useState<keyof CurriculumItem | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc' | null>(null);
+  const { selectedYear, getDateRange } = useAcademicYear();
+
+  // Calculate statistics
+  const stats = (() => {
+    if (filteredCurriculum.length === 0) return { fresh: 0, revision: 0, total: 0 };
+    
+    let freshCompleted = 0;
+    let revisionCompleted = 0;
+    
+    filteredCurriculum.forEach(item => {
+      const info = sessionInfo[item.topic_title];
+      if (info) {
+        if (info.fresh_sessions?.some(s => s.status === 'completed')) freshCompleted++;
+        if (info.revision_sessions?.some(s => s.status === 'completed')) revisionCompleted++;
+      }
+    });
+
+    const total = filteredCurriculum.length;
+    return {
+      fresh: total > 0 ? Math.round((freshCompleted / total) * 100) : 0,
+      revision: total > 0 ? Math.round((revisionCompleted / total) * 100) : 0,
+      total,
+      freshCount: freshCompleted,
+      revisionCount: revisionCompleted
+    };
+  })();
+
+  const subjectStats = (() => {
+    const subjectsMap: Record<string, { total: number, fresh: number, revision: number, name: string }> = {};
+    
+    curriculum.forEach(item => {
+      const sId = item.subject_id || 'unknown';
+      if (!subjectsMap[sId]) {
+        subjectsMap[sId] = { total: 0, fresh: 0, revision: 0, name: item.subject_name || 'Unknown' };
+      }
+      subjectsMap[sId].total++;
+      
+      const info = sessionInfo[item.topic_title];
+      if (info) {
+        if (info.fresh_sessions?.some(s => s.status === 'completed')) subjectsMap[sId].fresh++;
+        if (info.revision_sessions?.some(s => s.status === 'completed')) subjectsMap[sId].revision++;
+      }
+    });
+    
+    return Object.values(subjectsMap);
+  })();
+
+  const currentSubjectName = selectedSubject && selectedSubject !== 'all' 
+    ? subjects.find(s => s.id === selectedSubject)?.name || 'Subject' 
+    : 'Overall';
 
   const handleColumnSort = (column: keyof CurriculumItem) => {
     if (sortColumn === column) {
@@ -179,7 +230,7 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
       setSessionInfo({});
       setSubjects([]);
     }
-  }, [selectedClass]);
+  }, [selectedClass, selectedYear]);
 
   // Update categories when subject filter changes
   useEffect(() => {
@@ -399,10 +450,6 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
         .select('id, name, description')
         .order('name', { ascending: true });
 
-      if (classId) {
-        query = query.eq('class_id', classId);
-      }
-
       const { data, error } = await query;
 
       if (error) {
@@ -436,11 +483,14 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
         return;
       }
 
-      // Fetch sessions filtered by class_batch (class name)
+      // Fetch sessions filtered by class_batch (class name) and academic year
+      const { startDate, endDate } = getDateRange();
       const { data: sessions, error } = await supabase
         .from('sessions')
         .select('id, topics_covered, session_type_option, session_type, status, session_date, volunteer_name, content_category, class_batch')
-        .eq('class_batch', selectedClassObj.name);
+        .eq('class_batch', selectedClassObj.name)
+        .gte('session_date', startDate.toISOString().split('T')[0])
+        .lte('session_date', endDate.toISOString().split('T')[0]);
 
       if (error) throw error;
 
@@ -560,35 +610,83 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="min-w-0">
+          <div>
             <h1 className="text-2xl md:text-3xl font-bold text-foreground">📚 Curriculum</h1>
             <p className="text-sm md:text-base text-muted-foreground mt-1">
               Manage curriculum content
             </p>
           </div>
-          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-            {!isStudent && (
-              <>
-                <Button
-                  onClick={() => setIsAddTopicOpen(true)}
-                  variant="outline"
-                  className="gap-2 w-full sm:w-auto"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add Topic
-                </Button>
-                <Button
-                  onClick={() => setIsImportOpen(true)}
-                  variant="outline"
-                  className="gap-2 w-full sm:w-auto"
-                >
-                  <Upload className="h-4 w-4" />
-                  Import Curriculum
-                </Button>
-              </>
-            )}
-          </div>
+          {!isStudent && (
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+              <Button onClick={() => setIsAddTopicOpen(true)} className="flex-1 sm:flex-none gap-2" variant="outline">
+                <Plus className="h-4 w-4" /> Add Topic
+              </Button>
+              <Button onClick={() => setIsImportOpen(true)} className="flex-1 sm:flex-none gap-2">
+                <Upload className="h-4 w-4" /> Import Curriculum
+              </Button>
+            </div>
+          )}
         </div>
+
+        {/* Stats Dashboard */}
+        {selectedClass && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="bg-white border-blue-100 shadow-sm overflow-hidden border-l-4 border-l-blue-500">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">{currentSubjectName} Fresh</p>
+                    <h3 className="text-3xl font-black text-slate-900 mt-1">{stats.fresh}%</h3>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <div className="h-1.5 w-24 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-blue-500" style={{ width: `${stats.fresh}%` }} />
+                      </div>
+                      <p className="text-[10px] text-slate-500 font-bold">{stats.freshCount}/{stats.total}</p>
+                    </div>
+                  </div>
+                  <div className="h-12 w-12 rounded-full bg-blue-50 flex items-center justify-center">
+                    <span className="text-xl">✅</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white border-purple-100 shadow-sm overflow-hidden border-l-4 border-l-purple-500">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-bold text-purple-600 uppercase tracking-widest">{currentSubjectName} Revision</p>
+                    <h3 className="text-3xl font-black text-slate-900 mt-1">{stats.revision}%</h3>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <div className="h-1.5 w-24 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-purple-500" style={{ width: `${stats.revision}%` }} />
+                      </div>
+                      <p className="text-[10px] text-slate-500 font-bold">{stats.revisionCount}/{stats.total}</p>
+                    </div>
+                  </div>
+                  <div className="h-12 w-12 rounded-full bg-purple-50 flex items-center justify-center">
+                    <span className="text-xl">🔄</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white border-slate-100 shadow-sm overflow-hidden border-l-4 border-l-slate-400">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Total Topics</p>
+                    <h3 className="text-3xl font-black text-slate-900 mt-1">{stats.total}</h3>
+                    <p className="text-[10px] text-slate-400 font-bold mt-1 uppercase">In {currentSubjectName}</p>
+                  </div>
+                  <div className="h-12 w-12 rounded-full bg-slate-50 flex items-center justify-center">
+                    <ListTodo className="h-6 w-6 text-slate-400" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Filter Section */}
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end flex-wrap">
@@ -819,8 +917,18 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
                         </TableHead>
                         <TableHead>Videos</TableHead>
                         <TableHead>PPT/Quiz</TableHead>
-                        <TableHead>Fresh Session</TableHead>
-                        <TableHead>Revision Session</TableHead>
+                          <TableHead className="w-[120px]">
+                            <div className="flex flex-col">
+                              <span>Fresh Session</span>
+                              <span className="text-[9px] font-normal text-blue-600">{stats.fresh}% Complete</span>
+                            </div>
+                          </TableHead>
+                          <TableHead className="w-[120px]">
+                            <div className="flex flex-col">
+                              <span>Revision Session</span>
+                              <span className="text-[9px] font-normal text-purple-600">{stats.revision}% Complete</span>
+                            </div>
+                          </TableHead>
                         {!isStudent && <TableHead className="w-[60px]">Actions</TableHead>}
                       </TableRow>
                     </TableHeader>
@@ -874,12 +982,23 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
                               return (
                                 <div className="space-y-1">
                                   {displaySessions.map((session, idx) => (
-                                    <div key={idx} className="text-xs bg-blue-50 p-1 rounded border border-blue-200">
-                                      <div className="font-medium">📅 {session.date}</div>
-                                      <div className="text-muted-foreground text-xs">{session.volunteer}</div>
-                                      <Badge variant="outline" className="text-xs mt-1">
-                                        {session.status}
-                                      </Badge>
+                                    <div key={idx} className="text-[10px] bg-blue-50/50 p-1.5 rounded-md border border-blue-100 flex flex-col gap-0.5">
+                                      <div className="font-bold text-blue-700 flex items-center gap-1">
+                                        <span className="text-[10px]">🗓️</span> {session.date}
+                                      </div>
+                                      <div className="text-muted-foreground font-medium truncate">{session.volunteer}</div>
+                                      <div className="mt-0.5">
+                                        <Badge 
+                                          variant="outline" 
+                                          className={`text-[9px] h-4 px-1 leading-none border-blue-200 ${
+                                            session.status === 'completed' ? 'bg-green-100 text-green-700 border-green-200' : 
+                                            session.status === 'committed' ? 'bg-purple-100 text-purple-700 border-purple-200' : 
+                                            'bg-blue-100 text-blue-700'
+                                          }`}
+                                        >
+                                          {session.status}
+                                        </Badge>
+                                      </div>
                                     </div>
                                   ))}
                                   {info.fresh_sessions.length > 1 && (
@@ -918,12 +1037,23 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
                               return (
                                 <div className="space-y-1">
                                   {displaySessions.map((session, idx) => (
-                                    <div key={idx} className="text-xs bg-purple-50 p-1 rounded border border-purple-200">
-                                      <div className="font-medium">📅 {session.date}</div>
-                                      <div className="text-muted-foreground text-xs">{session.volunteer}</div>
-                                      <Badge variant="outline" className="text-xs mt-1">
-                                        {session.status}
-                                      </Badge>
+                                    <div key={idx} className="text-[10px] bg-purple-50/50 p-1.5 rounded-md border border-purple-100 flex flex-col gap-0.5">
+                                      <div className="font-bold text-purple-700 flex items-center gap-1">
+                                        <span className="text-[10px]">🗓️</span> {session.date}
+                                      </div>
+                                      <div className="text-muted-foreground font-medium truncate">{session.volunteer}</div>
+                                      <div className="mt-0.5">
+                                        <Badge 
+                                          variant="outline" 
+                                          className={`text-[9px] h-4 px-1 leading-none border-purple-200 ${
+                                            session.status === 'completed' ? 'bg-green-100 text-green-700 border-green-200' : 
+                                            session.status === 'committed' ? 'bg-purple-100 text-purple-700 border-purple-200' : 
+                                            'bg-purple-100 text-purple-700'
+                                          }`}
+                                        >
+                                          {session.status}
+                                        </Badge>
+                                      </div>
                                     </div>
                                   ))}
                                   {info.revision_sessions.length > 1 && (

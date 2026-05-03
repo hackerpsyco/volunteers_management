@@ -40,6 +40,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useAcademicYear } from '@/contexts/AcademicYearContext';
 
 interface FeedbackSession {
   id: string;
@@ -96,6 +97,7 @@ export default function FeedbackSelection() {
   const [facilitatorStatusFilter, setFacilitatorStatusFilter] = useState<string | null>(null);
   const [coordinatorStatusFilter, setCoordinatorStatusFilter] = useState<string | null>(null);
   const [supervisorStatusFilter, setSupervisorStatusFilter] = useState<string | null>(null);
+  const { selectedYear, getDateRange } = useAcademicYear();
 
   const [isAddFeedbackDialogOpen, setIsAddFeedbackDialogOpen] = useState(false);
   const [committedSessions, setCommittedSessions] = useState<FeedbackSession[]>([]);
@@ -105,13 +107,14 @@ export default function FeedbackSelection() {
 
   useEffect(() => {
     fetchFeedbackSessions();
-  }, []);
+  }, [selectedYear]);
 
   const fetchFeedbackSessions = async () => {
     try {
       setLoading(true);
       
-      // Fetch all sessions with recorded feedback (recorded_at is not null)
+      // Fetch sessions with academic year filtering
+      const { startDate, endDate } = getDateRange();
       const { data: sessionsData, error: sessionsError } = await supabase
         .from('sessions')
         .select(`
@@ -120,6 +123,8 @@ export default function FeedbackSelection() {
           subjects(name)
         `)
         .not('recorded_at', 'is', null)
+        .gte('session_date', startDate.toISOString().split('T')[0])
+        .lte('session_date', endDate.toISOString().split('T')[0])
         .order('session_date', { ascending: false });
 
       if (sessionsError) throw sessionsError;

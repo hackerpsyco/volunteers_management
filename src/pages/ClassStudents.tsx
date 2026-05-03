@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Plus, Trash2, ArrowLeft, MoreVertical, Edit, ArrowUpRight, Info } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, MoreVertical, Edit, ArrowUpRight, Info, UserCog } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -41,6 +41,8 @@ import { AddStudentDialog } from '@/components/classes/AddStudentDialog';
 import { EditStudentDialog } from '@/components/classes/EditStudentDialog';
 import { StudentInfoDialog } from '@/components/classes/StudentInfoDialog';
 import { PromoteStudentDialog } from '@/components/classes/PromoteStudentDialog';
+import { AssignMonitorDialog } from '@/components/classes/AssignMonitorDialog';
+import { Badge } from '@/components/ui/badge';
 
 interface Class {
   id: string;
@@ -59,6 +61,8 @@ interface Student {
   subject: string | null;
   academic_year: string | null;
   designation: string | null;
+  monitor_id?: string | null;
+  monitor_name?: string | null;
   joining_year?: string | null;
   promotion_history?: any;
 }
@@ -85,6 +89,8 @@ export default function ClassStudents() {
   const [studentToPromote, setStudentToPromote] = useState<Student | null>(null);
   const [sortColumn, setSortColumn] = useState<SortColumn>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+  const [isAssignMonitorOpen, setIsAssignMonitorOpen] = useState(false);
+  const [studentForMonitor, setStudentForMonitor] = useState<Student | null>(null);
 
   const handleColumnSort = (column: SortColumn) => {
     if (sortColumn === column) {
@@ -195,10 +201,11 @@ export default function ClassStudents() {
         .order('name', { ascending: true });
 
       if (studentsError) throw studentsError;
+      
       setStudents(studentsData || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching data:', error);
-      toast.error('Failed to load class and students');
+      toast.error('Failed to load class and students: ' + (error.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
@@ -399,6 +406,13 @@ export default function ClassStudents() {
                                   <Edit className="h-4 w-4 mr-2" />
                                   Edit
                                 </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => {
+                                  setStudentForMonitor(student);
+                                  setIsAssignMonitorOpen(true);
+                                }}>
+                                  <UserCog className="h-4 w-4 mr-2" />
+                                  Assign Monitor
+                                </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={() => {
                                     setStudentToDelete(student);
@@ -576,6 +590,15 @@ export default function ClassStudents() {
         onOpenChange={setIsPromoteStudentOpen}
         student={studentToPromote}
         onConfirm={handlePromoteConfirm}
+      />
+
+      {/* Assign Monitor Dialog */}
+      <AssignMonitorDialog
+        open={isAssignMonitorOpen}
+        onOpenChange={setIsAssignMonitorOpen}
+        student={studentForMonitor}
+        classId={classId!}
+        onSuccess={fetchClassAndStudents}
       />
     </DashboardLayout>
   );

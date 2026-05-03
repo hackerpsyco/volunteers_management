@@ -13,6 +13,7 @@ import {
   DialogClose,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
+import { useAcademicYear } from '@/contexts/AcademicYearContext';
 
 interface StudentTask {
   id: string;
@@ -44,12 +45,13 @@ export default function StudentDashboard() {
   const [submissionLink, setSubmissionLink] = useState('');
   const [submissionDate, setSubmissionDate] = useState(new Date().toISOString().split('T')[0]);
   const [totalEarnings, setTotalEarnings] = useState(0);
+  const { selectedYear, getDateRange } = useAcademicYear();
 
   useEffect(() => {
     if (user?.id) {
       loadStudentData();
     }
-  }, [user?.id]);
+  }, [user?.id, selectedYear]);
 
   const loadStudentData = async () => {
     try {
@@ -120,10 +122,14 @@ export default function StudentDashboard() {
           console.warn('Student record not found for email:', user?.email, studentError);
           setTasks([]);
         } else if (studentRecord) {
+          // Fetch tasks for THIS STUDENT ONLY filtered by academic year
+          const { startDate, endDate } = getDateRange();
           const { data: tasksData, error: tasksError } = await supabase
             .from('student_task_feedback')
             .select('*')
             .eq('student_id', studentRecord.id)
+            .gte('created_at', startDate.toISOString())
+            .lte('created_at', endDate.toISOString())
             .order('deadline', { ascending: true });
 
           if (tasksError) {
@@ -134,12 +140,14 @@ export default function StudentDashboard() {
           }
         }
 
-        // Fetch sessions for this class
+        // Fetch sessions for this class filtered by academic year
+        const { startDate, endDate } = getDateRange();
         const { data: sessionsData, error: sessionsError } = await supabase
           .from('sessions')
           .select('id, title, session_date, session_time, facilitator_name, meeting_link, class_batch')
           .eq('class_batch', classData?.name)
-          .gte('session_date', new Date().toISOString().split('T')[0])
+          .gte('session_date', startDate.toISOString().split('T')[0])
+          .lte('session_date', endDate.toISOString().split('T')[0])
           .order('session_date', { ascending: true });
 
         if (sessionsError) {
@@ -149,12 +157,15 @@ export default function StudentDashboard() {
           setSessions(sessionsData || []);
         }
 
-        // Fetch Total Earnings
+        // Fetch Total Earnings filtered by academic year
         if (studentRecord) {
+          const { startDate, endDate } = getDateRange();
           const { data: earningsData } = await supabase
             .from('student_earnings')
             .select('amount')
-            .eq('student_id', studentRecord.id);
+            .eq('student_id', studentRecord.id)
+            .gte('earned_at', startDate.toISOString())
+            .lte('earned_at', endDate.toISOString());
           
           const total = (earningsData || []).reduce((sum, item) => sum + parseFloat(item.amount as any), 0);
           setTotalEarnings(total);

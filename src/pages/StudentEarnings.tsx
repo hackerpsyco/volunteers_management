@@ -5,6 +5,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { toast } from 'sonner';
+import { useAcademicYear } from '@/contexts/AcademicYearContext';
 import {
   Table,
   TableBody,
@@ -47,13 +48,14 @@ export default function StudentEarnings() {
   const [loading, setLoading] = useState(true);
   const [totalBalance, setTotalBalance] = useState(0);
   const [rewardConfigs, setRewardConfigs] = useState<RewardConfig[]>([]);
+  const { selectedYear, getDateRange } = useAcademicYear();
 
   useEffect(() => {
     if (user?.email) {
       loadEarningsData();
       fetchRewardConfigs();
     }
-  }, [user?.email]);
+  }, [user?.email, selectedYear]);
 
   const fetchRewardConfigs = async () => {
     try {
@@ -91,7 +93,8 @@ export default function StudentEarnings() {
 
       if (studentError) throw studentError;
 
-      // Fetch from student_earnings table
+      // Fetch from student_earnings table filtered by academic year
+      const { startDate, endDate } = getDateRange();
       const { data: earningsData, error: earningsError } = await supabase
         .from('student_earnings')
         .select(`
@@ -103,6 +106,8 @@ export default function StudentEarnings() {
           student_task_feedback(task_name)
         `)
         .eq('student_id', student.id)
+        .gte('earned_at', startDate.toISOString())
+        .lte('earned_at', endDate.toISOString())
         .order('earned_at', { ascending: false });
 
       if (earningsError) throw earningsError;

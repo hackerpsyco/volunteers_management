@@ -6,6 +6,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { VolunteerSessionStats } from '@/components/dashboard/VolunteerSessionStats';
+import { useAcademicYear } from '@/contexts/AcademicYearContext';
 import {
   Select,
   SelectContent,
@@ -61,6 +62,7 @@ export default function Dashboard() {
   const [selectedSubject, setSelectedSubject] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<number | null>(null);
+  const { getDateRange, selectedYear } = useAcademicYear();
 
   useEffect(() => {
     async function checkUserRole() {
@@ -122,11 +124,12 @@ export default function Dashboard() {
 
       try {
         setLoading(true);
+        const { startDate, endDate } = getDateRange();
 
         // Fetch user profile first to get role and name
         const { data: profileData } = await supabase
           .from('user_profiles')
-          .select('role_id, full_name')
+          .select('role_id, full_name, email')
           .eq('id', user.id)
           .single();
           
@@ -146,7 +149,12 @@ export default function Dashboard() {
           }
         }
 
-        const { data: allSessions } = await supabase.from('sessions').select('id, status, facilitator_name');
+        // FILTER SESSIONS BY DATE RANGE
+        const { data: allSessions } = await supabase
+          .from('sessions')
+          .select('id, status, facilitator_name, recorded_at')
+          .gte('session_date', startDate.toISOString().split('T')[0])
+          .lte('session_date', endDate.toISOString().split('T')[0]);
         
         let userSessions = allSessions || [];
         
@@ -154,27 +162,30 @@ export default function Dashboard() {
            userSessions = userSessions.filter(s => {
              if (!s.facilitator_name) return false;
              const fn = s.facilitator_name.toLowerCase().trim();
-             
-             // Check if either the target name or the facilitator table name is a substring of the session's facilitator name, or vice versa
              const matchesProfile = targetName ? (fn.includes(targetName) || targetName.includes(fn)) : false;
              const matchesFacil = facilName ? (fn.includes(facilName) || facilName.includes(fn)) : false;
-             
              return matchesProfile || matchesFacil;
            });
         }
         
         const sessionsCount = userSessions.length;
         
-        const studentsResult = await supabase.from('students').select('id', { count: 'exact', head: true });
+        // Fetch total students filtered by academic year
+        const studentsResult = await supabase
+          .from('students')
+          .select('id', { count: 'exact', head: true })
+          .eq('academic_year', selectedYear);
         const facilitatorsResult = await supabase.from('facilitators').select('id', { count: 'exact', head: true });
-        const feedbackResult = await supabase.from('sessions').select('id', { count: 'exact', head: true }).not('recorded_at', 'is', null);
+        
+        // Feedbacks are completed sessions with recording
+        const feedbackCount = userSessions.filter(s => s.recorded_at !== null).length;
 
         setStats({
           totalVolunteers: volunteersResult.count || 0,
           totalSessions: sessionsCount,
           totalStudents: studentsResult.count || 0,
           totalFacilitators: facilitatorsResult.count || 0,
-          totalFeedback: feedbackResult.count || 0,
+          totalFeedback: feedbackCount,
         });
 
         // Fetch session status breakdown
@@ -201,7 +212,7 @@ export default function Dashboard() {
     }
 
     fetchDashboardData();
-  }, [user?.id]);
+  }, [user?.id, selectedYear]);
 
   useEffect(() => {
     async function fetchCurriculumData() {
