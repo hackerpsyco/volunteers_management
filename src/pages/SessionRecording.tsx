@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import {
   Select,
   SelectContent,
@@ -412,30 +413,59 @@ export default function SessionRecording() {
 
     try {
       setSaving(true);
+
+      // Prepare the update object
+      const updateData: any = {
+        session_objective: formData.session_objective,
+        practical_activities: formData.practical_activities,
+        session_highlights: formData.session_highlights,
+        learning_outcomes: formData.learning_outcomes,
+        facilitator_reflection: formData.facilitator_reflection,
+        best_performer: formData.best_performer,
+        guest_teacher_feedback: formData.guest_teacher_feedback,
+        incharge_reviewer_feedback: formData.incharge_reviewer_feedback,
+        recording_url: formData.recording_url,
+        record_sheet_link: (formData as any).record_sheet_link || null,
+        mic_sound_rating: formData.mic_sound_rating,
+        seating_view_rating: formData.seating_view_rating,
+        session_strength: formData.session_strength,
+        coordinator_mic_sound_rating: formData.coordinator_mic_sound_rating,
+        coordinator_seating_view_rating: formData.coordinator_seating_view_rating,
+        coordinator_session_strength: formData.coordinator_session_strength,
+        class_batch: formData.class_batch,
+        recorded_at: new Date().toISOString(),
+      };
+
+      // Update the appropriate feedback status based on current page
+      if (currentPage === 1) {
+        updateData.facilitator_feedback_status = 'done';
+      } else if (currentPage === 3) {
+        updateData.coordinator_feedback_status = 'done';
+      }
+
+      // First, fetch the current session to check all feedback statuses
+      const { data: currentSession, error: fetchError } = await supabase
+        .from('sessions')
+        .select('facilitator_feedback_status, coordinator_feedback_status, supervisor_feedback_status')
+        .eq('id', sessionId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Determine what the statuses will be after this update
+      const facilitatorStatus = currentPage === 1 ? 'done' : (currentSession?.facilitator_feedback_status || 'pending');
+      const coordinatorStatus = currentPage === 3 ? 'done' : (currentSession?.coordinator_feedback_status || 'pending');
+      const supervisorStatus = currentSession?.supervisor_feedback_status || 'pending';
+
+      // If all three are done, mark the session as completed
+      if (facilitatorStatus === 'done' && coordinatorStatus === 'done' && supervisorStatus === 'done') {
+        updateData.status = 'completed';
+        updateData.admin_feedback_status = 'submitted';
+      }
+
       const { error } = await supabase
         .from('sessions')
-        .update({
-          session_objective: formData.session_objective,
-          practical_activities: formData.practical_activities,
-          session_highlights: formData.session_highlights,
-          learning_outcomes: formData.learning_outcomes,
-          facilitator_reflection: formData.facilitator_reflection,
-          best_performer: formData.best_performer,
-          guest_teacher_feedback: formData.guest_teacher_feedback,
-          incharge_reviewer_feedback: formData.incharge_reviewer_feedback,
-          recording_url: formData.recording_url,
-          record_sheet_link: (formData as any).record_sheet_link || null,
-          mic_sound_rating: formData.mic_sound_rating,
-          seating_view_rating: formData.seating_view_rating,
-          session_strength: formData.session_strength,
-          coordinator_mic_sound_rating: formData.coordinator_mic_sound_rating,
-          coordinator_seating_view_rating: formData.coordinator_seating_view_rating,
-          coordinator_session_strength: formData.coordinator_session_strength,
-          class_batch: formData.class_batch,
-          recorded_at: new Date().toISOString(),
-          ...(currentPage === 1 ? { facilitator_feedback_status: 'done' } : {}),
-          ...(currentPage === 3 ? { coordinator_feedback_status: 'done' } : {}),
-        } as any)
+        .update(updateData)
         .eq('id', sessionId);
 
       if (error) throw error;
@@ -513,14 +543,33 @@ export default function SessionRecording() {
         if (error) throw error;
       }
 
-      // Update the supervisor and admin status in the main sessions table
+      // Fetch current session to check all feedback statuses
+      const { data: currentSession, error: fetchError } = await supabase
+        .from('sessions')
+        .select('facilitator_feedback_status, coordinator_feedback_status, supervisor_feedback_status')
+        .eq('id', sessionId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Prepare update data for supervisor status
+      const updateData: any = {
+        supervisor_feedback_status: 'done',
+      };
+
+      // If all three feedback statuses are done, mark session as completed
+      if (
+        (currentSession?.facilitator_feedback_status || 'pending') === 'done' &&
+        (currentSession?.coordinator_feedback_status || 'pending') === 'done'
+      ) {
+        updateData.status = 'completed';
+        updateData.admin_feedback_status = 'submitted';
+      }
+
+      // Update the supervisor status in the main sessions table
       const { error: sessionError } = await supabase
         .from('sessions')
-        .update({
-          supervisor_feedback_status: 'done',
-          admin_feedback_status: 'submitted',
-          status: 'completed'
-        })
+        .update(updateData)
         .eq('id', sessionId);
 
       if (sessionError) {
@@ -694,6 +743,7 @@ export default function SessionRecording() {
         feedback_notes: newHomework.feedback_notes || null,
         earning_amount: Number(newHomework.earning_amount) || 5,
         status: 'pending',
+        created_at: new Date().toISOString(),
       }));
 
       const { error } = await supabase
@@ -1339,12 +1389,10 @@ export default function SessionRecording() {
                           {isListening ? 'Stop Listening' : 'Speak to Type'}
                         </Button>
                       </div>
-                      <Textarea
-                        id="hw_description"
-                        placeholder="Describe the task or assignment"
+                      <RichTextEditor
                         value={newHomework.task_description}
-                        onChange={(e) => setNewHomework({ ...newHomework, task_description: e.target.value })}
-                        className="mt-1 min-h-[60px]"
+                        onChange={(value) => setNewHomework({ ...newHomework, task_description: value })}
+                        placeholder="Describe the task or assignment with formatting..."
                       />
                     </div>
                     {/* <div>

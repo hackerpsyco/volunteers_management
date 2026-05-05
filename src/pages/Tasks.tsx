@@ -1,17 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Search, Plus, ExternalLink, ClipboardList, ChevronDown, ChevronRight, Pencil, Trash2, Calendar, Clock, GraduationCap, BookOpen, Users, FileText, CheckCircle2 } from 'lucide-react';
+import { Search, Plus, ExternalLink, ClipboardList, ChevronRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { RichTextEditor } from '@/components/ui/rich-text-editor';
+import { useAcademicYear } from '@/contexts/AcademicYearContext';
 import {
   Select,
   SelectContent,
@@ -28,11 +22,9 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { useAcademicYear } from '@/contexts/AcademicYearContext';
 
 interface TaskItem {
   id: string;
@@ -48,10 +40,6 @@ interface TaskItem {
   student_name?: string;
   session_title?: string;
   class_name?: string;
-  academic_year?: string;
-  subject_name?: string;
-  earning_amount?: number;
-  task_type?: string;
 }
 
 interface TaskGroup {
@@ -60,12 +48,6 @@ interface TaskGroup {
   created_at: string;
   due_date: string;
   tasks: TaskItem[];
-  academic_year?: string;
-  subject_name?: string;
-  session_title?: string;
-  class_name?: string;
-  earning_amount?: number;
-  task_type?: string;
 }
 
 interface ClassOption {
@@ -83,16 +65,9 @@ interface StudentOption {
   name: string;
 }
 
-const TASK_TYPE_OPTIONS = [
-  { value: 'English Reading & speaking Task', label: 'English Reading & speaking Task' },
-  { value: 'CCC - Computers - Task', label: 'CCC - Computers - Task' },
-  { value: 'GT Session Task', label: 'GT Session Task' },
-  { value: 'Mentor connect Task', label: 'Mentor connect Task' },
-  { value: 'Bonus for 100% attendance', label: 'Bonus for 100% attendance' },
-  { value: 'task', label: 'Other Task' },
-];
-
 export default function Tasks() {
+  const navigate = useNavigate();
+  const { getDateRange } = useAcademicYear();
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [filteredTasks, setFilteredTasks] = useState<TaskItem[]>([]);
   const [taskGroups, setTaskGroups] = useState<TaskGroup[]>([]);
@@ -101,10 +76,8 @@ export default function Tasks() {
   const [filterClass, setFilterClass] = useState('all');
   const [filterSession, setFilterSession] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
-  const [filterDate, setFilterDate] = useState('');
-  const [selectedTaskGroup, setSelectedTaskGroup] = useState<TaskGroup | null>(null);
-  const { selectedYear, getDateRange } = useAcademicYear();
-  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
 
   const [classes, setClasses] = useState<ClassOption[]>([]);
   const [sessions, setSessions] = useState<SessionOption[]>([]);
@@ -120,51 +93,22 @@ export default function Tasks() {
     student_id: '',
     due_date: '',
     submission_link: '',
-    academic_year: selectedYear,
-    subject_id: '',
-    earning_amount: '5',
-    task_type: 'task',
-  });
-
-  const [allSubjects, setAllSubjects] = useState<{ id: string, name: string }[]>([]);
-
-  const [isEditOpen, setIsEditOpen] = useState(false);
-  const [editFormData, setEditFormData] = useState({
-    title: '',
-    description: '',
-    class_id: '',
-    session_id: '',
-    due_date: '',
-    submission_link: '',
-    earning_amount: '5',
-    task_type: 'task',
   });
 
   useEffect(() => {
     fetchClasses();
     fetchTasks();
-    fetchSubjects();
-  }, [selectedYear]);
-
-  const fetchSubjects = async () => {
-    try {
-      const { data, error } = await supabase.from('subjects').select('id, name').order('name');
-      if (error) throw error;
-      setAllSubjects(data || []);
-    } catch (e) {
-      console.error('Error fetching subjects:', e);
-    }
-  };
+  }, [getDateRange]);
 
   useEffect(() => {
     if (formData.class_id) {
-      fetchSessionsByClass(formData.class_id, formData.subject_id);
+      fetchSessionsByClass(formData.class_id);
       fetchStudentsByClass(formData.class_id);
     } else {
       setSessions([]);
       setStudents([]);
     }
-  }, [formData.class_id, formData.subject_id]);
+  }, [formData.class_id]);
 
   useEffect(() => {
     let filtered = tasks;
@@ -180,10 +124,13 @@ export default function Tasks() {
     if (filterStatus !== 'all') {
       filtered = filtered.filter((t) => t.status === filterStatus);
     }
-    if (filterDate) {
+    if (filterDateFrom || filterDateTo) {
       filtered = filtered.filter((t) => {
         if (!t.due_date) return false;
-        return new Date(t.due_date).toLocaleDateString() === new Date(filterDate).toLocaleDateString();
+        const taskDate = new Date(t.due_date);
+        if (filterDateFrom && taskDate < new Date(filterDateFrom)) return false;
+        if (filterDateTo && taskDate > new Date(filterDateTo)) return false;
+        return true;
       });
     }
     if (searchQuery.trim()) {
@@ -211,18 +158,12 @@ export default function Tasks() {
           created_at: task.created_at,
           due_date: task.due_date,
           tasks: [],
-          academic_year: task.academic_year,
-          subject_name: task.subject_name,
-          session_title: task.session_title,
-          class_name: task.class_name,
-          earning_amount: task.earning_amount,
-          task_type: task.task_type,
         });
       }
       grouped.get(key)!.tasks.push(task);
     });
     setTaskGroups(Array.from(grouped.values()));
-  }, [tasks, filterClass, filterSession, filterStatus, filterDate, searchQuery, classes]);
+  }, [tasks, filterClass, filterSession, filterStatus, filterDateFrom, filterDateTo, searchQuery, classes]);
 
   const fetchClasses = async () => {
     try {
@@ -237,20 +178,15 @@ export default function Tasks() {
     }
   };
 
-  const fetchSessionsByClass = async (classId: string, subjectId?: string) => {
+  const fetchSessionsByClass = async (classId: string) => {
     try {
       const cls = classes.find((c) => c.id === classId);
       if (!cls) return;
-      let query = (supabase as any)
+      const { data, error } = await (supabase as any)
         .from('sessions')
         .select('id, title')
-        .eq('class_batch', cls.name);
-      
-      if (subjectId) {
-        query = query.eq('subject_id', subjectId);
-      }
-      
-      const { data, error } = await query.order('session_date', { ascending: false });
+        .eq('class_batch', cls.name)
+        .order('session_date', { ascending: false });
       if (error) throw error;
       setSessions(data || []);
     } catch (e) {
@@ -275,37 +211,27 @@ export default function Tasks() {
   const fetchTasks = async () => {
     try {
       setLoading(true);
-        // Fetch tasks filtered by academic year range
-        const { startDate, endDate } = getDateRange();
-        const { data, error } = await supabase
-          .from('student_task_feedback')
-          .select(`
-            id,
-            task_name,
-            task_description,
-            deadline,
-            submission_link,
-            status,
-            student_id,
-            session_id,
-            earning_amount,
-            feedback_type,
-            created_at,
-            students:student_id(
-              name,
-              academic_year,
-              classes:class_id(name)
-            ),
-            sessions:session_id(
-              title,
-              class_batch,
-              subjects:subject_id(name)
-            )
-          `)
-          .gte('created_at', startDate.toISOString())
-          .lte('created_at', endDate.toISOString())
-          .order('created_at', { ascending: false });
+      const { startDate, endDate } = getDateRange();
       
+      const { data, error } = await supabase
+        .from('student_task_feedback')
+        .select(`
+          id,
+          task_name,
+          task_description,
+          deadline,
+          submission_link,
+          status,
+          student_id,
+          session_id,
+          created_at,
+          students:student_id(name),
+          sessions:session_id(title, class_batch)
+        `)
+        .gte('created_at', startDate.toISOString())
+        .lte('created_at', endDate.toISOString())
+        .order('created_at', { ascending: false });
+
       if (error) throw error;
 
       const enriched: TaskItem[] = (data || []).map((task: any) => ({
@@ -321,11 +247,7 @@ export default function Tasks() {
         created_at: task.created_at || '',
         student_name: task.students?.name || '-',
         session_title: task.sessions?.title || '-',
-        class_name: task.students?.classes?.name || task.sessions?.class_batch || '-',
-        academic_year: task.students?.academic_year || '-',
-        subject_name: task.sessions?.subjects?.name || '-',
-        earning_amount: task.earning_amount || 5,
-        task_type: task.feedback_type || 'task',
+        class_name: task.sessions?.class_batch || '-',
       }));
 
       setTasks(enriched);
@@ -344,38 +266,33 @@ export default function Tasks() {
     }
 
     try {
-      // Fetch students if not already loaded or if filtered by academic year
       let studentsToAssign = students;
-      let query = supabase
-        .from('students')
-        .select('id, name')
-        .eq('class_id', formData.class_id);
-      
-      if (formData.academic_year) {
-        query = query.eq('academic_year', formData.academic_year);
-      }
+      if (studentsToAssign.length === 0) {
+        const { data: fetchedStudents, error: fetchError } = await supabase
+          .from('students')
+          .select('id, name')
+          .eq('class_id', formData.class_id)
+          .order('name');
 
-      const { data: fetchedStudents, error: fetchError } = await query.order('name');
-        
-      if (fetchError) throw fetchError;
-      studentsToAssign = fetchedStudents || [];
+        if (fetchError) throw fetchError;
+        studentsToAssign = fetchedStudents || [];
+      }
 
       if (studentsToAssign.length === 0) {
         toast.error('No students found in this class');
         return;
       }
 
-      // Create task for each student in the class
       const taskRecords = studentsToAssign.map(student => ({
         session_id: formData.session_id || null,
         student_id: student.id,
+        feedback_type: 'homework',
         task_name: formData.title,
         task_description: formData.description || null,
         deadline: formData.due_date || null,
         submission_link: formData.submission_link || null,
-        earning_amount: Number(formData.earning_amount) || 5,
         status: 'pending',
-        feedback_type: formData.task_type || 'task',
+        created_at: new Date().toISOString(),
       }));
 
       const { error } = await supabase.from('student_task_feedback').insert(taskRecords);
@@ -383,140 +300,11 @@ export default function Tasks() {
 
       toast.success(`Task assigned to ${studentsToAssign.length} students`);
       setIsCreateOpen(false);
-      setFormData({ title: '', description: '', class_id: '', session_id: '', student_id: '', due_date: '', submission_link: '', academic_year: '', subject_id: '', earning_amount: '5', task_type: 'task' });
+      setFormData({ title: '', description: '', class_id: '', session_id: '', student_id: '', due_date: '', submission_link: '' });
       fetchTasks();
     } catch (e) {
       console.error('Error creating task:', e);
       toast.error('Failed to create task');
-    }
-  };
-
-  const handleMarkCompleted = async (task: TaskItem) => {
-    try {
-      const { error: updateError } = await supabase
-        .from('student_task_feedback')
-        .update({ status: 'completed' })
-        .eq('id', task.id);
-
-      if (updateError) throw updateError;
-
-      // Add to earnings
-      const { error: earningError } = await supabase
-        .from('student_earnings')
-        .insert({
-          student_id: task.student_id,
-          task_id: task.id,
-          amount: task.earning_amount || 5,
-          description: `Completed task: ${task.title}`
-        });
-
-      if (earningError) {
-        console.error('Error adding earnings:', earningError);
-        // Don't fail the whole process if earning record fails, but notify
-        toast.warning('Task completed, but reward recording failed');
-      } else {
-        toast.success(`Task marked as completed! Reward of ${task.earning_amount || 5} units added.`);
-      }
-
-      // Refresh tasks
-      fetchTasks();
-      
-      // Update local state for the modal
-      if (selectedTaskGroup) {
-        const updatedTasks = selectedTaskGroup.tasks.map(t => 
-          t.id === task.id ? { ...t, status: 'completed' } : t
-        );
-        setSelectedTaskGroup({ ...selectedTaskGroup, tasks: updatedTasks });
-      }
-    } catch (e) {
-      console.error('Error completing task:', e);
-      toast.error('Failed to update task status');
-    }
-  };
-
-  const handleEditOpen = (group: TaskGroup) => {
-    setEditFormData({
-      title: group.title,
-      description: group.description,
-      class_id: group.tasks[0]?.class_id || '', // Note: grouping might not have class_id easily accessible if mixed, but usually tasks in a group share class info
-      session_id: group.tasks[0]?.session_id || '',
-      due_date: group.due_date ? new Date(group.due_date).toISOString().split('T')[0] : '',
-      submission_link: group.tasks[0]?.submission_link || '',
-      earning_amount: group.tasks[0]?.earning_amount?.toString() || '5',
-      task_type: group.tasks[0]?.task_type || 'task',
-    });
-    // We need to find the class_id from class_name if possible
-    const cls = classes.find(c => c.name === group.tasks[0]?.class_name);
-    if (cls) {
-      setEditFormData(prev => ({ ...prev, class_id: cls.id }));
-      fetchSessionsByClass(cls.id);
-    }
-    setIsEditOpen(true);
-  };
-
-  const handleUpdate = async () => {
-    if (!selectedTaskGroup) return;
-    
-    try {
-      const taskIds = selectedTaskGroup.tasks.map(t => t.id);
-      const { error } = await supabase
-        .from('student_task_feedback')
-        .update({
-          task_name: editFormData.title,
-          task_description: editFormData.description,
-          deadline: editFormData.due_date || null,
-          session_id: editFormData.session_id || null,
-          submission_link: editFormData.submission_link,
-          earning_amount: Number(editFormData.earning_amount) || 5,
-          feedback_type: editFormData.task_type || 'task',
-        })
-        .in('id', taskIds);
-
-      if (error) throw error;
-
-      toast.success('Task updated for all students');
-      setIsEditOpen(false);
-      setSelectedTaskGroup(null);
-      fetchTasks();
-    } catch (e) {
-      console.error('Error updating task:', e);
-      toast.error('Failed to update task');
-    }
-  };
-
-  const handleDeleteGroup = async (group: TaskGroup) => {
-    if (!window.confirm(`Are you sure you want to delete "${group.title}"? This will remove it for all ${group.tasks.length} students.`)) {
-      return;
-    }
-
-    try {
-      const taskIds = group.tasks.map(t => t.id);
-      const { error } = await supabase
-        .from('student_task_feedback')
-        .delete()
-        .in('id', taskIds);
-
-      if (error) throw error;
-
-      toast.success('Task removed for all students');
-      setSelectedTaskGroup(null);
-      fetchTasks();
-    } catch (e) {
-      console.error('Error deleting task:', e);
-      toast.error('Failed to delete task');
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <Badge variant="default">Completed</Badge>;
-      case 'in_progress':
-        return <Badge variant="outline">In Progress</Badge>;
-      case 'submitted':
-        return <Badge className="bg-primary/20 text-primary">Submitted</Badge>;
-      default:
-        return <Badge variant="secondary">Pending</Badge>;
     }
   };
 
@@ -617,14 +405,25 @@ export default function Tasks() {
 
           <div className="w-full sm:w-48">
             <label className="text-sm font-medium text-foreground mb-2 block">Filter by Date</label>
-            <Input
-              type="date"
-              value={filterDate}
-              onChange={(e) => setFilterDate(e.target.value)}
-            />
+            <div className="flex gap-2">
+              <Input
+                type="date"
+                value={filterDateFrom}
+                onChange={(e) => setFilterDateFrom(e.target.value)}
+                placeholder="From"
+                title="From date"
+              />
+              <Input
+                type="date"
+                value={filterDateTo}
+                onChange={(e) => setFilterDateTo(e.target.value)}
+                placeholder="To"
+                title="To date"
+              />
+            </div>
           </div>
 
-          {(filterClass !== 'all' || filterSession !== 'all' || filterStatus !== 'all' || searchQuery.trim() || filterDate) && (
+          {(filterClass !== 'all' || filterSession !== 'all' || filterStatus !== 'all' || searchQuery.trim() || filterDateFrom || filterDateTo) && (
             <div className="text-sm text-muted-foreground">
               Showing {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''}
             </div>
@@ -659,7 +458,7 @@ export default function Tasks() {
                 {taskGroups.map((group) => (
                   <button
                     key={group.title}
-                    onClick={() => setSelectedTaskGroup(group)}
+                    onClick={() => navigate(`/tasks/${encodeURIComponent(group.title)}`)}
                     className="w-full border border-border rounded-lg p-4 flex items-center justify-between hover:bg-muted/50 transition-colors text-left"
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -670,7 +469,6 @@ export default function Tasks() {
                           <span>Created: {new Date(group.created_at || new Date()).toLocaleDateString()}</span>
                           <span>Deadline: {group.due_date ? new Date(group.due_date).toLocaleDateString() : '-'}</span>
                           <span className="font-medium text-foreground">{group.tasks.length} student{group.tasks.length !== 1 ? 's' : ''}</span>
-                          <Badge variant="outline" className="bg-primary/5 text-[10px] h-5">{group.task_type || 'task'}</Badge>
                         </div>
                       </div>
                     </div>
@@ -680,327 +478,6 @@ export default function Tasks() {
             )}
           </CardContent>
         </Card>
-
-        {/* Task Detail Modal */}
-        <Dialog open={!!selectedTaskGroup} onOpenChange={(open) => {
-          if (!open) {
-            setSelectedTaskGroup(null);
-            setIsDescriptionExpanded(false);
-          }
-        }}>
-          <DialogContent className="max-w-3xl max-h-[95vh] flex flex-col p-0 overflow-hidden">
-            <DialogHeader className="p-6 pb-2 border-b border-border">
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setSelectedTaskGroup(null);
-                    setIsDescriptionExpanded(false);
-                  }}
-                  className="h-8 w-8 p-0"
-                >
-                  <ChevronRight className="h-5 w-5 rotate-180" />
-                </Button>
-                <DialogTitle className="text-xl font-bold truncate">
-                  {selectedTaskGroup?.title}
-                </DialogTitle>
-              </div>
-            </DialogHeader>
-            
-            <div className="flex-1 overflow-y-auto p-6 space-y-8">
-              {selectedTaskGroup && (
-                <>
-                  {/* Task Summary Grid */}
-                  <div className="bg-muted/30 rounded-xl p-6 border border-border">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 bg-primary/10 rounded-lg text-primary">
-                          <Calendar className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Created</span>
-                          <p className="font-medium">{new Date(selectedTaskGroup.created_at || new Date()).toLocaleDateString()}</p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 bg-orange-500/10 rounded-lg text-orange-600">
-                          <Clock className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Deadline</span>
-                          <p className="font-medium">{selectedTaskGroup.due_date ? new Date(selectedTaskGroup.due_date).toLocaleDateString() : '-'}</p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 bg-blue-500/10 rounded-lg text-blue-600">
-                          <GraduationCap className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Academic Year</span>
-                          <p className="font-medium">{selectedTaskGroup.academic_year || '-'}</p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 bg-purple-500/10 rounded-lg text-purple-600">
-                          <BookOpen className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Subject</span>
-                          <p className="font-medium">{selectedTaskGroup.subject_name || '-'}</p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 bg-green-500/10 rounded-lg text-green-600">
-                          <Users className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Class</span>
-                          <p className="font-medium">{selectedTaskGroup.class_name || '-'}</p>
-                        </div>
-                      </div>
-
-                        <div className="flex items-start gap-3">
-                          <div className="p-2 bg-pink-500/10 rounded-lg text-pink-600">
-                            <FileText className="h-4 w-4" />
-                          </div>
-                          <div>
-                            <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Session</span>
-                            <p className="font-medium">{selectedTaskGroup.session_title || '-'}</p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-start gap-3">
-                          <div className="p-2 bg-yellow-500/10 rounded-lg text-yellow-600">
-                            <ClipboardList className="h-4 w-4" />
-                          </div>
-                          <div>
-                            <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Task Type</span>
-                            <p className="font-medium">{selectedTaskGroup.task_type || 'task'}</p>
-                          </div>
-                        </div>
-                      </div>
-
-                    {selectedTaskGroup.description && (
-                      <div className="mt-6 pt-6 border-t border-border">
-                        <span className="text-xs text-muted-foreground uppercase tracking-wider font-bold block mb-2 text-primary">Description</span>
-                        <div className="relative bg-muted/50 p-4 rounded-lg border border-border/50">
-                          <p className={cn(
-                            "text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap transition-all duration-300",
-                            !isDescriptionExpanded && selectedTaskGroup.description.length > 250 && "line-clamp-3"
-                          )}>
-                            {selectedTaskGroup.description}
-                          </p>
-                          {selectedTaskGroup.description.length > 250 && (
-                            <div className={cn(
-                              "flex justify-center mt-2",
-                              !isDescriptionExpanded && "absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-muted/80 to-transparent flex items-end pb-1"
-                            )}>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 text-xs font-bold text-primary hover:bg-primary/10"
-                                onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
-                              >
-                                {isDescriptionExpanded ? "Show Less ↑" : "Read More ↓"}
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Action Buttons */}
-                    <div className="pt-6 flex gap-3 border-t border-border mt-6">
-                      <Button 
-                        variant="outline" 
-                        className="flex-1 gap-2 h-11"
-                        onClick={() => handleEditOpen(selectedTaskGroup!)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                        Edit Details
-                      </Button>
-                      <Button 
-                        variant="destructive" 
-                        className="flex-1 gap-2 h-11 shadow-sm"
-                        onClick={() => handleDeleteGroup(selectedTaskGroup!)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        Delete Task
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Student Details */}
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-bold text-lg flex items-center gap-2">
-                        <Users className="h-5 w-5 text-primary" />
-                        Assigned Students
-                        <Badge variant="secondary" className="ml-2">
-                          {selectedTaskGroup?.tasks.length}
-                        </Badge>
-                      </h3>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 gap-3">
-                      {selectedTaskGroup?.tasks.map((task) => (
-                        <div key={task.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-card rounded-xl border border-border hover:border-primary/30 transition-all group shadow-sm">
-                          <div className="flex items-center gap-3 min-w-0 flex-1">
-                            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold flex-shrink-0">
-                              {task.student_name?.[0]}
-                            </div>
-                            <div className="min-w-0">
-                              <div className="font-semibold text-foreground truncate">{task.student_name}</div>
-                              <div className="text-xs text-muted-foreground flex items-center gap-2 mt-0.5">
-                                <span>ID: {task.student_id.slice(0, 8)}</span>
-                                <span>•</span>
-                                <span>{task.class_name}</span>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center justify-between sm:justify-end gap-4 mt-3 sm:mt-0 pt-3 sm:pt-0 border-t sm:border-t-0 border-border">
-                            <div className="sm:text-right">
-                              {getStatusBadge(task.status)}
-                            </div>
-                            
-                            <div className="flex items-center gap-2">
-                              {task.submission_link && (
-                                <Button variant="ghost" size="icon" asChild className="h-9 w-9 text-blue-600 hover:bg-blue-50">
-                                  <a href={task.submission_link} target="_blank" rel="noopener noreferrer">
-                                    <ExternalLink className="h-4 w-4" />
-                                  </a>
-                                </Button>
-                              )}
-                              {task.status !== 'completed' && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-9 text-green-600 border-green-200 hover:bg-green-50 hover:text-green-700 font-semibold"
-                                  onClick={() => handleMarkCompleted(task)}
-                                >
-                                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                                  Done
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* Edit Task Dialog */}
-        <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Edit Task</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label>Title *</Label>
-                <Input
-                  value={editFormData.title}
-                  onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
-                  placeholder="Task title"
-                />
-              </div>
-              <div>
-                <Label>Description</Label>
-                <Textarea
-                  value={editFormData.description}
-                  onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
-                  placeholder="Task description"
-                />
-              </div>
-              <div>
-                <Label>Class (View Only)</Label>
-                <Select disabled value={editFormData.class_id}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select class" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {classes.map((cls) => (
-                      <SelectItem key={cls.id} value={cls.id}>{cls.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-[10px] text-muted-foreground mt-1">Class cannot be changed after creation</p>
-              </div>
-              <div>
-                <Label>Session</Label>
-                <Select
-                  value={editFormData.session_id}
-                  onValueChange={(v) => setEditFormData({ ...editFormData, session_id: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select session" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sessions.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>{s.title}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Task Type</Label>
-                <Select
-                  value={editFormData.task_type}
-                  onValueChange={(v) => setEditFormData({ ...editFormData, task_type: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select task type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TASK_TYPE_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Due Date</Label>
-                <Input
-                  type="date"
-                  value={editFormData.due_date}
-                  onChange={(e) => setEditFormData({ ...editFormData, due_date: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label>Submission Link</Label>
-                <Input
-                  value={editFormData.submission_link}
-                  onChange={(e) => setEditFormData({ ...editFormData, submission_link: e.target.value })}
-                  placeholder="https://..."
-                />
-              </div>
-              <div>
-                <Label>Earning Amount</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  value={editFormData.earning_amount}
-                  onChange={(e) => setEditFormData({ ...editFormData, earning_amount: e.target.value })}
-                  placeholder="e.g. 5"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsEditOpen(false)}>Cancel</Button>
-              <Button onClick={handleUpdate}>Update Task</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
 
         {/* Create Task Dialog */}
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
@@ -1019,26 +496,11 @@ export default function Tasks() {
               </div>
               <div>
                 <Label>Description</Label>
-                <Textarea
+                <RichTextEditor
                   value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Task description"
+                  onChange={(value) => setFormData({ ...formData, description: value })}
+                  placeholder="Task description with formatting..."
                 />
-              </div>
-              <div>
-                <Label>Academic Year</Label>
-                <Select
-                  value={formData.academic_year}
-                  onValueChange={(v) => setFormData({ ...formData, academic_year: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select Year" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="2025-26">2025-26</SelectItem>
-                    <SelectItem value="2026-27">2026-27</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
               <div>
                 <Label>Class *</Label>
@@ -1052,38 +514,6 @@ export default function Tasks() {
                   <SelectContent>
                     {classes.map((cls) => (
                       <SelectItem key={cls.id} value={cls.id}>{cls.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Subject</Label>
-                <Select
-                  value={formData.subject_id}
-                  onValueChange={(v) => setFormData({ ...formData, subject_id: v, session_id: '' })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select subject" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {allSubjects.map((subject) => (
-                      <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Task Type</Label>
-                <Select
-                  value={formData.task_type}
-                  onValueChange={(v) => setFormData({ ...formData, task_type: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select task type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TASK_TYPE_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -1118,16 +548,6 @@ export default function Tasks() {
                   value={formData.submission_link}
                   onChange={(e) => setFormData({ ...formData, submission_link: e.target.value })}
                   placeholder="https://..."
-                />
-              </div>
-              <div>
-                <Label>Earning Amount</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  value={formData.earning_amount}
-                  onChange={(e) => setFormData({ ...formData, earning_amount: e.target.value })}
-                  placeholder="e.g. 5"
                 />
               </div>
             </div>

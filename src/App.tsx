@@ -29,6 +29,7 @@ import Settings from "./pages/Settings";
 import EditProfile from "./pages/EditProfile";
 import AdminPanel from "./pages/AdminPanel";
 import Tasks from "./pages/Tasks";
+import TaskDetail from "./pages/TaskDetail";
 import StudentTasks from "./pages/StudentTasks";
 import StudentEarnings from "./pages/StudentEarnings";
 import AdminStudentEarnings from "./pages/AdminStudentEarnings";
@@ -71,6 +72,7 @@ const App = () => (
               <Route path="/settings" element={<Settings />} />
               <Route path="/profile/edit" element={<EditProfile />} />
               <Route path="/tasks" element={<Tasks />} />
+              <Route path="/tasks/:taskTitle" element={<TaskDetail />} />
               <Route path="/student-tasks" element={<StudentTasks />} />
               <Route path="/student-earnings" element={<StudentEarnings />} />
               <Route path="/admin-earnings" element={<AdminStudentEarnings />} />
