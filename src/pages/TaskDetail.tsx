@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ExternalLink } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Edit2, Trash2 } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -126,6 +126,25 @@ export default function TaskDetail() {
     }
   };
 
+  const handleDeleteTask = async () => {
+    if (!confirm('Are you sure you want to delete this task? This will delete it for all students.')) return;
+
+    try {
+      const { error } = await supabase
+        .from('student_task_feedback')
+        .delete()
+        .eq('task_name', decodeURIComponent(taskTitle || ''));
+
+      if (error) throw error;
+
+      toast.success('Task deleted successfully');
+      navigate('/tasks');
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      toast.error('Failed to delete task');
+    }
+  };
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -153,18 +172,40 @@ export default function TaskDetail() {
     <DashboardLayout>
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate('/tasks')}
-            className="h-10 w-10"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">{taskGroup.title}</h1>
-            <p className="text-sm text-muted-foreground mt-1">Task Details & Student Submissions</p>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate('/tasks')}
+              className="h-10 w-10"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">{taskGroup.title}</h1>
+              <p className="text-sm text-muted-foreground mt-1">Task Details & Student Submissions</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate(`/tasks/${encodeURIComponent(taskGroup.title)}/edit`)}
+              className="gap-2"
+            >
+              <Edit2 className="h-4 w-4" />
+              Edit
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleDeleteTask}
+              className="gap-2"
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete
+            </Button>
           </div>
         </div>
 

@@ -542,14 +542,6 @@ export default function Tasks() {
                   onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
                 />
               </div>
-              <div>
-                <Label>Submission Link</Label>
-                <Input
-                  value={formData.submission_link}
-                  onChange={(e) => setFormData({ ...formData, submission_link: e.target.value })}
-                  placeholder="https://..."
-                />
-              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
