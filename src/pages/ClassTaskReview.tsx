@@ -50,6 +50,7 @@ interface TaskRecord {
   submission_link: string | null;
   feedback_type: string;
   student_id: string;
+  earning_amount?: number;
 }
 
 interface StudentGroup {
@@ -129,6 +130,7 @@ export default function ClassTaskReview() {
           submission_link,
           feedback_type,
           student_id,
+          earning_amount,
           created_at
         `)
         .in('student_id', classmateIds)
@@ -164,26 +166,72 @@ export default function ClassTaskReview() {
 
   const handleMarkCompleted = async (taskId: string, studentId: string, taskName: string) => {
     try {
-      const { error: updateError } = await supabase
+      // Find the task to get its earning amount
+      const studentGroup = studentGroups.find(g => g.id === studentId);
+      const task = studentGroup?.tasks.find(t => t.id === taskId);
+      const amount = task?.earning_amount || 5;
+
+      const { data, error: updateError } = await supabase
         .from('student_task_feedback')
         .update({ status: 'completed', updated_at: new Date().toISOString() })
-        .eq('id', taskId);
+        .eq('id', taskId)
+        .select();
 
       if (updateError) throw updateError;
+      
+      if (!data || data.length === 0) {
+        throw new Error('No rows updated. You might not have permission or student mapping is incorrect.');
+      }
 
       // Add earning record
-      await supabase.from('student_earnings').insert({
+      const { error: earningError } = await supabase.from('student_earnings').insert({
         student_id: studentId,
         task_id: taskId,
-        amount: 5,
+        amount: amount,
         description: `Completed task: ${taskName} (Verified by Class Monitor)`
       });
 
-      toast.success('Task marked as completed');
+      if (earningError) {
+        console.error('Error adding earnings:', earningError);
+        toast.warning('Task completed, but failed to add earnings');
+      } else {
+        toast.success('Task marked as completed and earnings added');
+      }
+      
       loadClassTasks();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error completing task:', error);
-      toast.error('Failed to update task status');
+      toast.error('Failed to update task status: ' + (error.message || 'Unknown error'));
+    }
+  };
+
+  const handleResetToPending = async (taskId: string) => {
+    try {
+      if (!confirm('Are you sure you want to reset this task? This will remove the student\'s earnings for this task.')) return;
+      
+      const { data, error } = await supabase
+        .from('student_task_feedback')
+        .update({ status: 'pending', updated_at: new Date().toISOString() })
+        .eq('id', taskId)
+        .select();
+
+      if (error) throw error;
+      
+      if (!data || data.length === 0) {
+        throw new Error('No rows updated. You might not have permission or student mapping is incorrect.');
+      }
+
+      // Remove earnings associated with this task
+      await supabase
+        .from('student_earnings')
+        .delete()
+        .eq('task_id', taskId);
+
+      toast.success('Task reset to pending and earnings removed');
+      loadClassTasks();
+    } catch (error: any) {
+      console.error('Error resetting task:', error);
+      toast.error('Failed to reset task: ' + (error.message || 'Unknown error'));
     }
   };
 
@@ -354,6 +402,14 @@ export default function ClassTaskReview() {
                                     >
                                       <CheckCircle2 className="h-4 w-4 mr-2" />
                                       Verify Completion
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem 
+                                      onClick={() => handleResetToPending(task.id)}
+                                      disabled={task.status === 'pending'}
+                                      className="text-amber-600 font-medium focus:text-amber-600 focus:bg-amber-50"
+                                    >
+                                      <History className="h-4 w-4 mr-2" />
+                                      Reset to Pending
                                     </DropdownMenuItem>
                                   </DropdownMenuContent>
                                 </DropdownMenu>

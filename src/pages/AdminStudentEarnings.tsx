@@ -40,6 +40,9 @@ interface StudentEarning {
   class_name: string;
   total_earned: number;
   last_earned_at: string | null;
+  last_session?: string;
+  last_deadline?: string;
+  last_subject?: string;
 }
 
 interface EarningRecord {
@@ -80,6 +83,8 @@ export default function AdminStudentEarnings() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<EarningRecord | null>(null);
   const [isPotentialModalOpen, setIsPotentialModalOpen] = useState(false);
+  const [subjects, setSubjects] = useState<{id: string, name: string}[]>([]);
+  const [filterSubject, setFilterSubject] = useState('all');
   const [rewardConfigs, setRewardConfigs] = useState<RewardConfig[]>([]);
   const [isEditingConfigs, setIsEditingConfigs] = useState(false);
   const [editingConfigs, setEditingConfigs] = useState<RewardConfig[]>([]);
@@ -89,7 +94,13 @@ export default function AdminStudentEarnings() {
     fetchClasses();
     fetchStudentEarnings();
     fetchRewardConfigs();
+    fetchSubjects();
   }, [selectedYear]);
+
+  const fetchSubjects = async () => {
+    const { data } = await supabase.from('subjects').select('id, name').order('name');
+    if (data) setSubjects(data);
+  };
 
   const fetchRewardConfigs = async () => {
     try {
@@ -134,7 +145,19 @@ export default function AdminStudentEarnings() {
           id,
           name,
           classes (name),
-          student_earnings (amount, earned_at)
+          student_earnings (
+            amount, 
+            earned_at,
+            task:task_id (
+              deadline,
+              subject:subject_id (
+                name
+              ),
+              session:session_id (
+                title
+              )
+            )
+          )
         `);
 
       if (studentError) throw studentError;
@@ -147,16 +170,28 @@ export default function AdminStudentEarnings() {
         });
         
         const total = filteredEarnings.reduce((sum: number, e: any) => sum + parseFloat(e.amount), 0);
-        const lastDate = filteredEarnings.length > 0 
-          ? filteredEarnings.sort((a: any, b: any) => new Date(b.earned_at).getTime() - new Date(a.earned_at).getTime())[0].earned_at
+        const lastRecord = filteredEarnings.length > 0 
+          ? [...filteredEarnings].sort((a: any, b: any) => new Date(b.earned_at).getTime() - new Date(a.earned_at).getTime())[0]
           : null;
+        
+        const lastTaskData = lastRecord?.task ? (Array.isArray(lastRecord.task) ? lastRecord.task[0] : lastRecord.task) : null;
+        const lastSessionData = lastTaskData?.session ? (Array.isArray(lastTaskData.session) ? lastTaskData.session[0] : lastTaskData.session) : null;
+        const lastSubjectData = lastTaskData?.subject ? (Array.isArray(lastTaskData.subject) ? lastTaskData.subject[0] : lastTaskData.subject) : null;
+
+        const lastDate = lastRecord?.earned_at || null;
+        const lastSession = lastSessionData?.title || lastRecord?.description || '-';
+        const lastDeadline = lastTaskData?.deadline || '-';
+        const lastSubject = lastSubjectData?.name || '-';
 
         return {
           student_id: s.id,
           student_name: s.name,
           class_name: s.classes?.name || 'Unassigned',
           total_earned: total,
-          last_earned_at: lastDate
+          last_earned_at: lastDate,
+          last_session: lastSession,
+          last_deadline: lastDeadline,
+          last_subject: lastSubject
         };
       });
 
@@ -175,7 +210,15 @@ export default function AdminStudentEarnings() {
       const { startDate, endDate } = getDateRange();
       const { data, error } = await supabase
         .from('student_earnings')
-        .select('*')
+        .select(`
+          *,
+          student_task_feedback(
+            task_name,
+            deadline,
+            subjects(name),
+            sessions(title)
+          )
+        `)
         .eq('student_id', studentId)
         .gte('earned_at', startDate.toISOString())
         .lte('earned_at', endDate.toISOString())
@@ -309,6 +352,19 @@ export default function AdminStudentEarnings() {
               </SelectContent>
             </Select>
           </div>
+          <div className="w-full sm:w-48">
+            <Select value={filterSubject} onValueChange={setFilterSubject}>
+              <SelectTrigger>
+                <SelectValue placeholder="All Subjects" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Subjects</SelectItem>
+                {subjects.map((s) => (
+                  <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <Card>
@@ -320,6 +376,9 @@ export default function AdminStudentEarnings() {
                   <TableHead>Class</TableHead>
                   <TableHead className="text-right">Total Earned</TableHead>
                   <TableHead>Last Reward</TableHead>
+                  <TableHead>Subject</TableHead>
+                  <TableHead>Session</TableHead>
+                  <TableHead>Deadline</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -344,8 +403,21 @@ export default function AdminStudentEarnings() {
                       <TableCell className="text-right font-bold text-green-600">
                         ₹{s.total_earned.toLocaleString()}
                       </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
+                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                         {s.last_earned_at ? new Date(s.last_earned_at).toLocaleDateString() : '-'}
+                      </TableCell>
+                      <TableCell>
+                        {s.last_subject && s.last_subject !== '-' ? (
+                          <Badge variant="outline" className="text-[10px] uppercase font-bold">
+                            {s.last_subject}
+                          </Badge>
+                        ) : '-'}
+                      </TableCell>
+                      <TableCell className="text-xs max-w-[120px] truncate" title={s.last_session}>
+                        {s.last_session}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                        {s.last_deadline && s.last_deadline !== '-' ? new Date(s.last_deadline).toLocaleDateString() : s.last_deadline}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button 
@@ -385,7 +457,10 @@ export default function AdminStudentEarnings() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Date</TableHead>
-                      <TableHead>Description</TableHead>
+                      <TableHead>Task / Description</TableHead>
+                      <TableHead>Subject</TableHead>
+                      <TableHead>Session</TableHead>
+                      <TableHead>Deadline</TableHead>
                       <TableHead className="text-right">Amount</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -400,10 +475,30 @@ export default function AdminStudentEarnings() {
                     ) : (
                       studentRecords.map((r) => (
                         <TableRow key={r.id}>
-                          <TableCell className="text-sm">
+                          <TableCell className="text-xs">
                             {new Date(r.earned_at).toLocaleDateString()}
                           </TableCell>
-                          <TableCell className="text-sm">{r.description}</TableCell>
+                          <TableCell>
+                            <div className="font-medium text-sm">
+                              {(r as any).student_task_feedback?.task_name || r.description || 'Reward'}
+                            </div>
+                            {(r as any).student_task_feedback?.task_name && r.description && (
+                              <div className="text-[10px] text-muted-foreground">{r.description}</div>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {(r as any).student_task_feedback?.subjects?.name ? (
+                              <Badge variant="outline" className="text-[10px] uppercase font-bold">
+                                {(r as any).student_task_feedback?.subjects?.name}
+                              </Badge>
+                            ) : '-'}
+                          </TableCell>
+                          <TableCell className="text-xs truncate max-w-[100px]">
+                            {(r as any).student_task_feedback?.sessions?.title || '-'}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {(r as any).student_task_feedback?.deadline ? new Date((r as any).student_task_feedback.deadline).toLocaleDateString() : '-'}
+                          </TableCell>
                           <TableCell className="text-right font-bold text-green-600">
                             ₹{r.amount}
                           </TableCell>

@@ -18,6 +18,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
+import { useAcademicYear } from '@/contexts/AcademicYearContext';
 
 interface StudentTask {
   id: string;
@@ -42,11 +43,13 @@ export default function StudentTasks() {
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [submissionLink, setSubmissionLink] = useState('');
 
+  const { selectedYear, getDateRange } = useAcademicYear();
+
   useEffect(() => {
     if (user?.email) {
       loadStudentTasks();
     }
-  }, [user?.email]);
+  }, [user?.email, selectedYear]);
 
   const loadStudentTasks = async () => {
     try {
@@ -61,10 +64,13 @@ export default function StudentTasks() {
 
       if (studentError) throw studentError;
 
+      const { startDate, endDate } = getDateRange();
+
       const { data, error } = await supabase
         .from('student_task_feedback')
         .select('*')
         .eq('student_id', student.id)
+        .or(`academic_year.eq."${selectedYear}",and(academic_year.is.null,created_at.gte."${startDate.toISOString()}",created_at.lte."${endDate.toISOString()}")`)
         .order('deadline', { ascending: true });
 
       if (error) throw error;
@@ -341,9 +347,15 @@ export default function StudentTasks() {
                   <Button variant="outline" onClick={() => setSelectedTask(null)} className="flex-1">
                     Cancel
                   </Button>
-                  <Button onClick={handleSubmitTask} className="flex-1">
-                    Save Submission
-                  </Button>
+                  {selectedTask.status === 'pending' ? (
+                    <Button onClick={handleSubmitTask} className="flex-1">
+                      Save Submission
+                    </Button>
+                  ) : (
+                    <div className="flex-1 p-3 bg-muted rounded-lg text-center text-sm font-medium text-muted-foreground border border-dashed">
+                      Task {selectedTask.status} - No further submissions allowed
+                    </div>
+                  )}
                 </DialogFooter>
               </div>
             )}

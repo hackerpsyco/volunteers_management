@@ -67,7 +67,7 @@ interface StudentOption {
 
 export default function Tasks() {
   const navigate = useNavigate();
-  const { getDateRange } = useAcademicYear();
+  const { selectedYear, getDateRange } = useAcademicYear();
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [filteredTasks, setFilteredTasks] = useState<TaskItem[]>([]);
   const [taskGroups, setTaskGroups] = useState<TaskGroup[]>([]);
@@ -81,6 +81,7 @@ export default function Tasks() {
 
   const [classes, setClasses] = useState<ClassOption[]>([]);
   const [sessions, setSessions] = useState<SessionOption[]>([]);
+  const [subjects, setSubjects] = useState<{ id: string, name: string }[]>([]);
   const [students, setStudents] = useState<StudentOption[]>([]);
   const [filterSessions, setFilterSessions] = useState<SessionOption[]>([]);
 
@@ -93,12 +94,19 @@ export default function Tasks() {
     student_id: '',
     due_date: '',
     submission_link: '',
+    academic_year: selectedYear,
+    subject_id: '',
   });
 
   useEffect(() => {
     fetchClasses();
     fetchTasks();
-  }, [getDateRange]);
+    fetchSubjects();
+  }, [selectedYear]);
+
+  useEffect(() => {
+    setFormData(prev => ({ ...prev, academic_year: selectedYear }));
+  }, [selectedYear]);
 
   useEffect(() => {
     if (formData.class_id) {
@@ -178,6 +186,19 @@ export default function Tasks() {
     }
   };
 
+  const fetchSubjects = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('subjects')
+        .select('id, name')
+        .order('name');
+      if (error) throw error;
+      setSubjects(data || []);
+    } catch (e) {
+      console.error('Error fetching subjects:', e);
+    }
+  };
+
   const fetchSessionsByClass = async (classId: string) => {
     try {
       const cls = classes.find((c) => c.id === classId);
@@ -225,11 +246,11 @@ export default function Tasks() {
           student_id,
           session_id,
           created_at,
+          academic_year,
           students:student_id(name),
           sessions:session_id(title, class_batch)
         `)
-        .gte('created_at', startDate.toISOString())
-        .lte('created_at', endDate.toISOString())
+        .or(`academic_year.eq."${selectedYear}",and(academic_year.is.null,created_at.gte."${startDate.toISOString()}",created_at.lte."${endDate.toISOString()}")`)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -266,17 +287,16 @@ export default function Tasks() {
     }
 
     try {
-      let studentsToAssign = students;
-      if (studentsToAssign.length === 0) {
-        const { data: fetchedStudents, error: fetchError } = await supabase
-          .from('students')
-          .select('id, name')
-          .eq('class_id', formData.class_id)
-          .order('name');
+      let studentsToAssign = [];
+      const { data: fetchedStudents, error: fetchError } = await supabase
+        .from('students')
+        .select('id, name')
+        .eq('class_id', formData.class_id)
+        .eq('academic_year', formData.academic_year)
+        .order('name');
 
-        if (fetchError) throw fetchError;
-        studentsToAssign = fetchedStudents || [];
-      }
+      if (fetchError) throw fetchError;
+      studentsToAssign = fetchedStudents || [];
 
       if (studentsToAssign.length === 0) {
         toast.error('No students found in this class');
@@ -293,6 +313,8 @@ export default function Tasks() {
         submission_link: formData.submission_link || null,
         status: 'pending',
         created_at: new Date().toISOString(),
+        academic_year: formData.academic_year,
+        subject_id: formData.subject_id || null,
       }));
 
       const { error } = await supabase.from('student_task_feedback').insert(taskRecords);
@@ -300,7 +322,17 @@ export default function Tasks() {
 
       toast.success(`Task assigned to ${studentsToAssign.length} students`);
       setIsCreateOpen(false);
-      setFormData({ title: '', description: '', class_id: '', session_id: '', student_id: '', due_date: '', submission_link: '' });
+      setFormData({ 
+        title: '', 
+        description: '', 
+        class_id: '', 
+        session_id: '', 
+        student_id: '', 
+        due_date: '', 
+        submission_link: '',
+        academic_year: selectedYear,
+        subject_id: '',
+      });
       fetchTasks();
     } catch (e) {
       console.error('Error creating task:', e);
@@ -502,18 +534,52 @@ export default function Tasks() {
                   placeholder="Task description with formatting..."
                 />
               </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Class *</Label>
+                  <Select
+                    value={formData.class_id}
+                    onValueChange={(v) => setFormData({ ...formData, class_id: v, session_id: '', student_id: '' })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select class" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {classes.map((cls) => (
+                        <SelectItem key={cls.id} value={cls.id}>{cls.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Academic Year *</Label>
+                  <Select
+                    value={formData.academic_year}
+                    onValueChange={(v) => setFormData({ ...formData, academic_year: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select year" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="2025-26">2025-26</SelectItem>
+                      <SelectItem value="2026-27">2026-27</SelectItem>
+                      <SelectItem value="2027-28">2027-28</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
               <div>
-                <Label>Class *</Label>
+                <Label>Subject</Label>
                 <Select
-                  value={formData.class_id}
-                  onValueChange={(v) => setFormData({ ...formData, class_id: v, session_id: '', student_id: '' })}
+                  value={formData.subject_id}
+                  onValueChange={(v) => setFormData({ ...formData, subject_id: v })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select class" />
+                    <SelectValue placeholder="Select subject" />
                   </SelectTrigger>
                   <SelectContent>
-                    {classes.map((cls) => (
-                      <SelectItem key={cls.id} value={cls.id}>{cls.name}</SelectItem>
+                    {subjects.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

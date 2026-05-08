@@ -128,8 +128,7 @@ export default function StudentDashboard() {
             .from('student_task_feedback')
             .select('*')
             .eq('student_id', studentRecord.id)
-            .gte('created_at', startDate.toISOString())
-            .lte('created_at', endDate.toISOString())
+            .or(`academic_year.eq."${selectedYear}",and(academic_year.is.null,created_at.gte."${startDate.toISOString()}",created_at.lte."${endDate.toISOString()}")`)
             .order('deadline', { ascending: true });
 
           if (tasksError) {

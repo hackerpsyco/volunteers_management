@@ -14,6 +14,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 
 interface EarningRecord {
   id: string;
@@ -22,6 +26,9 @@ interface EarningRecord {
   description: string;
   task_id?: string;
   task_name?: string;
+  deadline?: string;
+  subject_name?: string;
+  session_title?: string;
 }
 
 interface RewardConfig {
@@ -48,14 +55,23 @@ export default function StudentEarnings() {
   const [loading, setLoading] = useState(true);
   const [totalBalance, setTotalBalance] = useState(0);
   const [rewardConfigs, setRewardConfigs] = useState<RewardConfig[]>([]);
+  const [subjects, setSubjects] = useState<{id: string, name: string}[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterSubject, setFilterSubject] = useState('all');
   const { selectedYear, getDateRange } = useAcademicYear();
 
   useEffect(() => {
     if (user?.email) {
       loadEarningsData();
       fetchRewardConfigs();
+      fetchSubjects();
     }
   }, [user?.email, selectedYear]);
+
+  const fetchSubjects = async () => {
+    const { data } = await supabase.from('subjects').select('id, name').order('name');
+    if (data) setSubjects(data);
+  };
 
   const fetchRewardConfigs = async () => {
     try {
@@ -103,7 +119,12 @@ export default function StudentEarnings() {
           earned_at,
           description,
           task_id,
-          student_task_feedback(task_name)
+          task:task_id(
+            task_name, 
+            deadline,
+            subject:subjects(name),
+            session:sessions(title)
+          )
         `)
         .eq('student_id', student.id)
         .gte('earned_at', startDate.toISOString())
@@ -112,14 +133,20 @@ export default function StudentEarnings() {
 
       if (earningsError) throw earningsError;
 
-      const formatted: EarningRecord[] = (earningsData || []).map((item: any) => ({
-        id: item.id,
-        amount: parseFloat(item.amount),
-        earned_at: item.earned_at,
-        description: item.description,
-        task_id: item.task_id,
-        task_name: item.student_task_feedback?.task_name
-      }));
+      const formatted: EarningRecord[] = (earningsData || []).map((item: any) => {
+        const taskData = Array.isArray(item.task) ? item.task[0] : item.task;
+        return {
+          id: item.id,
+          amount: parseFloat(item.amount),
+          earned_at: item.earned_at,
+          description: item.description,
+          task_id: item.task_id,
+          task_name: taskData?.task_name,
+          deadline: taskData?.deadline,
+          subject_name: taskData?.subject?.name,
+          session_title: taskData?.session?.title || item.description
+        };
+      });
 
       setEarnings(formatted);
       const total = formatted.reduce((sum, item) => sum + item.amount, 0);
@@ -204,53 +231,31 @@ export default function StudentEarnings() {
           </Card>
         </div>
 
-        {/* Earning Potential Table */}
-        <Card className="border-border/50 shadow-sm overflow-hidden">
-          <CardHeader className="bg-muted/30">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-green-600" />
-              How You Can Earn
-            </CardTitle>
-            <CardDescription>
-              Check potential rewards for different types of activities
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead className="font-bold">Task Type</TableHead>
-                    <TableHead className="text-center font-bold">Expected Tasks</TableHead>
-                    <TableHead className="text-center font-bold">Frequency</TableHead>
-                    <TableHead className="text-center font-bold">Rate</TableHead>
-                    <TableHead className="text-center font-bold">Potential Monthly</TableHead>
-                    <TableHead className="min-w-[200px] font-bold">How to Earn</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rewardConfigs.map((row, idx) => (
-                    <TableRow key={idx} className="hover:bg-muted/20 transition-colors">
-                      <TableCell className="font-medium text-sm">{row.task_type}</TableCell>
-                      <TableCell className="text-center text-sm">{row.expected_tasks}</TableCell>
-                      <TableCell className="text-center text-sm">{row.frequency}</TableCell>
-                      <TableCell className="text-center text-sm font-semibold text-green-600">₹{row.rate_per_task}</TableCell>
-                      <TableCell className="text-center text-sm font-bold text-green-700">₹{row.expected_tasks * row.rate_per_task}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground leading-relaxed">{row.how_to_earn}</TableCell>
-                    </TableRow>
-                  ))}
-                  <TableRow className="bg-green-50/50">
-                    <TableCell colSpan={4} className="font-bold text-right py-4">Total Estimated Monthly Earning:</TableCell>
-                    <TableCell className="text-center font-black text-green-700 py-4">
-                      ₹{rewardConfigs.reduce((sum, r) => sum + (r.expected_tasks * r.rate_per_task), 0).toLocaleString()}
-                    </TableCell>
-                    <TableCell></TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Transaction History Filters */}
+        <div className="flex flex-col sm:flex-row gap-4 items-end">
+          <div className="w-full sm:w-64">
+            <Label className="mb-2 block">Search Task</Label>
+            <Input 
+              placeholder="Search by task or description..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <div className="w-full sm:w-48">
+            <Label className="mb-2 block">Filter Subject</Label>
+            <Select value={filterSubject} onValueChange={setFilterSubject}>
+              <SelectTrigger>
+                <SelectValue placeholder="All Subjects" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Subjects</SelectItem>
+                {subjects.map(s => (
+                  <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
 
         {/* Transaction History */}
         <Card className="shadow-sm border-border/50">
@@ -279,28 +284,61 @@ export default function StudentEarnings() {
                 </p>
               </div>
             ) : (
-                <div className="space-y-4">
-                    {earnings.map((record) => (
-                        <div key={record.id} className="flex items-center justify-between p-4 rounded-xl hover:bg-muted/30 transition-colors border border-transparent hover:border-border group">
-                            <div className="flex items-center gap-4">
-                                <div className="p-2.5 bg-green-100 rounded-full text-green-700 group-hover:scale-110 transition-transform">
-                                    <ArrowUpRight className="h-5 w-5" />
-                                </div>
-                                <div>
-                                    <h4 className="font-semibold text-sm md:text-base">
-                                        {record.task_name ? `Task: ${record.task_name}` : record.description || 'Reward'}
-                                    </h4>
-                                    <p className="text-xs text-muted-foreground">
-                                        {new Date(record.earned_at).toLocaleString()}
-                                    </p>
-                                </div>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead>Date</TableHead>
+                      <TableHead>Task / Activity</TableHead>
+                      <TableHead>Subject</TableHead>
+                      <TableHead>Session</TableHead>
+                      <TableHead>Deadline</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {earnings
+                      .filter(record => {
+                        const matchesSearch = 
+                          (record.task_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (record.description || '').toLowerCase().includes(searchQuery.toLowerCase());
+                        const matchesSubject = filterSubject === 'all' || record.subject_name === filterSubject;
+                        return matchesSearch && matchesSubject;
+                      })
+                      .map((record) => (
+                        <TableRow key={record.id} className="hover:bg-muted/30 transition-colors">
+                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                            {new Date(record.earned_at).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>
+                            <div className="font-medium text-sm">
+                              {record.task_name || record.description || 'Reward'}
                             </div>
-                            <div className="text-lg md:text-xl font-bold text-green-600">
-                                +{record.amount}
-                            </div>
-                        </div>
-                    ))}
-                </div>
+                            {record.task_name && record.description && (
+                              <div className="text-[10px] text-muted-foreground">{record.description}</div>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {record.subject_name ? (
+                              <Badge variant="outline" className="text-[10px] uppercase font-bold">
+                                {record.subject_name}
+                              </Badge>
+                            ) : '-'}
+                          </TableCell>
+                          <TableCell className="text-xs max-w-[150px] truncate" title={record.session_title}>
+                            {record.session_title || '-'}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {record.deadline ? new Date(record.deadline).toLocaleDateString() : '-'}
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-green-600">
+                            +₹{record.amount}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>
