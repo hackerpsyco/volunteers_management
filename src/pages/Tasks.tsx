@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Plus, ExternalLink, ClipboardList, ChevronRight } from 'lucide-react';
+import { Search, Plus, ExternalLink, ClipboardList, ChevronRight, MoreHorizontal, Eye, Trash2, BookOpen, Calendar } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,22 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -40,6 +56,7 @@ interface TaskItem {
   student_name?: string;
   session_title?: string;
   class_name?: string;
+  subject_name?: string;
 }
 
 interface TaskGroup {
@@ -47,7 +64,11 @@ interface TaskGroup {
   description: string;
   created_at: string;
   due_date: string;
+  subject_name: string;
+  class_name: string;
+  session_title: string;
   tasks: TaskItem[];
+  completedCount: number;
 }
 
 interface ClassOption {
@@ -75,6 +96,7 @@ export default function Tasks() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterClass, setFilterClass] = useState('all');
   const [filterSession, setFilterSession] = useState('all');
+  const [filterSubject, setFilterSubject] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
@@ -129,6 +151,9 @@ export default function Tasks() {
     if (filterSession !== 'all') {
       filtered = filtered.filter((t) => t.session_id === filterSession);
     }
+    if (filterSubject !== 'all') {
+      filtered = filtered.filter((t) => t.subject_name === filterSubject);
+    }
     if (filterStatus !== 'all') {
       filtered = filtered.filter((t) => t.status === filterStatus);
     }
@@ -165,13 +190,33 @@ export default function Tasks() {
           description: task.description,
           created_at: task.created_at,
           due_date: task.due_date,
+          subject_name: task.subject_name && task.subject_name !== '-' ? task.subject_name : '-',
+          class_name: task.class_name && task.class_name !== '-' ? task.class_name : '-',
+          session_title: task.session_title && task.session_title !== '-' ? task.session_title : '-',
           tasks: [],
+          completedCount: 0,
         });
       }
-      grouped.get(key)!.tasks.push(task);
+      const group = grouped.get(key)!;
+      group.tasks.push(task);
+      
+      // Update group metadata if the current task has better info
+      if (group.subject_name === '-' && task.subject_name && task.subject_name !== '-') {
+        group.subject_name = task.subject_name;
+      }
+      if (group.class_name === '-' && task.class_name && task.class_name !== '-') {
+        group.class_name = task.class_name;
+      }
+      if (group.session_title === '-' && task.session_title && task.session_title !== '-') {
+        group.session_title = task.session_title;
+      }
+
+      if (task.status === 'completed') {
+        group.completedCount++;
+      }
     });
     setTaskGroups(Array.from(grouped.values()));
-  }, [tasks, filterClass, filterSession, filterStatus, filterDateFrom, filterDateTo, searchQuery, classes]);
+  }, [tasks, filterClass, filterSession, filterSubject, filterStatus, filterDateFrom, filterDateTo, searchQuery, classes]);
 
   const fetchClasses = async () => {
     try {
@@ -247,8 +292,16 @@ export default function Tasks() {
           session_id,
           created_at,
           academic_year,
-          students:student_id(name),
-          sessions:session_id(title, class_batch)
+          students:student_id(
+            name,
+            classes(name)
+          ),
+          sessions:session_id(
+            title, 
+            class_batch,
+            subjects:subject_id(name)
+          ),
+          subjects:subject_id(name)
         `)
         .or(`academic_year.eq."${selectedYear}",and(academic_year.is.null,created_at.gte."${startDate.toISOString()}",created_at.lte."${endDate.toISOString()}")`)
         .order('created_at', { ascending: false });
@@ -268,7 +321,12 @@ export default function Tasks() {
         created_at: task.created_at || '',
         student_name: task.students?.name || '-',
         session_title: task.sessions?.title || '-',
-        class_name: task.sessions?.class_batch || '-',
+        class_name: task.sessions?.class_batch || 
+                   (task.students?.classes && !Array.isArray(task.students.classes) ? task.students.classes.name : 
+                    Array.isArray(task.students?.classes) && task.students.classes.length > 0 ? task.students.classes[0].name : '-'),
+        subject_name: task.subjects?.name || 
+                     (task.sessions?.subjects && !Array.isArray(task.sessions.subjects) ? task.sessions.subjects.name : 
+                      Array.isArray(task.sessions?.subjects) && task.sessions.subjects.length > 0 ? task.sessions.subjects[0].name : '-'),
       }));
 
       setTasks(enriched);
@@ -419,6 +477,21 @@ export default function Tasks() {
             </Select>
           </div>
 
+          <div className="w-full sm:w-48">
+            <label className="text-sm font-medium text-foreground mb-2 block">Subject</label>
+            <Select value={filterSubject} onValueChange={setFilterSubject}>
+              <SelectTrigger>
+                <SelectValue placeholder="All Subjects" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Subjects</SelectItem>
+                {subjects.map((s) => (
+                  <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="w-full sm:w-40">
             <label className="text-sm font-medium text-foreground mb-2 block">Status</label>
             <Select value={filterStatus} onValueChange={setFilterStatus}>
@@ -486,26 +559,118 @@ export default function Tasks() {
                 </Button>
               </div>
             ) : (
-              <div className="space-y-2">
-                {taskGroups.map((group) => (
-                  <button
-                    key={group.title}
-                    onClick={() => navigate(`/tasks/${encodeURIComponent(group.title)}`)}
-                    className="w-full border border-border rounded-lg p-4 flex items-center justify-between hover:bg-muted/50 transition-colors text-left"
-                  >
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-foreground truncate">{group.title}</h3>
-                        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground mt-1">
-                          <span>Created: {new Date(group.created_at || new Date()).toLocaleDateString()}</span>
-                          <span>Deadline: {group.due_date ? new Date(group.due_date).toLocaleDateString() : '-'}</span>
-                          <span className="font-medium text-foreground">{group.tasks.length} student{group.tasks.length !== 1 ? 's' : ''}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                ))}
+              <div className="overflow-hidden rounded-md border border-border bg-card">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[25%]">Task Name</TableHead>
+                      <TableHead>Subject</TableHead>
+                      <TableHead>Class</TableHead>
+                      <TableHead>Session</TableHead>
+                      <TableHead>Deadline</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {taskGroups.map((group) => (
+                      <TableRow key={group.title} className="hover:bg-muted/50 transition-colors">
+                        <TableCell className="font-medium">
+                          <div className="flex flex-col">
+                            <span className="text-foreground">{group.title}</span>
+                            <span className="text-[10px] text-muted-foreground">
+                              Created: {new Date(group.created_at || new Date()).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="font-normal">
+                            {group.subject_name}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span className="text-sm">{group.class_name}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {group.session_title !== '-' ? (
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground bg-muted/30 px-2 py-1 rounded-md w-fit">
+                              <Calendar className="h-3 w-3" />
+                              <span className="truncate max-w-[120px]" title={group.session_title}>
+                                {group.session_title}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {group.due_date ? new Date(group.due_date).toLocaleDateString() : '-'}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col gap-1">
+                            <div className="flex justify-between text-[10px] text-muted-foreground">
+                              <span>Progress</span>
+                              <span>{group.completedCount}/{group.tasks.length}</span>
+                            </div>
+                            <div className="w-24 h-1 bg-muted rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-primary" 
+                                style={{ width: `${(group.completedCount / group.tasks.length) * 100}%` }}
+                              />
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" className="h-8 w-8 p-0">
+                                <span className="sr-only">Open menu</span>
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-[160px]">
+                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => navigate(`/tasks/${encodeURIComponent(group.title)}`)}>
+                                <Eye className="mr-2 h-4 w-4" />
+                                View Details
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => navigate(`/tasks/${encodeURIComponent(group.title)}/edit`)}>
+                                <ExternalLink className="mr-2 h-4 w-4" />
+                                Edit Task
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem 
+                                className="text-destructive focus:text-destructive"
+                                onClick={async () => {
+                                  if (confirm('Are you sure you want to delete this task for all students?')) {
+                                    try {
+                                      const { error } = await supabase
+                                        .from('student_task_feedback')
+                                        .delete()
+                                        .eq('task_name', group.title);
+                                      if (error) throw error;
+                                      toast.success('Task deleted successfully');
+                                      fetchTasks();
+                                    } catch (e) {
+                                      console.error(e);
+                                      toast.error('Failed to delete task');
+                                    }
+                                  }
+                                }}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
             )}
           </CardContent>

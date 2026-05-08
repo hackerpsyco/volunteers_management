@@ -196,7 +196,8 @@ export default function Sessions() {
         slot_day: session.centre_time_slots?.day || null,
         slot_start_time: session.centre_time_slots?.start_time || null,
         slot_end_time: session.centre_time_slots?.end_time || null,
-        subject_name: session.subjects?.name || null,
+        subject_name: session.subjects && !Array.isArray(session.subjects) ? session.subjects.name : 
+                     Array.isArray(session.subjects) && session.subjects.length > 0 ? session.subjects[0].name : null,
       }));
       
       setSessions(transformedData as Session[]);
