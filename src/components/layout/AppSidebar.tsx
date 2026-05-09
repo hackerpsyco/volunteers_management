@@ -48,6 +48,7 @@ const navGroups: NavGroup[] = [
     items: [
       { title: 'Facilitator', url: '/facilitators', icon: Users2, requiredRole: null, studentVisible: false },
       { title: 'Coordinators', url: '/coordinators', icon: Users2, requiredRole: null, studentVisible: false },
+      { title: 'Class Leaders', url: '/class-leaders', icon: Shield, requiredRole: null, studentVisible: false },
       { title: 'Guest Teacher & Speaker', url: '/volunteers', icon: Users, requiredRole: null, studentVisible: false },
     ],
   },

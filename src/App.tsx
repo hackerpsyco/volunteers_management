@@ -35,6 +35,7 @@ import StudentTasks from "./pages/StudentTasks";
 import StudentEarnings from "./pages/StudentEarnings";
 import AdminStudentEarnings from "./pages/AdminStudentEarnings";
 import ClassTaskReview from "@/pages/ClassTaskReview";
+import ClassLeaders from "./pages/ClassLeaders";
 import AddTask from "./pages/AddTask";
 import NotFound from "./pages/NotFound";
 
@@ -80,6 +81,7 @@ const App = () => (
               <Route path="/student-earnings" element={<StudentEarnings />} />
               <Route path="/admin-earnings" element={<AdminStudentEarnings />} />
               <Route path="/class-task-review" element={<ClassTaskReview />} />
+              <Route path="/class-leaders" element={<ClassLeaders />} />
               <Route path="/tasks/add" element={<AddTask />} />
               <Route path="/admin" element={<AdminPanel />} />
               <Route path="*" element={<NotFound />} />
