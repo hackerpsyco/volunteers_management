@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Plus, ExternalLink, ClipboardList, ChevronRight, MoreHorizontal, Eye, Trash2, BookOpen, Calendar } from 'lucide-react';
+import { Search, Plus, ExternalLink, ClipboardList, ChevronRight, MoreHorizontal, Eye, Trash2, BookOpen, Calendar, ArrowUpDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -13,13 +13,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -57,6 +50,7 @@ interface TaskItem {
   session_title?: string;
   class_name?: string;
   subject_name?: string;
+  academic_year?: string;
 }
 
 interface TaskGroup {
@@ -67,6 +61,9 @@ interface TaskGroup {
   subject_name: string;
   class_name: string;
   session_title: string;
+  academic_year: string;
+  reward: number;
+  latestCompletionDate: string | null;
   tasks: TaskItem[];
   completedCount: number;
 }
@@ -92,6 +89,7 @@ export default function Tasks() {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [filteredTasks, setFilteredTasks] = useState<TaskItem[]>([]);
   const [taskGroups, setTaskGroups] = useState<TaskGroup[]>([]);
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterClass, setFilterClass] = useState('all');
@@ -107,38 +105,11 @@ export default function Tasks() {
   const [students, setStudents] = useState<StudentOption[]>([]);
   const [filterSessions, setFilterSessions] = useState<SessionOption[]>([]);
 
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    class_id: '',
-    session_id: '',
-    student_id: '',
-    due_date: '',
-    submission_link: '',
-    academic_year: selectedYear,
-    subject_id: '',
-  });
-
   useEffect(() => {
     fetchClasses();
     fetchTasks();
     fetchSubjects();
   }, [selectedYear]);
-
-  useEffect(() => {
-    setFormData(prev => ({ ...prev, academic_year: selectedYear }));
-  }, [selectedYear]);
-
-  useEffect(() => {
-    if (formData.class_id) {
-      fetchSessionsByClass(formData.class_id);
-      fetchStudentsByClass(formData.class_id);
-    } else {
-      setSessions([]);
-      setStudents([]);
-    }
-  }, [formData.class_id]);
 
   useEffect(() => {
     let filtered = tasks;
@@ -193,6 +164,9 @@ export default function Tasks() {
           subject_name: task.subject_name && task.subject_name !== '-' ? task.subject_name : '-',
           class_name: task.class_name && task.class_name !== '-' ? task.class_name : '-',
           session_title: task.session_title && task.session_title !== '-' ? task.session_title : '-',
+          academic_year: task.academic_year || '-',
+          reward: (task as any).earning_amount || 0,
+          latestCompletionDate: null,
           tasks: [],
           completedCount: 0,
         });
@@ -210,9 +184,19 @@ export default function Tasks() {
       if (group.session_title === '-' && task.session_title && task.session_title !== '-') {
         group.session_title = task.session_title;
       }
+      if (group.academic_year === '-' && task.academic_year) {
+        group.academic_year = task.academic_year;
+      }
+      if (group.reward === 0 && (task as any).earning_amount) {
+        group.reward = (task as any).earning_amount;
+      }
 
       if (task.status === 'completed') {
         group.completedCount++;
+        const completionDate = (task as any).updated_at || task.created_at;
+        if (!group.latestCompletionDate || completionDate > group.latestCompletionDate) {
+          group.latestCompletionDate = completionDate;
+        }
       }
     });
     setTaskGroups(Array.from(grouped.values()));
@@ -291,7 +275,9 @@ export default function Tasks() {
           student_id,
           session_id,
           created_at,
+          updated_at,
           academic_year,
+          earning_amount,
           students:student_id(
             name,
             classes(name)
@@ -319,6 +305,9 @@ export default function Tasks() {
         submission_link: task.submission_link || '',
         due_date: task.deadline || '',
         created_at: task.created_at || '',
+        updated_at: task.updated_at || '',
+        academic_year: task.academic_year || '',
+        earning_amount: task.earning_amount || 0,
         student_name: task.students?.name || '-',
         session_title: task.sessions?.title || '-',
         class_name: task.sessions?.class_batch || 
@@ -338,65 +327,6 @@ export default function Tasks() {
     }
   };
 
-  const handleCreate = async () => {
-    if (!formData.title || !formData.class_id) {
-      toast.error('Please fill in title and class');
-      return;
-    }
-
-    try {
-      let studentsToAssign = [];
-      const { data: fetchedStudents, error: fetchError } = await supabase
-        .from('students')
-        .select('id, name')
-        .eq('class_id', formData.class_id)
-        .eq('academic_year', formData.academic_year)
-        .order('name');
-
-      if (fetchError) throw fetchError;
-      studentsToAssign = fetchedStudents || [];
-
-      if (studentsToAssign.length === 0) {
-        toast.error('No students found in this class');
-        return;
-      }
-
-      const taskRecords = studentsToAssign.map(student => ({
-        session_id: formData.session_id || null,
-        student_id: student.id,
-        feedback_type: 'homework',
-        task_name: formData.title,
-        task_description: formData.description || null,
-        deadline: formData.due_date || null,
-        submission_link: formData.submission_link || null,
-        status: 'pending',
-        created_at: new Date().toISOString(),
-        academic_year: formData.academic_year,
-        subject_id: formData.subject_id || null,
-      }));
-
-      const { error } = await supabase.from('student_task_feedback').insert(taskRecords);
-      if (error) throw error;
-
-      toast.success(`Task assigned to ${studentsToAssign.length} students`);
-      setIsCreateOpen(false);
-      setFormData({ 
-        title: '', 
-        description: '', 
-        class_id: '', 
-        session_id: '', 
-        student_id: '', 
-        due_date: '', 
-        submission_link: '',
-        academic_year: selectedYear,
-        subject_id: '',
-      });
-      fetchTasks();
-    } catch (e) {
-      console.error('Error creating task:', e);
-      toast.error('Failed to create task');
-    }
-  };
 
   useEffect(() => {
     if (filterClass !== 'all') {
@@ -415,6 +345,33 @@ export default function Tasks() {
     }
   }, [filterClass, classes]);
 
+  const handleSort = (key: string) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const sortedGroups = [...taskGroups].sort((a, b) => {
+    if (!sortConfig) return 0;
+    const { key, direction } = sortConfig;
+    let aVal: any = a[key as keyof typeof a];
+    let bVal: any = b[key as keyof typeof b];
+
+    if (key === 'completion') {
+      aVal = a.tasks.length ? a.completedCount / a.tasks.length : 0;
+      bVal = b.tasks.length ? b.completedCount / b.tasks.length : 0;
+    } else if (key === 'created_at' || key === 'due_date') {
+      aVal = aVal ? new Date(aVal).getTime() : 0;
+      bVal = bVal ? new Date(bVal).getTime() : 0;
+    }
+
+    if (aVal < bVal) return direction === 'asc' ? -1 : 1;
+    if (aVal > bVal) return direction === 'asc' ? 1 : -1;
+    return 0;
+  });
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -426,7 +383,7 @@ export default function Tasks() {
               Manage student tasks and track submissions
             </p>
           </div>
-          <Button onClick={() => setIsCreateOpen(true)} className="gap-2 w-full sm:w-auto">
+          <Button onClick={() => navigate('/tasks/add')} className="gap-2 w-full sm:w-auto">
             <Plus className="h-4 w-4" />
             Create Task
           </Button>
@@ -553,7 +510,7 @@ export default function Tasks() {
                 <ClipboardList className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-foreground mb-2">No tasks found</h3>
                 <p className="text-muted-foreground mb-4">Create a task to get started</p>
-                <Button onClick={() => setIsCreateOpen(true)}>
+                <Button onClick={() => navigate('/tasks/add')}>
                   <Plus className="h-4 w-4 mr-2" />
                   Create Task
                 </Button>
@@ -563,41 +520,39 @@ export default function Tasks() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[25%]">Task Name</TableHead>
-                      <TableHead>Subject</TableHead>
-                      <TableHead>Class</TableHead>
-                      <TableHead>Session</TableHead>
-                      <TableHead>Deadline</TableHead>
-                      <TableHead>Status</TableHead>
+                      <TableHead className="w-[18%]"><div className="flex items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('title')}>Task Name <ArrowUpDown className="h-3 w-3" /></div></TableHead>
+                      <TableHead><div className="flex items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('created_at')}>Created <ArrowUpDown className="h-3 w-3" /></div></TableHead>
+                      <TableHead><div className="flex items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('subject_name')}>Subject <ArrowUpDown className="h-3 w-3" /></div></TableHead>
+                      <TableHead><div className="flex items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('class_name')}>Class <ArrowUpDown className="h-3 w-3" /></div></TableHead>
+                      <TableHead><div className="flex items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('session_title')}>Session <ArrowUpDown className="h-3 w-3" /></div></TableHead>
+                      <TableHead><div className="flex items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('academic_year')}>Year <ArrowUpDown className="h-3 w-3" /></div></TableHead>
+                      <TableHead><div className="flex items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('reward')}>Reward <ArrowUpDown className="h-3 w-3" /></div></TableHead>
+                      <TableHead><div className="flex items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('due_date')}>Deadline <ArrowUpDown className="h-3 w-3" /></div></TableHead>
+                      <TableHead><div className="flex items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('completion')}>Status <ArrowUpDown className="h-3 w-3" /></div></TableHead>
+                      <TableHead className="text-center"><div className="flex justify-center items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('completion')}>Completion <ArrowUpDown className="h-3 w-3" /></div></TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {taskGroups.map((group) => (
+                    {sortedGroups.map((group) => (
                       <TableRow key={group.title} className="hover:bg-muted/50 transition-colors">
                         <TableCell className="font-medium">
-                          <div className="flex flex-col">
-                            <span className="text-foreground">{group.title}</span>
-                            <span className="text-[10px] text-muted-foreground">
-                              Created: {new Date(group.created_at || new Date()).toLocaleDateString()}
-                            </span>
-                          </div>
+                          <span className="text-foreground">{group.title}</span>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                          {new Date(group.created_at || new Date()).toLocaleDateString()}
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline" className="font-normal">
+                          <Badge variant="outline" className="font-normal whitespace-nowrap">
                             {group.subject_name}
                           </Badge>
                         </TableCell>
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <span className="text-sm">{group.class_name}</span>
-                          </div>
-                        </TableCell>
+                        <TableCell className="text-xs whitespace-nowrap">{group.class_name}</TableCell>
                         <TableCell>
                           {group.session_title !== '-' ? (
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground bg-muted/30 px-2 py-1 rounded-md w-fit">
+                            <div className="flex items-center gap-1 text-[10px] text-muted-foreground bg-muted/30 px-2 py-1 rounded-md w-fit">
                               <Calendar className="h-3 w-3" />
-                              <span className="truncate max-w-[120px]" title={group.session_title}>
+                              <span className="truncate max-w-[80px]" title={group.session_title}>
                                 {group.session_title}
                               </span>
                             </div>
@@ -605,7 +560,13 @@ export default function Tasks() {
                             <span className="text-xs text-muted-foreground">-</span>
                           )}
                         </TableCell>
+                        <TableCell className="text-[10px] whitespace-nowrap">{group.academic_year}</TableCell>
                         <TableCell>
+                          <Badge variant="secondary" className="bg-purple-50 text-purple-700 border-purple-100 text-[10px]">
+                            {group.reward} pts
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs whitespace-nowrap">
                           {group.due_date ? new Date(group.due_date).toLocaleDateString() : '-'}
                         </TableCell>
                         <TableCell>
@@ -621,6 +582,11 @@ export default function Tasks() {
                               />
                             </div>
                           </div>
+                        </TableCell>
+                        <TableCell className="text-sm font-medium text-center">
+                          <span className={group.completedCount === group.tasks.length ? "text-green-600" : "text-foreground"}>
+                            {group.completedCount}/{group.tasks.length}
+                          </span>
                         </TableCell>
                         <TableCell className="text-right">
                           <DropdownMenu>
@@ -676,110 +642,6 @@ export default function Tasks() {
           </CardContent>
         </Card>
 
-        {/* Create Task Dialog */}
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Create New Task</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label>Title *</Label>
-                <Input
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  placeholder="Task title"
-                />
-              </div>
-              <div>
-                <Label>Description</Label>
-                <RichTextEditor
-                  value={formData.description}
-                  onChange={(value) => setFormData({ ...formData, description: value })}
-                  placeholder="Task description with formatting..."
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Class *</Label>
-                  <Select
-                    value={formData.class_id}
-                    onValueChange={(v) => setFormData({ ...formData, class_id: v, session_id: '', student_id: '' })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select class" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {classes.map((cls) => (
-                        <SelectItem key={cls.id} value={cls.id}>{cls.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Academic Year *</Label>
-                  <Select
-                    value={formData.academic_year}
-                    onValueChange={(v) => setFormData({ ...formData, academic_year: v })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select year" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="2025-26">2025-26</SelectItem>
-                      <SelectItem value="2026-27">2026-27</SelectItem>
-                      <SelectItem value="2027-28">2027-28</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div>
-                <Label>Subject</Label>
-                <Select
-                  value={formData.subject_id}
-                  onValueChange={(v) => setFormData({ ...formData, subject_id: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select subject" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {subjects.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Session</Label>
-                <Select
-                  value={formData.session_id}
-                  onValueChange={(v) => setFormData({ ...formData, session_id: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select session" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sessions.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>{s.title}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Due Date</Label>
-                <Input
-                  type="date"
-                  value={formData.due_date}
-                  onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
-              <Button onClick={handleCreate}>Create Task</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </div>
     </DashboardLayout>
   );

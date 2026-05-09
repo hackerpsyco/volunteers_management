@@ -202,7 +202,15 @@ export default function ClassStudents() {
 
       if (studentsError) throw studentsError;
       
-      setStudents(studentsData || []);
+      const enrichedStudents = (studentsData || []).map((student) => {
+        if (student.monitor_id) {
+          const monitor = studentsData.find(s => s.id === student.monitor_id);
+          return { ...student, monitor_name: monitor ? monitor.name : 'Unknown' };
+        }
+        return student;
+      });
+      
+      setStudents(enrichedStudents);
     } catch (error: any) {
       console.error('Error fetching data:', error);
       toast.error('Failed to load class and students: ' + (error.message || 'Unknown error'));
@@ -359,7 +367,7 @@ export default function ClassStudents() {
                         <TableHead className="w-[100px]">DOB</TableHead>
                         <TableHead>Email</TableHead>
                         <TableHead>Phone</TableHead>
-                        <TableHead className="w-[100px]">Roll Number</TableHead>
+                        <TableHead className="w-[120px]">Class Monitor</TableHead>
                         <TableHead className="w-[120px]">Subject</TableHead>
                         <TableHead className="w-[120px]">Academic Year</TableHead>
                         <TableHead className="w-[150px]">Designation</TableHead>
@@ -379,7 +387,15 @@ export default function ClassStudents() {
                           </TableCell>
                           <TableCell className="text-sm">{student.email || '-'}</TableCell>
                           <TableCell className="text-sm">{student.phone_number || '-'}</TableCell>
-                          <TableCell className="text-sm">{student.roll_number || '-'}</TableCell>
+                          <TableCell className="text-sm">
+                            {student.monitor_name ? (
+                              <Badge variant="outline" className="font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200">
+                                {student.monitor_name}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
                           <TableCell className="text-sm">{student.subject || '-'}</TableCell>
                           <TableCell className="text-sm">{student.academic_year || '-'}</TableCell>
                           <TableCell className="text-sm">{student.designation || '-'}</TableCell>
@@ -459,8 +475,8 @@ export default function ClassStudents() {
                           </span>
                         </div>
                         <div>
-                          <span className="text-muted-foreground block">Roll Number</span>
-                          <span className="font-medium">{student.roll_number || '-'}</span>
+                          <span className="text-muted-foreground block">Class Monitor</span>
+                          <span className="font-medium">{student.monitor_name || '-'}</span>
                         </div>
                         <div>
                           <span className="text-muted-foreground block">Subject</span>

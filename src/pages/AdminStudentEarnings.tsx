@@ -38,11 +38,9 @@ interface StudentEarning {
   student_id: string;
   student_name: string;
   class_name: string;
+  designation: string;
   total_earned: number;
   last_earned_at: string | null;
-  last_session?: string;
-  last_deadline?: string;
-  last_subject?: string;
 }
 
 interface EarningRecord {
@@ -77,6 +75,7 @@ export default function AdminStudentEarnings() {
   const [selectedClass, setSelectedClass] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [studentEarnings, setStudentEarnings] = useState<StudentEarning[]>([]);
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [selectedStudent, setSelectedStudent] = useState<StudentEarning | null>(null);
   const [studentRecords, setStudentRecords] = useState<EarningRecord[]>([]);
   const [loadingRecords, setLoadingRecords] = useState(false);
@@ -144,19 +143,11 @@ export default function AdminStudentEarnings() {
         .select(`
           id,
           name,
+          designation,
           classes (name),
           student_earnings (
             amount, 
-            earned_at,
-            task:task_id (
-              deadline,
-              subject:subject_id (
-                name
-              ),
-              session:session_id (
-                title
-              )
-            )
+            earned_at
           )
         `);
 
@@ -174,24 +165,15 @@ export default function AdminStudentEarnings() {
           ? [...filteredEarnings].sort((a: any, b: any) => new Date(b.earned_at).getTime() - new Date(a.earned_at).getTime())[0]
           : null;
         
-        const lastTaskData = lastRecord?.task ? (Array.isArray(lastRecord.task) ? lastRecord.task[0] : lastRecord.task) : null;
-        const lastSessionData = lastTaskData?.session ? (Array.isArray(lastTaskData.session) ? lastTaskData.session[0] : lastTaskData.session) : null;
-        const lastSubjectData = lastTaskData?.subject ? (Array.isArray(lastTaskData.subject) ? lastTaskData.subject[0] : lastTaskData.subject) : null;
-
         const lastDate = lastRecord?.earned_at || null;
-        const lastSession = lastSessionData?.title || lastRecord?.description || '-';
-        const lastDeadline = lastTaskData?.deadline || '-';
-        const lastSubject = lastSubjectData?.name || '-';
 
         return {
           student_id: s.id,
           student_name: s.name,
           class_name: s.classes?.name || 'Unassigned',
+          designation: s.designation || '-',
           total_earned: total,
-          last_earned_at: lastDate,
-          last_session: lastSession,
-          last_deadline: lastDeadline,
-          last_subject: lastSubject
+          last_earned_at: lastDate
         };
       });
 
@@ -304,10 +286,34 @@ export default function AdminStudentEarnings() {
     }
   };
 
+  const handleSort = (key: string) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
   const filteredStudents = studentEarnings.filter(s => {
     const matchesSearch = s.student_name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesClass = selectedClass === 'all' || s.class_name === selectedClass;
     return matchesSearch && matchesClass;
+  });
+
+  const sortedStudents = [...filteredStudents].sort((a, b) => {
+    if (!sortConfig) return 0;
+    const { key, direction } = sortConfig;
+    let aVal: any = a[key as keyof typeof a];
+    let bVal: any = b[key as keyof typeof b];
+
+    if (key === 'last_earned_at') {
+      aVal = aVal ? new Date(aVal).getTime() : 0;
+      bVal = bVal ? new Date(bVal).getTime() : 0;
+    }
+
+    if (aVal < bVal) return direction === 'asc' ? -1 : 1;
+    if (aVal > bVal) return direction === 'asc' ? 1 : -1;
+    return 0;
   });
 
   return (
@@ -372,13 +378,11 @@ export default function AdminStudentEarnings() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Student Name</TableHead>
-                  <TableHead>Class</TableHead>
-                  <TableHead className="text-right">Total Earned</TableHead>
-                  <TableHead>Last Reward</TableHead>
-                  <TableHead>Subject</TableHead>
-                  <TableHead>Session</TableHead>
-                  <TableHead>Deadline</TableHead>
+                  <TableHead><div className="flex items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('student_name')}>Student Name <ArrowUpDown className="h-3 w-3" /></div></TableHead>
+                  <TableHead><div className="flex items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('class_name')}>Class <ArrowUpDown className="h-3 w-3" /></div></TableHead>
+                  <TableHead><div className="flex items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('designation')}>Designation <ArrowUpDown className="h-3 w-3" /></div></TableHead>
+                  <TableHead className="text-right"><div className="flex items-center justify-end gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('total_earned')}>Total Earned <ArrowUpDown className="h-3 w-3" /></div></TableHead>
+                  <TableHead><div className="flex items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('last_earned_at')}>Last Reward <ArrowUpDown className="h-3 w-3" /></div></TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -389,35 +393,25 @@ export default function AdminStudentEarnings() {
                       Loading data...
                     </TableCell>
                   </TableRow>
-                ) : filteredStudents.length === 0 ? (
+                ) : sortedStudents.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
                       No student records found
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredStudents.map((s) => (
+                  sortedStudents.map((s) => (
                     <TableRow key={s.student_id}>
                       <TableCell className="font-medium">{s.student_name}</TableCell>
                       <TableCell>{s.class_name}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-[10px] uppercase font-bold">{s.designation}</Badge>
+                      </TableCell>
                       <TableCell className="text-right font-bold text-green-600">
                         ₹{s.total_earned.toLocaleString()}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                         {s.last_earned_at ? new Date(s.last_earned_at).toLocaleDateString() : '-'}
-                      </TableCell>
-                      <TableCell>
-                        {s.last_subject && s.last_subject !== '-' ? (
-                          <Badge variant="outline" className="text-[10px] uppercase font-bold">
-                            {s.last_subject}
-                          </Badge>
-                        ) : '-'}
-                      </TableCell>
-                      <TableCell className="text-xs max-w-[120px] truncate" title={s.last_session}>
-                        {s.last_session}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                        {s.last_deadline && s.last_deadline !== '-' ? new Date(s.last_deadline).toLocaleDateString() : s.last_deadline}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button 

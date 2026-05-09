@@ -7,6 +7,13 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { RichTextEditor } from '@/components/ui/rich-text-editor';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface TaskData {
   id: string;
@@ -14,6 +21,8 @@ interface TaskData {
   task_description: string;
   deadline: string;
   session_id: string;
+  academic_year: string;
+  earning_amount: number;
 }
 
 export default function TaskEdit() {
@@ -26,6 +35,8 @@ export default function TaskEdit() {
     title: '',
     description: '',
     dueDate: '',
+    academicYear: '',
+    reward: 0,
   });
 
   useEffect(() => {
@@ -50,6 +61,8 @@ export default function TaskEdit() {
           title: data.task_name || '',
           description: data.task_description || '',
           dueDate: data.deadline ? new Date(data.deadline).toISOString().split('T')[0] : '',
+          academicYear: data.academic_year || '',
+          reward: data.earning_amount || 0,
         });
       }
     } catch (error) {
@@ -75,6 +88,8 @@ export default function TaskEdit() {
           task_name: formData.title,
           task_description: formData.description,
           deadline: formData.dueDate ? new Date(formData.dueDate).toISOString() : null,
+          academic_year: formData.academicYear,
+          earning_amount: formData.reward,
         })
         .eq('task_name', decodeURIComponent(taskTitle || ''));
 
@@ -163,6 +178,40 @@ export default function TaskEdit() {
                 onChange={(value) => setFormData({ ...formData, description: value })}
               />
             </div>
+
+            {/* Academic Year */}
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Academic Year
+              </label>
+              <Select
+                value={formData.academicYear}
+                onValueChange={(value) => setFormData({ ...formData, academicYear: value })}
+              >
+                <SelectTrigger className="w-full bg-background border-border">
+                  <SelectValue placeholder="Select Academic Year" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="2025-26">2025-26</SelectItem>
+                  <SelectItem value="2026-27">2026-27</SelectItem>
+                  <SelectItem value="2027-28">2027-28</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Reward */}
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Reward Points
+              </label>
+              <input
+                type="number"
+                value={formData.reward}
+                onChange={(e) => setFormData({ ...formData, reward: parseInt(e.target.value) || 0 })}
+                className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+
 
             {/* Due Date */}
             <div>
