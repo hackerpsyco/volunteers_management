@@ -75,7 +75,7 @@ export default function StudentDashboard() {
           const { data: emailData, error: emailError } = await supabase
             .from('user_profiles')
             .select('full_name, class_id')
-            .eq('email', user?.email)
+            .ilike('email', user?.email)
             .single();
 
           profileData = emailData;
@@ -101,7 +101,48 @@ export default function StudentDashboard() {
         setStudentName(profileData.full_name);
       }
 
-      // If student has a class_id, fetch class-specific data
+      // Fetch tasks for THIS STUDENT ONLY
+      // First, get the student record from students table
+      const { data: studentRecord, error: studentError } = await supabase
+        .from('students')
+        .select('id')
+        .ilike('email', user?.email)
+        .single();
+
+      if (studentError) {
+        console.warn('Student record not found for email:', user?.email, studentError);
+        setTasks([]);
+      } else if (studentRecord) {
+        // Fetch tasks for THIS STUDENT ONLY filtered by academic year
+        const { startDate, endDate } = getDateRange();
+        const { data: tasksData, error: tasksError } = await supabase
+          .from('student_task_feedback')
+          .select('*')
+          .eq('student_id', studentRecord.id)
+          .or(`academic_year.eq."${selectedYear}",and(academic_year.is.null,created_at.gte."${startDate.toISOString()}",created_at.lte."${endDate.toISOString()}")`)
+          .order('deadline', { ascending: true });
+
+        if (tasksError) {
+          console.error('Error fetching tasks:', tasksError);
+          setTasks([]);
+        } else {
+          setTasks(tasksData || []);
+        }
+
+        // Fetch Total Earnings filtered by academic year
+        const { startDate: earningStart, endDate: earningEnd } = getDateRange();
+        const { data: earningsData } = await supabase
+          .from('student_earnings')
+          .select('amount')
+          .eq('student_id', studentRecord.id)
+          .gte('earned_at', earningStart.toISOString())
+          .lte('earned_at', earningEnd.toISOString());
+        
+        const total = (earningsData || []).reduce((sum, item) => sum + parseFloat(item.amount as any), 0);
+        setTotalEarnings(total);
+      }
+
+      // If student has a class_id, fetch class-specific session data
       if (profileData?.class_id) {
         // Get the class info
         const { data: classData } = await supabase
@@ -109,35 +150,6 @@ export default function StudentDashboard() {
           .select('id, name, email')
           .eq('id', profileData.class_id)
           .single();
-
-        // Fetch tasks for THIS STUDENT ONLY
-        // First, get the student record from students table
-        const { data: studentRecord, error: studentError } = await supabase
-          .from('students')
-          .select('id')
-          .eq('email', user?.email)
-          .single();
-
-        if (studentError) {
-          console.warn('Student record not found for email:', user?.email, studentError);
-          setTasks([]);
-        } else if (studentRecord) {
-          // Fetch tasks for THIS STUDENT ONLY filtered by academic year
-          const { startDate, endDate } = getDateRange();
-          const { data: tasksData, error: tasksError } = await supabase
-            .from('student_task_feedback')
-            .select('*')
-            .eq('student_id', studentRecord.id)
-            .or(`academic_year.eq."${selectedYear}",and(academic_year.is.null,created_at.gte."${startDate.toISOString()}",created_at.lte."${endDate.toISOString()}")`)
-            .order('deadline', { ascending: true });
-
-          if (tasksError) {
-            console.error('Error fetching tasks:', tasksError);
-            setTasks([]);
-          } else {
-            setTasks(tasksData || []);
-          }
-        }
 
         // Fetch sessions for this class filtered by academic year
         const { startDate, endDate } = getDateRange();
@@ -155,23 +167,7 @@ export default function StudentDashboard() {
         } else {
           setSessions(sessionsData || []);
         }
-
-        // Fetch Total Earnings filtered by academic year
-        if (studentRecord) {
-          const { startDate, endDate } = getDateRange();
-          const { data: earningsData } = await supabase
-            .from('student_earnings')
-            .select('amount')
-            .eq('student_id', studentRecord.id)
-            .gte('earned_at', startDate.toISOString())
-            .lte('earned_at', endDate.toISOString());
-          
-          const total = (earningsData || []).reduce((sum, item) => sum + parseFloat(item.amount as any), 0);
-          setTotalEarnings(total);
-        }
       } else {
-        // No class assigned - show empty state
-        setTasks([]);
         setSessions([]);
       }
     } catch (error) {

@@ -399,7 +399,20 @@ export function RichTextEditor({ value, onChange, placeholder, minHeight = '200p
           pointer-events: none;
           position: absolute;
         }
-        [contenteditable] img { cursor: pointer; }
+        [contenteditable] img {
+          cursor: pointer;
+          max-width: 320px !important;
+          max-height: 200px !important;
+          object-fit: contain !important;
+          border-radius: 6px !important;
+          border: 1px solid #e5e7eb !important;
+          margin: 8px 0 !important;
+          display: block !important;
+          transition: transform 0.2s ease;
+        }
+        [contenteditable] img:hover {
+          transform: scale(1.02);
+        }
         [contenteditable] a { color: #2563eb; text-decoration: underline; }
         [contenteditable] blockquote { border-left: 4px solid #6366f1; padding: 8px 16px; margin: 8px 0; color: #4b5563; font-style: italic; background: #f9fafb; border-radius: 4px; }
         [contenteditable] code { background: #f1f5f9; color: #dc2626; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 0.875em; }

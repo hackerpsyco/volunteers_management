@@ -123,3 +123,24 @@
     @apply bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground;
   }
 }
+
+/* Style HTML description images to be responsive, small, and clickable */
+.prose img, .task-description-content img {
+  max-width: 320px !important;
+  max-height: 200px !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain !important;
+  border-radius: 8px !important;
+  border: 1px solid hsl(var(--border)) !important;
+  cursor: pointer !important;
+  margin-top: 8px !important;
+  margin-bottom: 8px !important;
+  transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+  display: block !important;
+}
+
+.prose img:hover, .task-description-content img:hover {
+  transform: scale(1.02) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+}

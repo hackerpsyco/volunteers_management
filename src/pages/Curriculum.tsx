@@ -418,7 +418,7 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
         const { data: student } = await supabase
           .from('students')
           .select('class_id')
-          .eq('email', user.email)
+          .ilike('email', user.email)
           .single();
         if (student?.class_id) {
           setSelectedClass(student.class_id);

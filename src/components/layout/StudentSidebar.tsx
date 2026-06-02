@@ -32,7 +32,7 @@ export function StudentSidebar() {
         const { data, error } = await supabase
           .from('students')
           .select('designation')
-          .eq('email', user.email)
+          .ilike('email', user.email)
           .single();
         
         if (data) {

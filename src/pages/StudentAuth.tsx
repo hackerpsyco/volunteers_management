@@ -21,7 +21,7 @@ export function StudentAuth() {
       const { data, error } = await supabase
         .from('user_profiles')
         .select('id, class_id')
-        .eq('email', studentEmail)
+        .ilike('email', studentEmail)
         .eq('role_id', 5) // Student role
         .not('class_id', 'is', null) // Must have a class assigned
         .single();

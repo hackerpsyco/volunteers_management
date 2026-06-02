@@ -48,7 +48,7 @@ export default function StudentTasks() {
       const { data: student, error: studentError } = await supabase
         .from('students')
         .select('id')
-        .eq('email', user?.email)
+        .ilike('email', user?.email)
         .single();
 
       if (studentError) throw studentError;

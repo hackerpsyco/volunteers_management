@@ -66,7 +66,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           const { data: emailData, error: emailError } = await supabase
             .from('user_profiles')
             .select('role_id')
-            .eq('email', user?.email)
+            .ilike('email', user?.email)
             .single();
 
           if (emailError) {
@@ -104,7 +104,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           const { data: emailData } = await supabase
             .from('user_profiles')
             .select('profile_image_url')
-            .eq('email', user?.email)
+            .ilike('email', user?.email)
             .single();
 
           if (emailData?.profile_image_url) {

@@ -14,6 +14,10 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import {
+  Dialog,
+  DialogContent,
+} from '@/components/ui/dialog';
 
 interface StudentTask {
   id: string;
@@ -46,6 +50,7 @@ export default function StudentTaskDetail() {
   const [loading, setLoading] = useState(true);
   const [submissionLink, setSubmissionLink] = useState('');
   const [saving, setSaving] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
   useEffect(() => {
     if (taskId) fetchTask();
@@ -194,9 +199,15 @@ export default function StudentTaskDetail() {
             </h2>
             {/* Full HTML rendered — supports images, links, colors, headings */}
             <div
-              className="prose prose-sm max-w-none text-foreground/90 leading-relaxed"
+              className="prose prose-sm max-w-none text-foreground/90 leading-relaxed task-description-content"
               style={{ lineHeight: '1.75' }}
               dangerouslySetInnerHTML={{ __html: rawDesc }}
+              onClick={(e) => {
+                const target = e.target as HTMLElement;
+                if (target.tagName === 'IMG') {
+                  setLightboxImage((target as HTMLImageElement).src);
+                }
+              }}
             />
           </div>
         )}
@@ -279,6 +290,27 @@ export default function StudentTaskDetail() {
         <p className="text-xs text-muted-foreground text-center pb-4">
           Task assigned on {new Date(task.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
         </p>
+        {/* Lightbox Modal */}
+        <Dialog open={!!lightboxImage} onOpenChange={(open) => !open && setLightboxImage(null)}>
+          <DialogContent className="max-w-4xl p-1 bg-black/90 border-none overflow-hidden flex items-center justify-center rounded-xl shadow-2xl">
+            <div className="relative w-full h-full max-h-[85vh] flex items-center justify-center p-2">
+              <img 
+                src={lightboxImage || ''} 
+                alt="Full size task attachment" 
+                className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-lg" 
+              />
+              <button 
+                onClick={() => setLightboxImage(null)}
+                className="absolute top-4 right-4 bg-white/20 hover:bg-white/40 text-white rounded-full p-2 transition-colors duration-200"
+                title="Close preview"
+              >
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
