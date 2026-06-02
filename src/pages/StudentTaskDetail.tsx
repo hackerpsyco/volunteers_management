@@ -36,12 +36,6 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
   approved:  { label: 'Approved',  color: 'bg-green-100 text-green-700 border-green-200',  icon: CheckCircle2 },
 };
 
-function parseDescription(html: string) {
-  // Strip HTML tags for display
-  const div = document.createElement('div');
-  div.innerHTML = html;
-  return div.textContent || div.innerText || html;
-}
 
 export default function StudentTaskDetail() {
   const { taskId } = useParams<{ taskId: string }>();
@@ -52,7 +46,6 @@ export default function StudentTaskDetail() {
   const [loading, setLoading] = useState(true);
   const [submissionLink, setSubmissionLink] = useState('');
   const [saving, setSaving] = useState(false);
-  const [showFullDesc, setShowFullDesc] = useState(false);
 
   useEffect(() => {
     if (taskId) fetchTask();
@@ -131,9 +124,6 @@ export default function StudentTaskDetail() {
   const canSubmit = task.status === 'pending';
 
   const rawDesc = task.task_description || '';
-  const plainDesc = parseDescription(rawDesc);
-  const isLong = plainDesc.length > 300;
-  const displayDesc = isLong && !showFullDesc ? plainDesc.slice(0, 300) + '…' : plainDesc;
 
   return (
     <DashboardLayout>
@@ -202,19 +192,12 @@ export default function StudentTaskDetail() {
             <h2 className="text-sm font-semibold uppercase tracking-wider text-primary flex items-center gap-2">
               <BookOpen className="h-4 w-4" /> Description
             </h2>
-            <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">
-              {displayDesc}
-            </p>
-            {isLong && (
-              <Button
-                variant="link"
-                size="sm"
-                className="p-0 h-auto text-primary font-semibold"
-                onClick={() => setShowFullDesc(!showFullDesc)}
-              >
-                {showFullDesc ? 'Show Less ↑' : 'Read More ↓'}
-              </Button>
-            )}
+            {/* Full HTML rendered — supports images, links, colors, headings */}
+            <div
+              className="prose prose-sm max-w-none text-foreground/90 leading-relaxed"
+              style={{ lineHeight: '1.75' }}
+              dangerouslySetInnerHTML={{ __html: rawDesc }}
+            />
           </div>
         )}
 
