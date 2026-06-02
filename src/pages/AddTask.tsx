@@ -63,12 +63,12 @@ export default function AddTask() {
   useEffect(() => {
     if (formData.class_id) {
       fetchSessionsByClass(formData.class_id);
-      fetchStudentsByClass(formData.class_id);
+      fetchStudentsByClass(formData.class_id, formData.academic_year);
     } else {
       setSessions([]);
       setStudents([]);
     }
-  }, [formData.class_id]);
+  }, [formData.class_id, formData.academic_year]);
 
   const fetchClasses = async () => {
     const { data, error } = await supabase
@@ -97,11 +97,12 @@ export default function AddTask() {
     if (!error && data) setSessions(data);
   };
 
-  const fetchStudentsByClass = async (classId: string) => {
+  const fetchStudentsByClass = async (classId: string, academicYear: string) => {
     const { data, error } = await supabase
       .from('students')
       .select('id, name')
       .eq('class_id', classId)
+      .eq('academic_year', academicYear)
       .order('name');
     if (!error && data) setStudents(data);
   };
@@ -122,7 +123,8 @@ export default function AddTask() {
         const { data: classStudents, error: studentsError } = await supabase
           .from('students')
           .select('id')
-          .eq('class_id', formData.class_id);
+          .eq('class_id', formData.class_id)
+          .eq('academic_year', formData.academic_year);
         
         if (studentsError) throw studentsError;
         studentsToAssign = classStudents || [];

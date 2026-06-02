@@ -25,6 +25,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAcademicYear } from '@/contexts/AcademicYearContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -77,6 +78,7 @@ export default function SessionRecording() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { sessionId } = useParams();
+  const { selectedYear } = useAcademicYear();
   const [userRole, setUserRole] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -212,7 +214,7 @@ export default function SessionRecording() {
       fetchHomeworkRecords();
       fetchStudents();
     }
-  }, [sessionId]);
+  }, [sessionId, selectedYear]);
 
   const fetchSession = async () => {
     try {
@@ -390,16 +392,20 @@ export default function SessionRecording() {
         return;
       }
 
-      // Fetch students from that class
+      // Fetch students from that class filtered by selected academic year
       const { data: studentsData, error: studentsError } = await supabase
         .from('students')
         .select('id, name, student_id')
         .eq('class_id', classData.id)
+        .eq('academic_year', selectedYear)
         .order('name', { ascending: true });
 
       if (studentsError) throw studentsError;
 
       setStudents(studentsData || []);
+      if ((studentsData || []).length === 0) {
+        toast.warning(`No students found for academic year ${selectedYear} in this class`);
+      }
     } catch (error) {
       console.error('Error fetching students:', error);
       toast.error('Failed to load students');
@@ -731,7 +737,7 @@ export default function SessionRecording() {
         return;
       }
 
-      // Create task for each student
+      // Create task for each student — tagged with current academic year
       const homeworkRecords = students.map(student => ({
         session_id: sessionId,
         student_id: student.id,
@@ -742,6 +748,7 @@ export default function SessionRecording() {
         submission_link: newHomework.submission_link || null,
         feedback_notes: newHomework.feedback_notes || null,
         earning_amount: Number(newHomework.earning_amount) || 5,
+        academic_year: selectedYear,
         status: 'pending',
         created_at: new Date().toISOString(),
       }));

@@ -11,14 +11,14 @@ interface AcademicYearContextType {
 const AcademicYearContext = createContext<AcademicYearContextType | undefined>(undefined);
 
 export function AcademicYearProvider({ children }: { children: React.ReactNode }) {
-  // Default to 2025-26 as per user request
+  // Default to 2026-27
   const [selectedYear, setSelectedYear] = useState<AcademicYear>(() => {
-    const saved = localStorage.getItem('selectedAcademicYear');
-    return (saved as AcademicYear) || '2025-26';
+    const saved = localStorage.getItem('selectedAcademicYear_v2');
+    return (saved as AcademicYear) || '2026-27';
   });
 
   useEffect(() => {
-    localStorage.setItem('selectedAcademicYear', selectedYear);
+    localStorage.setItem('selectedAcademicYear_v2', selectedYear);
   }, [selectedYear]);
 
   const getDateRange = () => {

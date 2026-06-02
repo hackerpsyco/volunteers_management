@@ -118,6 +118,8 @@ export function AddSessionDialog({
   const [selectedSlot, setSelectedSlot] = useState<string>('');
   const [selectedClass, setSelectedClass] = useState<string>('');
   const [selectedSubject, setSelectedSubject] = useState<string>('');
+  const [useCustomTopic, setUseCustomTopic] = useState(false);
+  const [customTopicText, setCustomTopicText] = useState('');
   const [formData, setFormData] = useState({
     title: '',
     custom_title: '',
@@ -165,6 +167,8 @@ export function AddSessionDialog({
       setTopics([]);
       setCategories([]);
       setModules([]);
+      setUseCustomTopic(false);
+      setCustomTopicText('');
     }
   }, [selectedClass]);
 
@@ -648,6 +652,8 @@ export function AddSessionDialog({
     setSelectedSlot('');
     setSelectedClass('');
     setSelectedSubject('');
+    setUseCustomTopic(false);
+    setCustomTopicText('');
     setSubjects([]);
     setFormData({
       title: '',
@@ -695,18 +701,33 @@ export function AddSessionDialog({
       return;
     }
 
-    // For guest_teacher and local_teacher, topic must be selected from dropdown
-    if ((sessionType === 'guest_teacher' || sessionType === 'local_teacher') && !selectedTopic) {
-      toast({
-        title: 'Error',
-        description: 'Please select a topic',
-        variant: 'destructive',
-      });
-      return;
+    // For guest_teacher and local_teacher, topic must be selected or custom topic entered
+    if ((sessionType === 'guest_teacher' || sessionType === 'local_teacher')) {
+      if (useCustomTopic) {
+        if (!customTopicText.trim()) {
+          toast({
+            title: 'Error',
+            description: 'Please enter a custom topic',
+            variant: 'destructive',
+          });
+          return;
+        }
+        // Inject custom topic into formData before submission
+        formData.topics_covered = customTopicText.trim();
+        formData.content_category = formData.content_category || 'Custom';
+        formData.module_name = formData.module_name || 'Custom';
+      } else if (!selectedTopic) {
+        toast({
+          title: 'Error',
+          description: 'Please select a topic or enable custom topic',
+          variant: 'destructive',
+        });
+        return;
+      }
     }
 
-    // Validate custom topic if selected
-    if (selectedTopic && selectedTopic.id === 'custom' && !formData.topics_covered.trim()) {
+    // Validate custom topic if selected from dropdown
+    if (!useCustomTopic && selectedTopic && selectedTopic.id === 'custom' && !formData.topics_covered.trim()) {
       toast({
         title: 'Error',
         description: 'Please enter a custom topic',
@@ -1083,9 +1104,58 @@ For any questions, contact the coordinator.
                   )}
                 </div>
               )}
-              
-              {/* Category Selection */}
-              {selectedSubject && categories.length > 0 && (
+
+              {/* Custom Topic Toggle - shown once class is selected */}
+              {selectedClass && (
+                <div className="flex items-center gap-3 mb-4 p-3 bg-muted/40 rounded-lg border border-border">
+                  <input
+                    id="use_custom_topic"
+                    type="checkbox"
+                    checked={useCustomTopic}
+                    onChange={(e) => {
+                      setUseCustomTopic(e.target.checked);
+                      if (e.target.checked) {
+                        // Clear module-based selections
+                        setSelectedCategory('');
+                        setSelectedModule('');
+                        setSelectedTopic(null);
+                        setFormData(prev => ({
+                          ...prev,
+                          content_category: '',
+                          module_name: '',
+                          topics_covered: '',
+                          videos: '',
+                          quiz_content_ppt: '',
+                        }));
+                      } else {
+                        setCustomTopicText('');
+                      }
+                    }}
+                    className="h-4 w-4 accent-primary cursor-pointer"
+                  />
+                  <label htmlFor="use_custom_topic" className="text-sm font-medium cursor-pointer select-none">
+                    ✏️ Use Custom Topic (skip module selection)
+                  </label>
+                </div>
+              )}
+
+              {/* Custom Topic Input - shown when toggle is on */}
+              {useCustomTopic && (
+                <div className="space-y-2 mb-4">
+                  <Label htmlFor="custom_topic_direct" className="text-sm sm:text-base">Custom Topic *</Label>
+                  <Input
+                    id="custom_topic_direct"
+                    placeholder="Enter your custom topic name"
+                    value={customTopicText}
+                    onChange={(e) => setCustomTopicText(e.target.value)}
+                    className="text-sm sm:text-base"
+                    autoFocus
+                  />
+                </div>
+              )}
+
+              {/* Category Selection - hidden when custom topic is on */}
+              {!useCustomTopic && selectedSubject && categories.length > 0 && (
               <div className="space-y-2 mb-4">
                 <Label htmlFor="category" className="text-sm sm:text-base">Content Category *</Label>
                 <Select value={selectedCategory} onValueChange={handleCategoryChange}>
@@ -1103,8 +1173,8 @@ For any questions, contact the coordinator.
               </div>
               )}
 
-              {/* Module Selection */}
-              {selectedCategory && modules.length > 0 && (
+              {/* Module Selection - hidden when custom topic is on */}
+              {!useCustomTopic && selectedCategory && modules.length > 0 && (
                 <div className="space-y-2 mb-4">
                   <Label htmlFor="module" className="text-sm sm:text-base">Module Name *</Label>
                   <Select value={selectedModule} onValueChange={handleModuleChange}>
@@ -1122,8 +1192,8 @@ For any questions, contact the coordinator.
                 </div>
               )}
 
-              {/* Topic Selection */}
-              {selectedModule && topics.length > 0 && (
+              {/* Topic Selection - hidden when custom topic is on */}
+              {!useCustomTopic && selectedModule && topics.length > 0 && (
                 <div className="space-y-2 mb-4">
                   <Label htmlFor="topic" className="text-sm sm:text-base">Select Topic *</Label>
                   <Select value={selectedTopic?.id || ''} onValueChange={handleTopicSelect}>
@@ -1142,8 +1212,8 @@ For any questions, contact the coordinator.
                 </div>
               )}
 
-              {/* Custom Topic Input */}
-              {selectedTopic?.id === 'custom' && (
+              {/* Inline Custom Topic Input (from dropdown Other option) */}
+              {!useCustomTopic && selectedTopic?.id === 'custom' && (
                 <div className="space-y-2 mb-4">
                   <Label htmlFor="custom_topic_input" className="text-sm sm:text-base">Enter Custom Topic *</Label>
                   <Input

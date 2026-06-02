@@ -53,6 +53,16 @@ export function AddStudentDialog({
       toast.error('Student Name is required');
       return;
     }
+    if (!newStudent.email.trim()) {
+      toast.error('Email is required to create the student login account');
+      return;
+    }
+    // Basic email format check
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newStudent.email.trim())) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
 
     try {
       setSaving(true);
@@ -74,24 +84,44 @@ export function AddStudentDialog({
 
       if (error) throw error;
       
-      // Automatic account creation if email is provided
-      if (newStudent.email) {
-        try {
-          const { error: accountError } = await supabase.rpc('ensure_student_account', {
-            student_email: newStudent.email.trim(),
-            student_full_name: newStudent.name.trim(),
-            student_class_id: classId
-          });
-          
-          if (accountError) {
-            console.error('Error creating student account:', accountError);
-            toast.error('Student added, but account creation failed: ' + accountError.message);
-          } else {
-            console.log('Student account ensured successfully');
+      // Automatically create Supabase Auth account via Edge Function
+      try {
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+                                import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+        const response = await fetch(
+          `${supabaseUrl}/functions/v1/create-student-account`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseAnonKey}`,
+            },
+            body: JSON.stringify({
+              email: newStudent.email.trim(),
+              name: newStudent.name.trim(),
+            }),
           }
-        } catch (accError) {
-          console.error('Exception creating student account:', accError);
+        );
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          console.error('Account creation failed:', result);
+          toast.warning(
+            `Student added, but account creation failed: ${result.error || 'Unknown error'}. ` +
+            'Student can be given access manually later.'
+          );
+        } else if (result.already_existed) {
+          console.log('Auth account already existed for this email.');
+          // No extra toast — this is fine
+        } else {
+          console.log('Auth account created:', result.userId);
         }
+      } catch (accErr) {
+        console.error('Exception during account creation:', accErr);
+        // Don't block success — student row was already inserted
       }
 
       toast.success('Student added successfully');
@@ -216,7 +246,7 @@ export function AddStudentDialog({
             </div>
             <div>
               <Label htmlFor="email" className="text-sm">
-                Email
+                Email *
               </Label>
               <Input
                 id="email"
@@ -227,6 +257,7 @@ export function AddStudentDialog({
                   setNewStudent({ ...newStudent, email: e.target.value })
                 }
                 className="mt-1"
+                required
               />
             </div>
             <div>
@@ -321,6 +352,15 @@ export function AddStudentDialog({
           </div>
         </div>
 
+        {/* Info banner */}
+        <div className="mt-3 flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+          <span className="mt-0.5">ℹ️</span>
+          <span>
+            A <strong>login account</strong> will be auto-created using the student's email.
+            Default password: <strong className="font-mono">123456</strong> (student can change after first login).
+          </span>
+        </div>
+
         <DialogFooter>
           <Button variant="outline" onClick={handleClose}>
             Cancel
@@ -329,7 +369,8 @@ export function AddStudentDialog({
             onClick={handleAddStudent}
             disabled={
               saving ||
-              !newStudent.name.trim()
+              !newStudent.name.trim() ||
+              !newStudent.email.trim()
             }
           >
             {saving ? 'Adding...' : 'Add Student'}

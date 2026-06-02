@@ -1,22 +1,13 @@
 import { useState, useEffect } from 'react';
-import { ListTodo, Search, Filter, Clock, CheckCircle2, History } from 'lucide-react';
+import { ListTodo, Search, Clock, CheckCircle2, History, ArrowRight } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogClose,
-  DialogFooter,
-} from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { useAcademicYear } from '@/contexts/AcademicYearContext';
 
@@ -35,13 +26,11 @@ interface StudentTask {
 
 export default function StudentTasks() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [tasks, setTasks] = useState<StudentTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'submitted' | 'upcoming'>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedTask, setSelectedTask] = useState<StudentTask | null>(null);
-  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
-  const [submissionLink, setSubmissionLink] = useState('');
 
   const { selectedYear, getDateRange } = useAcademicYear();
 
@@ -54,7 +43,7 @@ export default function StudentTasks() {
   const loadStudentTasks = async () => {
     try {
       setLoading(true);
-      
+
       // Get student record first
       const { data: student, error: studentError } = await supabase
         .from('students')
@@ -83,46 +72,9 @@ export default function StudentTasks() {
     }
   };
 
-  const handleTaskClick = (task: StudentTask) => {
-    setSelectedTask(task);
-    setSubmissionLink(task.submission_link || '');
-  };
-
-  const handleSubmitTask = async () => {
-    if (!selectedTask || !submissionLink.trim()) {
-      toast.error('Please enter a submission link');
-      return;
-    }
-
-    let validLink = submissionLink.trim();
-    if (!validLink.startsWith('http://') && !validLink.startsWith('https://')) {
-      validLink = `https://${validLink}`;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('student_task_feedback')
-        .update({
-          submission_link: validLink,
-          status: 'submitted',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', selectedTask.id);
-
-      if (error) throw error;
-
-      toast.success('Task submitted successfully!');
-      setSelectedTask(null);
-      loadStudentTasks();
-    } catch (error) {
-      console.error('Error submitting task:', error);
-      toast.error('Failed to submit task');
-    }
-  };
-
   const filteredTasks = tasks.filter(task => {
     const matchesSearch = task.task_name.toLowerCase().includes(searchQuery.toLowerCase());
-    
+
     if (filter === 'all') return matchesSearch;
     if (filter === 'submitted') return matchesSearch && task.status === 'submitted';
     if (filter === 'pending') return matchesSearch && task.status === 'pending';
@@ -133,6 +85,12 @@ export default function StudentTasks() {
     }
     return matchesSearch;
   });
+
+  const statusBadgeVariant = (status: string) => {
+    if (status === 'submitted') return 'secondary';
+    if (status === 'approved' || status === 'reviewed') return 'default';
+    return 'outline';
+  };
 
   return (
     <DashboardLayout>
@@ -145,6 +103,7 @@ export default function StudentTasks() {
           <p className="text-muted-foreground mt-1">Manage and track your assigned activities</p>
         </div>
 
+        {/* Search & Filter Bar */}
         <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-card p-4 rounded-xl border border-border shadow-sm">
           <div className="relative w-full md:w-96">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -156,43 +115,20 @@ export default function StudentTasks() {
             />
           </div>
           <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
-            <Button
-              variant={filter === 'all' ? 'default' : 'ghost'}
-              onClick={() => setFilter('all')}
-              size="sm"
-            >
-              All
+            <Button variant={filter === 'all' ? 'default' : 'ghost'} onClick={() => setFilter('all')} size="sm">All</Button>
+            <Button variant={filter === 'upcoming' ? 'default' : 'ghost'} onClick={() => setFilter('upcoming')} size="sm" className="gap-1.5">
+              <Clock className="h-4 w-4" /> Upcoming
             </Button>
-            <Button
-              variant={filter === 'upcoming' ? 'default' : 'ghost'}
-              onClick={() => setFilter('upcoming')}
-              size="sm"
-              className="gap-1.5"
-            >
-              <Clock className="h-4 w-4" />
-              Upcoming
+            <Button variant={filter === 'pending' ? 'default' : 'ghost'} onClick={() => setFilter('pending')} size="sm" className="gap-1.5">
+              <History className="h-4 w-4" /> Pending
             </Button>
-            <Button
-              variant={filter === 'pending' ? 'default' : 'ghost'}
-              onClick={() => setFilter('pending')}
-              size="sm"
-              className="gap-1.5"
-            >
-              <History className="h-4 w-4" />
-              Pending
-            </Button>
-            <Button
-              variant={filter === 'submitted' ? 'default' : 'ghost'}
-              onClick={() => setFilter('submitted')}
-              size="sm"
-              className="gap-1.5"
-            >
-              <CheckCircle2 className="h-4 w-4" />
-              Submitted
+            <Button variant={filter === 'submitted' ? 'default' : 'ghost'} onClick={() => setFilter('submitted')} size="sm" className="gap-1.5">
+              <CheckCircle2 className="h-4 w-4" /> Submitted
             </Button>
           </div>
         </div>
 
+        {/* Task Grid */}
         {loading ? (
           <div className="flex justify-center py-20">
             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
@@ -212,29 +148,29 @@ export default function StudentTasks() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredTasks.map((task) => (
-              <Card 
-                key={task.id} 
-                className="hover:shadow-md transition-all cursor-pointer group border-border/50"
-                onClick={() => handleTaskClick(task)}
+              <Card
+                key={task.id}
+                className="hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer group border-border/50"
+                onClick={() => navigate(`/student-tasks/${task.id}`)}
               >
                 <CardHeader className="pb-3">
                   <div className="flex justify-between items-start">
-                    <Badge variant={
-                      task.status === 'pending' ? 'outline' :
-                      task.status === 'submitted' ? 'secondary' :
-                      'default'
-                    }>
+                    <Badge variant={statusBadgeVariant(task.status)}>
                       {task.status}
                     </Badge>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(task.deadline).toLocaleDateString()}
-                    </p>
+                    {task.deadline && (
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(task.deadline).toLocaleDateString()}
+                      </p>
+                    )}
                   </div>
-                  <CardTitle className="text-xl mt-3 group-hover:text-primary transition-colors">
+                  <CardTitle className="text-xl mt-3 group-hover:text-primary transition-colors line-clamp-2">
                     {task.task_name}
                   </CardTitle>
                   <CardDescription className="line-clamp-2 mt-1">
-                    {task.task_description || 'No description provided'}
+                    {task.task_description
+                      ? task.task_description.replace(/<[^>]*>/g, '').slice(0, 120) + (task.task_description.length > 120 ? '…' : '')
+                      : 'No description provided'}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -243,16 +179,17 @@ export default function StudentTasks() {
                       <span>TYPE: {task.feedback_type.toUpperCase()}</span>
                       <span className="text-primary font-bold">Earn: {task.earning_amount || 5}</span>
                     </div>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="h-8 text-primary"
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 text-primary gap-1 group-hover:gap-2 transition-all"
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleTaskClick(task);
+                        navigate(`/student-tasks/${task.id}`);
                       }}
                     >
                       View Details
+                      <ArrowRight className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                 </CardContent>
@@ -260,107 +197,6 @@ export default function StudentTasks() {
             ))}
           </div>
         )}
-
-        <Dialog open={!!selectedTask} onOpenChange={(open) => {
-          if (!open) {
-            setSelectedTask(null);
-            setIsDescriptionExpanded(false);
-          }
-        }}>
-          <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="text-2xl font-bold">{selectedTask?.task_name}</DialogTitle>
-            </DialogHeader>
-            
-            {selectedTask && (
-              <div className="space-y-6 pt-4">
-                <div className="space-y-4 bg-muted/30 p-4 rounded-xl border border-border">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Status</span>
-                      <p className="font-medium capitalize">{selectedTask.status}</p>
-                    </div>
-                    <div>
-                      <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Deadline</span>
-                      <p className="font-medium">{new Date(selectedTask.deadline).toLocaleDateString()}</p>
-                    </div>
-                    <div>
-                      <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Earning</span>
-                      <p className="font-medium text-primary">{selectedTask.earning_amount || 5} units</p>
-                    </div>
-                  </div>
-                  {selectedTask.task_description && (
-                    <div className="mt-4 pt-4 border-t border-border">
-                      <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider text-primary">Description</span>
-                      <div className="relative mt-2">
-                        <p className={cn(
-                          "text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap transition-all duration-300",
-                          !isDescriptionExpanded && selectedTask.task_description.length > 200 && "line-clamp-3"
-                        )}>
-                          {selectedTask.task_description}
-                        </p>
-                        {selectedTask.task_description.length > 200 && (
-                          <Button
-                            variant="link"
-                            size="sm"
-                            className="p-0 h-auto text-primary mt-1 hover:no-underline font-semibold"
-                            onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
-                          >
-                            {isDescriptionExpanded ? "Show Less ↑" : "Read More ↓"}
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="space-y-4">
-                  <h3 className="font-semibold flex items-center gap-2">
-                    <CheckCircle2 className="h-5 w-5 text-green-600" />
-                    Submit Your Work
-                  </h3>
-                  <div className="space-y-2">
-                    <Label htmlFor="submission_link">Link to your work (Google Drive, Github, etc.)</Label>
-                    <Input
-                      id="submission_link"
-                      placeholder="https://example.com/your-work"
-                      value={submissionLink}
-                      onChange={(e) => setSubmissionLink(e.target.value)}
-                    />
-                  </div>
-                  {selectedTask.submission_link && (
-                    <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg">
-                      <p className="text-sm font-medium text-blue-800">Current submission:</p>
-                      <a 
-                        href={selectedTask.submission_link.startsWith('http') ? selectedTask.submission_link : `https://${selectedTask.submission_link}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-blue-600 hover:underline break-all"
-                      >
-                        {selectedTask.submission_link}
-                      </a>
-                    </div>
-                  )}
-                </div>
-
-                <DialogFooter className="gap-3 pt-4">
-                  <Button variant="outline" onClick={() => setSelectedTask(null)} className="flex-1">
-                    Cancel
-                  </Button>
-                  {selectedTask.status === 'pending' ? (
-                    <Button onClick={handleSubmitTask} className="flex-1">
-                      Save Submission
-                    </Button>
-                  ) : (
-                    <div className="flex-1 p-3 bg-muted rounded-lg text-center text-sm font-medium text-muted-foreground border border-dashed">
-                      Task {selectedTask.status} - No further submissions allowed
-                    </div>
-                  )}
-                </DialogFooter>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
       </div>
     </DashboardLayout>
   );

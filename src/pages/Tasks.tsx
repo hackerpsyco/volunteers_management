@@ -32,6 +32,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -98,6 +108,9 @@ export default function Tasks() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState<TaskGroup | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
   const [classes, setClasses] = useState<ClassOption[]>([]);
   const [sessions, setSessions] = useState<SessionOption[]>([]);
@@ -344,6 +357,25 @@ export default function Tasks() {
       setFilterSession('all');
     }
   }, [filterClass, classes]);
+
+  const handleDeleteTask = async () => {
+    if (!taskToDelete) return;
+    try {
+      const { error } = await supabase
+        .from('student_task_feedback')
+        .delete()
+        .eq('task_name', taskToDelete.title);
+      if (error) throw error;
+      toast.success('Task deleted successfully');
+      setDeleteDialogOpen(false);
+      setTaskToDelete(null);
+      setDeleteConfirmText('');
+      fetchTasks();
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to delete task');
+    }
+  };
 
   const handleSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc';
@@ -608,23 +640,12 @@ export default function Tasks() {
                                 Edit Task
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem 
+                              <DropdownMenuItem
                                 className="text-destructive focus:text-destructive"
-                                onClick={async () => {
-                                  if (confirm('Are you sure you want to delete this task for all students?')) {
-                                    try {
-                                      const { error } = await supabase
-                                        .from('student_task_feedback')
-                                        .delete()
-                                        .eq('task_name', group.title);
-                                      if (error) throw error;
-                                      toast.success('Task deleted successfully');
-                                      fetchTasks();
-                                    } catch (e) {
-                                      console.error(e);
-                                      toast.error('Failed to delete task');
-                                    }
-                                  }
+                                onClick={() => {
+                                  setTaskToDelete(group);
+                                  setDeleteConfirmText('');
+                                  setDeleteDialogOpen(true);
                                 }}
                               >
                                 <Trash2 className="mr-2 h-4 w-4" />
@@ -643,6 +664,48 @@ export default function Tasks() {
         </Card>
 
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={(open) => {
+        setDeleteDialogOpen(open);
+        if (!open) { setTaskToDelete(null); setDeleteConfirmText(''); }
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Task</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  This will permanently delete <strong>"{taskToDelete?.title}"</strong> for all{' '}
+                  <strong>{taskToDelete?.tasks.length}</strong> student(s). This action cannot be undone.
+                </p>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-foreground">
+                    Type <span className="font-mono font-bold text-destructive">DELETE</span> to confirm:
+                  </p>
+                  <Input
+                    id="delete-confirm-input"
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    placeholder="Type DELETE here"
+                    className="border-destructive/50 focus-visible:ring-destructive"
+                  />
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteTask}
+              disabled={deleteConfirmText !== 'DELETE'}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }

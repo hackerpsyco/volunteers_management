@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
+import { useAcademicYear } from '@/contexts/AcademicYearContext';
 import { toast } from 'sonner';
 
 interface AddStudentTaskFeedbackDialogProps {
@@ -44,6 +45,7 @@ export function AddStudentTaskFeedbackDialog({
   classId,
   onSuccess,
 }: AddStudentTaskFeedbackDialogProps) {
+  const { selectedYear } = useAcademicYear();
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -101,11 +103,15 @@ export function AddStudentTaskFeedbackDialog({
         .from('students')
         .select('id, name, student_id')
         .eq('class_id', resolvedClassId)
+        .eq('academic_year', selectedYear)
         .order('name', { ascending: true });
 
       if (studentsError) throw studentsError;
 
       setStudents(studentsData || []);
+      if ((studentsData || []).length === 0) {
+        toast.warning(`No students found for academic year ${selectedYear}`);
+      }
     } catch (error) {
       console.error('Error fetching students:', error);
       toast.error('Failed to load students');
@@ -136,6 +142,7 @@ export function AddStudentTaskFeedbackDialog({
           deadline: formData.deadline || null,
           submission_link: formData.submission_link || null,
           feedback_notes: formData.feedback_notes || null,
+          academic_year: selectedYear,
           status: 'pending',
         });
 

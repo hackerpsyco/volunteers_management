@@ -32,6 +32,7 @@ import Tasks from "./pages/Tasks";
 import TaskDetail from "./pages/TaskDetail";
 import TaskEdit from "./pages/TaskEdit";
 import StudentTasks from "./pages/StudentTasks";
+import StudentTaskDetail from "./pages/StudentTaskDetail";
 import StudentEarnings from "./pages/StudentEarnings";
 import AdminStudentEarnings from "./pages/AdminStudentEarnings";
 import ClassTaskReview from "@/pages/ClassTaskReview";
@@ -78,6 +79,7 @@ const App = () => (
               <Route path="/tasks/:taskTitle" element={<TaskDetail />} />
               <Route path="/tasks/:taskTitle/edit" element={<TaskEdit />} />
               <Route path="/student-tasks" element={<StudentTasks />} />
+              <Route path="/student-tasks/:taskId" element={<StudentTaskDetail />} />
               <Route path="/student-earnings" element={<StudentEarnings />} />
               <Route path="/admin-earnings" element={<AdminStudentEarnings />} />
               <Route path="/class-task-review" element={<ClassTaskReview />} />
