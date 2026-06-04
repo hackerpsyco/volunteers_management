@@ -59,14 +59,15 @@ interface RewardConfig {
   rate_per_task: number;
   potential_monthly: number;
   how_to_earn: string;
+  reviewer_rate?: number;
 }
 
 const DEFAULT_EARNING_POTENTIAL = [
-  { task_type: 'English Reading & speaking Task', expected_tasks: 2, frequency: 'Daily', rate_per_task: 5, potential_monthly: 10, how_to_earn: 'Read, Write, Speak & Record The Given article and earn.' },
-  { task_type: 'CCC - Computers - Task', expected_tasks: 1, frequency: 'Daily', rate_per_task: 10, potential_monthly: 10, how_to_earn: 'Complete the assigned homework, research and write and earn' },
-  { task_type: 'GT Session Task', expected_tasks: 1, frequency: 'Daily', rate_per_task: 20, potential_monthly: 20, how_to_earn: 'Complete GT Session task and earn' },
-  { task_type: 'Mentor connect Task', expected_tasks: 2, frequency: 'Monthly', rate_per_task: 400, potential_monthly: 800, how_to_earn: 'Connect with your mentor complete the mentprhsip sessions as per the agenda share record timey and earn' },
-  { task_type: 'Bonus for 100% attendance', expected_tasks: 25, frequency: 'Monthly', rate_per_task: 8, potential_monthly: 200, how_to_earn: 'Achive 100% attendance and earn bonus of 200 rs' },
+  { task_type: 'English Reading & speaking Task', expected_tasks: 2, frequency: 'Daily', rate_per_task: 5, potential_monthly: 10, how_to_earn: 'Read, Write, Speak & Record The Given article and earn.', reviewer_rate: 0 },
+  { task_type: 'CCC - Computers - Task', expected_tasks: 1, frequency: 'Daily', rate_per_task: 10, potential_monthly: 10, how_to_earn: 'Complete the assigned homework, research and write and earn', reviewer_rate: 0 },
+  { task_type: 'GT Session Task', expected_tasks: 1, frequency: 'Daily', rate_per_task: 20, potential_monthly: 20, how_to_earn: 'Complete GT Session task and earn', reviewer_rate: 0 },
+  { task_type: 'Mentor connect Task', expected_tasks: 2, frequency: 'Monthly', rate_per_task: 400, potential_monthly: 800, how_to_earn: 'Connect with your mentor complete the mentprhsip sessions as per the agenda share record timey and earn', reviewer_rate: 0 },
+  { task_type: 'Bonus for 100% attendance', expected_tasks: 25, frequency: 'Monthly', rate_per_task: 8, potential_monthly: 200, how_to_earn: 'Achive 100% attendance and earn bonus of 200 rs', reviewer_rate: 0 },
 ];
 
 export default function AdminStudentEarnings() {
@@ -269,7 +270,8 @@ export default function AdminStudentEarnings() {
             frequency: config.frequency,
             rate_per_task: config.rate_per_task,
             potential_monthly: config.expected_tasks * config.rate_per_task,
-            how_to_earn: config.how_to_earn
+            how_to_earn: config.how_to_earn,
+            reviewer_rate: config.reviewer_rate || 0
           }, { 
             onConflict: 'task_type' 
           });
@@ -614,6 +616,7 @@ export default function AdminStudentEarnings() {
                     <TableHead className="text-center font-bold text-foreground">Frequency</TableHead>
                     <TableHead className="text-center font-bold text-foreground">Rate (₹)</TableHead>
                     <TableHead className="text-center font-bold text-foreground">Monthly (₹)</TableHead>
+                    <TableHead className="text-center font-bold text-foreground">Reviewer Earning (₹)</TableHead>
                     <TableHead className="font-bold text-foreground">How to Earn</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -685,6 +688,23 @@ export default function AdminStudentEarnings() {
                       <TableCell className="text-center font-black text-blue-600 text-sm">
                         ₹{(isEditingConfigs ? (row.expected_tasks * row.rate_per_task) : row.potential_monthly).toLocaleString()}
                       </TableCell>
+                      <TableCell className="text-center">
+                        {isEditingConfigs ? (
+                          <Input 
+                            type="number"
+                            value={row.reviewer_rate || 0} 
+                            onChange={(e) => {
+                              const newConfigs = [...editingConfigs];
+                              newConfigs[idx] = {
+                                ...newConfigs[idx],
+                                reviewer_rate: parseInt(e.target.value) || 0
+                              };
+                              setEditingConfigs(newConfigs);
+                            }}
+                            className="h-8 w-16 mx-auto text-center text-xs font-bold text-purple-600"
+                          />
+                        ) : <span className="text-sm font-bold text-purple-600">₹{row.reviewer_rate || 0}</span>}
+                      </TableCell>
                       <TableCell>
                         {isEditingConfigs ? (
                           <Input 
@@ -701,11 +721,11 @@ export default function AdminStudentEarnings() {
                     </TableRow>
                   ))}
                   <TableRow className="bg-blue-50/50 hover:bg-blue-50/50 border-t-2 border-blue-100">
-                    <TableCell colSpan={4} className="font-bold text-right text-base text-blue-900 py-4">Total Potential Monthly:</TableCell>
+                    <TableCell colSpan={5} className="font-bold text-right text-base text-blue-900 py-4">Total Potential Monthly:</TableCell>
                     <TableCell className="text-center font-black text-blue-700 text-lg py-4">
                       ₹{(isEditingConfigs ? editingConfigs : rewardConfigs).reduce((sum, r) => sum + (r.expected_tasks * r.rate_per_task), 0).toLocaleString()}
                     </TableCell>
-                    <TableCell></TableCell>
+                    <TableCell colSpan={2}></TableCell>
                   </TableRow>
                 </TableBody>
               </Table>

@@ -84,6 +84,17 @@ export default function StudentTaskDetail() {
       return;
     }
 
+    // Validate submission is not more than 3 days past the deadline
+    const deadlineDate = new Date(task.deadline);
+    const cutoffDate = new Date(deadlineDate);
+    cutoffDate.setDate(cutoffDate.getDate() + 3);
+    cutoffDate.setHours(23, 59, 59, 999);
+
+    if (new Date() > cutoffDate) {
+      toast.error('Submission closed. The deadline was more than 3 days ago.');
+      return;
+    }
+
     let link = submissionLink.trim();
     if (!link.startsWith('http://') && !link.startsWith('https://')) {
       link = `https://${link}`;
@@ -127,6 +138,15 @@ export default function StudentTaskDetail() {
   const StatusIcon = statusCfg.icon;
   const isDeadlinePast = task.deadline && new Date(task.deadline) < new Date();
   const canSubmit = task.status === 'pending';
+
+  const deadlineDate = task.deadline ? new Date(task.deadline) : null;
+  const cutoffDate = deadlineDate ? (() => {
+    const d = new Date(deadlineDate);
+    d.setDate(d.getDate() + 3);
+    d.setHours(23, 59, 59, 999);
+    return d;
+  })() : null;
+  const isSubmissionClosed = cutoffDate ? new Date() > cutoffDate : false;
 
   const rawDesc = task.task_description || '';
 
@@ -253,6 +273,13 @@ export default function StudentTaskDetail() {
             </div>
           ) : (
             <div className="space-y-3">
+              {isSubmissionClosed && (
+                <div className="bg-destructive/10 border border-destructive/20 text-destructive rounded-lg p-3 text-sm flex items-center gap-2 font-medium">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>Submission period closed. Submissions are only allowed up to 3 days after the deadline.</span>
+                </div>
+              )}
+
               <div className="space-y-1.5">
                 <Label htmlFor="submission_link">Link to your work (Google Drive, GitHub, etc.)</Label>
                 <Input
@@ -260,18 +287,18 @@ export default function StudentTaskDetail() {
                   placeholder="https://drive.google.com/your-work"
                   value={submissionLink}
                   onChange={(e) => setSubmissionLink(e.target.value)}
-                  className="text-sm"
-                  disabled={!canSubmit}
+                  className="text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                  disabled={isSubmissionClosed || (!canSubmit && task.status !== 'submitted')}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Paste a shareable link to your completed work
+                  Paste a shareable link to your completed work (allowed up to 3 days after the deadline: {cutoffDate && cutoffDate.toLocaleDateString()})
                 </p>
               </div>
 
-              {canSubmit && (
+              {(canSubmit || task.status === 'submitted') && (
                 <Button
                   onClick={handleSubmit}
-                  disabled={saving || !submissionLink.trim()}
+                  disabled={saving || !submissionLink.trim() || isSubmissionClosed}
                   className="w-full sm:w-auto gap-2"
                   size="lg"
                 >

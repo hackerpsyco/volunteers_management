@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, Save, ChevronRight, ChevronLeft, Plus, Trash2, Shield, ExternalLink, Mic, MicOff } from 'lucide-react';
+import { ArrowLeft, Save, ChevronRight, ChevronLeft, Plus, Trash2, Shield, ExternalLink, Mic, MicOff, Check, ChevronsUpDown, X } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
@@ -28,6 +28,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useAcademicYear } from '@/contexts/AcademicYearContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
 
 interface SessionRecording {
   id: string;
@@ -393,14 +396,28 @@ export default function SessionRecording() {
       }
 
       // Fetch students from that class filtered by selected academic year
-      const { data: studentsData, error: studentsError } = await supabase
+      let studentsData = null;
+      let { data: tryData, error: tryError } = await supabase
         .from('students')
-        .select('id, name, student_id')
+        .select('id, name, student_id, best_performance_dates')
         .eq('class_id', classData.id)
         .eq('academic_year', selectedYear)
         .order('name', { ascending: true });
 
-      if (studentsError) throw studentsError;
+      if (tryError) {
+        console.warn('Could not fetch best_performance_dates, retrying without it:', tryError);
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('students')
+          .select('id, name, student_id')
+          .eq('class_id', classData.id)
+          .eq('academic_year', selectedYear)
+          .order('name', { ascending: true });
+          
+        if (fallbackError) throw fallbackError;
+        studentsData = fallbackData;
+      } else {
+        studentsData = tryData;
+      }
 
       setStudents(studentsData || []);
       if ((studentsData || []).length === 0) {
@@ -410,8 +427,32 @@ export default function SessionRecording() {
       console.error('Error fetching students:', error);
       toast.error('Failed to load students');
     } finally {
-      setStudentsLoading(false);
+       setStudentsLoading(false);
+     }
+   };
+
+  const getPresentStudents = () => {
+    return students.filter(student => {
+      const formDataForStudent = studentFormData[student.id];
+      const dbDataForStudent = studentPerformance.find(sp => (sp.student_name || '').trim() === student.name.trim());
+      const perfData = formDataForStudent || dbDataForStudent || {
+        attendance_status: 'Present',
+      };
+      return perfData.attendance_status !== 'Absent';
+    });
+  };
+
+  const handleTogglePerformer = (studentName: string) => {
+    const currentNames = formData.best_performer 
+      ? formData.best_performer.split(',').map(name => name.trim()).filter(Boolean)
+      : [];
+    let updatedNames: string[];
+    if (currentNames.includes(studentName)) {
+      updatedNames = currentNames.filter(name => name !== studentName);
+    } else {
+      updatedNames = [...currentNames, studentName];
     }
+    setFormData({ ...formData, best_performer: updatedNames.join(', ') });
   };
 
   const handleSaveFeedback = async () => {
@@ -432,12 +473,12 @@ export default function SessionRecording() {
         incharge_reviewer_feedback: formData.incharge_reviewer_feedback,
         recording_url: formData.recording_url,
         record_sheet_link: (formData as any).record_sheet_link || null,
-        mic_sound_rating: formData.mic_sound_rating,
-        seating_view_rating: formData.seating_view_rating,
-        session_strength: formData.session_strength,
-        coordinator_mic_sound_rating: formData.coordinator_mic_sound_rating,
-        coordinator_seating_view_rating: formData.coordinator_seating_view_rating,
-        coordinator_session_strength: formData.coordinator_session_strength,
+        mic_sound_rating: Number(formData.mic_sound_rating) || 5,
+        seating_view_rating: Number(formData.seating_view_rating) || 5,
+        session_strength: Number(formData.session_strength) || 5,
+        coordinator_mic_sound_rating: Number(formData.coordinator_mic_sound_rating) || 5,
+        coordinator_seating_view_rating: Number(formData.coordinator_seating_view_rating) || 5,
+        coordinator_session_strength: Number(formData.coordinator_session_strength) || 5,
         class_batch: formData.class_batch,
         recorded_at: new Date().toISOString(),
       };
@@ -475,6 +516,66 @@ export default function SessionRecording() {
         .eq('id', sessionId);
 
       if (error) throw error;
+
+      // Update student profiles for best performers in this session
+      if (students.length > 0) {
+        const sessionDateStr = session?.session_date || new Date().toISOString().split('T')[0];
+        const selectedPerformerNames = formData.best_performer 
+          ? formData.best_performer.split(',').map(name => name.trim()).filter(Boolean)
+          : [];
+
+        for (const student of students) {
+          // Parse current best performance dates list
+          let currentHistory: any[] = [];
+          try {
+            if (student.best_performance_dates) {
+              currentHistory = Array.isArray(student.best_performance_dates) 
+                ? student.best_performance_dates 
+                : JSON.parse(JSON.stringify(student.best_performance_dates));
+            }
+          } catch (e) {
+            console.error('Error parsing student best performer history:', e);
+          }
+          
+          const isSelected = selectedPerformerNames.includes(student.name);
+          const hasSessionRecord = currentHistory.some((record: any) => record?.session_id === sessionId);
+          
+          let updatedHistory = [...currentHistory];
+          let needsUpdate = false;
+          
+          if (isSelected) {
+            if (!hasSessionRecord) {
+              // Add record
+              updatedHistory.push({
+                session_id: sessionId,
+                date: sessionDateStr
+              });
+              needsUpdate = true;
+            }
+          } else {
+            if (hasSessionRecord) {
+              // Remove record
+              updatedHistory = currentHistory.filter((record: any) => record?.session_id !== sessionId);
+              needsUpdate = true;
+            }
+          }
+          
+          if (needsUpdate) {
+            const { error: studentUpdateError } = await supabase
+              .from('students')
+              .update({ best_performance_dates: updatedHistory })
+              .eq('id', student.id);
+              
+            if (studentUpdateError) {
+              console.error(`Failed to update student profile for ${student.name}:`, studentUpdateError);
+            } else {
+              // Sync local state
+              student.best_performance_dates = updatedHistory;
+            }
+          }
+        }
+      }
+
       toast.success('Session feedback saved successfully');
     } catch (error) {
       console.error('Error saving session:', error);
@@ -517,10 +618,10 @@ export default function SessionRecording() {
         const { error } = await supabase
           .from('session_hours_tracker' as any)
           .update({
-            plan_coordinate_hours: hoursData.plan_coordinate_hours,
-            preparation_hours: hoursData.preparation_hours,
-            session_hours: hoursData.session_hours,
-            reflection_feedback_followup_hours: hoursData.reflection_feedback_followup_hours,
+            plan_coordinate_hours: Number(hoursData.plan_coordinate_hours) || 0,
+            preparation_hours: Number(hoursData.preparation_hours) || 0,
+            session_hours: Number(hoursData.session_hours) || 0,
+            reflection_feedback_followup_hours: Number(hoursData.reflection_feedback_followup_hours) || 0,
             logged_hours_in_benevity: hoursData.logged_hours_in_benevity,
             notes: hoursData.notes,
             validation_id: hoursValidationId,
@@ -536,10 +637,10 @@ export default function SessionRecording() {
           .insert([
             {
               session_id: sessionId,
-              plan_coordinate_hours: hoursData.plan_coordinate_hours,
-              preparation_hours: hoursData.preparation_hours,
-              session_hours: hoursData.session_hours,
-              reflection_feedback_followup_hours: hoursData.reflection_feedback_followup_hours,
+              plan_coordinate_hours: Number(hoursData.plan_coordinate_hours) || 0,
+              preparation_hours: Number(hoursData.preparation_hours) || 0,
+              session_hours: Number(hoursData.session_hours) || 0,
+              reflection_feedback_followup_hours: Number(hoursData.reflection_feedback_followup_hours) || 0,
               logged_hours_in_benevity: hoursData.logged_hours_in_benevity,
               notes: hoursData.notes,
               validation_id: hoursValidationId,
@@ -990,7 +1091,10 @@ export default function SessionRecording() {
                           min="1"
                           max="10"
                           value={formData.mic_sound_rating}
-                          onChange={(e) => setFormData({ ...formData, mic_sound_rating: parseInt(e.target.value) || 5 })}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setFormData({ ...formData, mic_sound_rating: val === '' ? '' : parseInt(val) } as any);
+                          }}
                           className="mt-1"
                         />
                         <p className="text-xs text-muted-foreground mt-1">Rate 1-10</p>
@@ -1002,7 +1106,10 @@ export default function SessionRecording() {
                           min="1"
                           max="10"
                           value={formData.seating_view_rating}
-                          onChange={(e) => setFormData({ ...formData, seating_view_rating: parseInt(e.target.value) || 5 })}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setFormData({ ...formData, seating_view_rating: val === '' ? '' : parseInt(val) } as any);
+                          }}
                           className="mt-1"
                         />
                         <p className="text-xs text-muted-foreground mt-1">Rate 1-10</p>
@@ -1014,7 +1121,10 @@ export default function SessionRecording() {
                           min="1"
                           max="10"
                           value={formData.session_strength}
-                          onChange={(e) => setFormData({ ...formData, session_strength: parseInt(e.target.value) || 5 })}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setFormData({ ...formData, session_strength: val === '' ? '' : parseInt(val) } as any);
+                          }}
                           className="mt-1"
                         />
                         <p className="text-xs text-muted-foreground mt-1">Rate 1-10</p>
@@ -1165,40 +1275,40 @@ export default function SessionRecording() {
                                   );
                                 })()}
                               </div>
-
                               <div className="col-span-2">
                                 <Input
                                   type="number"
                                   min="0"
-                                  value={perfData.questions_asked ?? 0}
+                                  value={perfData.questions_asked ?? ''}
                                   onChange={(e) => {
-                                    const val = parseInt(e.target.value) || 0;
+                                    const val = e.target.value;
+                                    const newValue = val === '' ? '' : parseInt(val);
                                     setStudentFormData(prev => ({
                                       ...prev,
                                       [student.id]: { 
                                         ...(prev[student.id] || dbDataForStudent || { attendance_status: 'Present', performance_rating: 0, questions_asked: 0, performance_comment: '' }), 
-                                        questions_asked: val 
+                                        questions_asked: newValue as any
                                       }
                                     }));
                                   }}
                                   className="h-8 text-xs p-1"
                                 />
                               </div>
-
+ 
                               <div className="col-span-2">
                                 <Input
                                   type="number"
                                   min="0"
                                   max="10"
-                                  value={perfData.performance_rating ?? 0}
+                                  value={perfData.performance_rating ?? ''}
                                   onChange={(e) => {
                                     const val = e.target.value;
-                                    const newValue = val === '' ? 0 : parseInt(val);
+                                    const newValue = val === '' ? '' : parseInt(val);
                                     setStudentFormData(prev => ({
                                       ...prev,
                                       [student.id]: { 
                                         ...(prev[student.id] || dbDataForStudent || { attendance_status: 'Present', performance_rating: 0, questions_asked: 0, performance_comment: '' }), 
-                                        performance_rating: isNaN(newValue) ? 0 : newValue 
+                                        performance_rating: newValue as any
                                       }
                                     }));
                                   }}
@@ -1259,12 +1369,88 @@ export default function SessionRecording() {
                     <CardTitle className="text-base">Best Performer</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <Textarea
-                      value={formData.best_performer}
-                      onChange={(e) => setFormData({ ...formData, best_performer: e.target.value })}
-                      placeholder="Name and details of best performer"
-                      className="min-h-[60px]"
-                    />
+                    {(() => {
+                      const presentStudents = getPresentStudents();
+                      const selectedPerformerNames = formData.best_performer 
+                        ? formData.best_performer.split(',').map(name => name.trim()).filter(Boolean)
+                        : [];
+                        
+                      return (
+                        <div className="space-y-2">
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="w-full justify-between min-h-[40px] h-auto text-left font-normal border border-input hover:bg-accent hover:text-accent-foreground"
+                              >
+                                {selectedPerformerNames.length > 0 ? (
+                                  <div className="flex flex-wrap gap-1">
+                                    {selectedPerformerNames.map((name) => (
+                                      <Badge
+                                        key={name}
+                                        variant="secondary"
+                                        className="mr-1 flex items-center gap-1 bg-secondary/80 text-secondary-foreground"
+                                      >
+                                        {name}
+                                        <X
+                                          className="h-3 w-3 cursor-pointer text-muted-foreground hover:text-foreground"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleTogglePerformer(name);
+                                          }}
+                                        />
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className="text-muted-foreground text-sm">Select best performers (present only)...</span>
+                                )}
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-2 max-h-[300px] overflow-y-auto" align="start">
+                              {presentStudents.length === 0 ? (
+                                <p className="text-xs text-muted-foreground p-2">No students marked present. Mark students present in the "Student Performance Feedback" section first.</p>
+                              ) : (
+                                <div className="space-y-1">
+                                  {presentStudents.map((student) => {
+                                    const isSelected = selectedPerformerNames.includes(student.name);
+                                    const count = Array.isArray(student.best_performance_dates)
+                                      ? student.best_performance_dates.length
+                                      : 0;
+                                      
+                                    return (
+                                      <div
+                                        key={student.id}
+                                        onClick={() => handleTogglePerformer(student.name)}
+                                        className="flex items-center space-x-2 p-2 hover:bg-accent rounded cursor-pointer transition-colors"
+                                      >
+                                        <Checkbox
+                                          checked={isSelected}
+                                          className="pointer-events-none"
+                                        />
+                                        <span className="text-sm font-medium leading-none cursor-pointer flex-grow flex justify-between items-center">
+                                          <span>{student.name}</span>
+                                          {count > 0 && (
+                                            <Badge variant="outline" className="ml-2 text-[10px] py-0 px-1.5 bg-amber-50 text-amber-700 border-amber-200 font-semibold shrink-0">
+                                              ⭐ {count} {count === 1 ? 'time' : 'times'}
+                                            </Badge>
+                                          )}
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </PopoverContent>
+                          </Popover>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Only students marked present can be selected as best performers.
+                          </p>
+                        </div>
+                      );
+                    })()}
                   </CardContent>
                 </Card>
 
@@ -1623,7 +1809,10 @@ export default function SessionRecording() {
                       min="1"
                       max="10"
                       value={formData.coordinator_mic_sound_rating}
-                      onChange={(e) => setFormData({ ...formData, coordinator_mic_sound_rating: parseInt(e.target.value) || 5 })}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setFormData({ ...formData, coordinator_mic_sound_rating: val === '' ? '' : parseInt(val) } as any);
+                      }}
                       className="mt-1"
                     />
                     <p className="text-xs text-muted-foreground mt-1">Rate 1-10</p>
@@ -1635,7 +1824,10 @@ export default function SessionRecording() {
                       min="1"
                       max="10"
                       value={formData.coordinator_seating_view_rating}
-                      onChange={(e) => setFormData({ ...formData, coordinator_seating_view_rating: parseInt(e.target.value) || 5 })}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setFormData({ ...formData, coordinator_seating_view_rating: val === '' ? '' : parseInt(val) } as any);
+                      }}
                       className="mt-1"
                     />
                     <p className="text-xs text-muted-foreground mt-1">Rate 1-10</p>
@@ -1647,7 +1839,10 @@ export default function SessionRecording() {
                       min="1"
                       max="10"
                       value={formData.coordinator_session_strength}
-                      onChange={(e) => setFormData({ ...formData, coordinator_session_strength: parseInt(e.target.value) || 5 })}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setFormData({ ...formData, coordinator_session_strength: val === '' ? '' : parseInt(val) } as any);
+                      }}
                       className="mt-1"
                     />
                     <p className="text-xs text-muted-foreground mt-1">Rate 1-10</p>
@@ -1705,7 +1900,10 @@ export default function SessionRecording() {
                               min="0"
                               step="0.5"
                               value={hoursData.plan_coordinate_hours}
-                              onChange={(e) => setHoursData({ ...hoursData, plan_coordinate_hours: parseFloat(e.target.value) || 0 })}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setHoursData({ ...hoursData, plan_coordinate_hours: val === '' ? '' : parseFloat(val) } as any);
+                              }}
                               placeholder="0.0"
                               className="mt-1"
                             />
@@ -1718,7 +1916,10 @@ export default function SessionRecording() {
                               min="0"
                               step="0.5"
                               value={hoursData.preparation_hours}
-                              onChange={(e) => setHoursData({ ...hoursData, preparation_hours: parseFloat(e.target.value) || 0 })}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setHoursData({ ...hoursData, preparation_hours: val === '' ? '' : parseFloat(val) } as any);
+                              }}
                               placeholder="0.0"
                               className="mt-1"
                             />
@@ -1731,7 +1932,10 @@ export default function SessionRecording() {
                               min="0"
                               step="0.5"
                               value={hoursData.session_hours}
-                              onChange={(e) => setHoursData({ ...hoursData, session_hours: parseFloat(e.target.value) || 0 })}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setHoursData({ ...hoursData, session_hours: val === '' ? '' : parseFloat(val) } as any);
+                              }}
                               placeholder="0.0"
                               className="mt-1"
                             />
@@ -1744,7 +1948,10 @@ export default function SessionRecording() {
                               min="0"
                               step="0.5"
                               value={hoursData.reflection_feedback_followup_hours}
-                              onChange={(e) => setHoursData({ ...hoursData, reflection_feedback_followup_hours: parseFloat(e.target.value) || 0 })}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setHoursData({ ...hoursData, reflection_feedback_followup_hours: val === '' ? '' : parseFloat(val) } as any);
+                              }}
                               placeholder="0.0"
                               className="mt-1"
                             />

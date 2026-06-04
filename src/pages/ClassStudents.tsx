@@ -43,6 +43,7 @@ import { StudentInfoDialog } from '@/components/classes/StudentInfoDialog';
 import { PromoteStudentDialog } from '@/components/classes/PromoteStudentDialog';
 import { AssignMonitorDialog } from '@/components/classes/AssignMonitorDialog';
 import { Badge } from '@/components/ui/badge';
+import { useAcademicYear } from '@/contexts/AcademicYearContext';
 
 interface Class {
   id: string;
@@ -73,6 +74,7 @@ type SortColumn = keyof Student | null;
 export default function ClassStudents() {
   const { classId } = useParams<{ classId: string }>();
   const navigate = useNavigate();
+  const { selectedYear } = useAcademicYear();
   const [classItem, setClassItem] = useState<Class | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,8 +83,12 @@ export default function ClassStudents() {
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
-  const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>('all');
+  const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>(selectedYear);
   const [selectedDesignation, setSelectedDesignation] = useState<string>('all');
+
+  useEffect(() => {
+    setSelectedAcademicYear(selectedYear);
+  }, [selectedYear]);
   const [infoDialogOpen, setInfoDialogOpen] = useState(false);
   const [selectedStudentForInfo, setSelectedStudentForInfo] = useState<Student | null>(null);
   const [isPromoteStudentOpen, setIsPromoteStudentOpen] = useState(false);
@@ -170,7 +176,7 @@ export default function ClassStudents() {
     return 0;
   });
 
-  const academicYears = Array.from(new Set(students.map(s => s.academic_year).filter(Boolean))).sort() as string[];
+  const academicYears = Array.from(new Set([...students.map(s => s.academic_year).filter(Boolean), selectedYear])).sort() as string[];
   const designations = Array.from(new Set(students.map(s => s.designation).filter(Boolean))).sort() as string[];
 
   useEffect(() => {

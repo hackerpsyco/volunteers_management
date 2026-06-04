@@ -198,6 +198,40 @@ export default function ClassTaskReview() {
       } else {
         toast.success('Task marked as completed and earnings added');
       }
+
+      // Add reviewer earning if the verifying user is a student (class leader/monitor)
+      if (user?.email) {
+        const { data: reviewerStudent } = await supabase
+          .from('students')
+          .select('id, name')
+          .ilike('email', user.email)
+          .maybeSingle();
+
+        if (reviewerStudent) {
+          const { data: configData } = await supabase
+            .from('reward_configurations')
+            .select('reviewer_rate')
+            .eq('task_type', task?.feedback_type)
+            .maybeSingle();
+
+          const reviewerRate = configData?.reviewer_rate ? Number(configData.reviewer_rate) : 0;
+          if (reviewerRate > 0) {
+            const reviewerDesc = `Reviewed task: ${taskName} for ${studentGroup?.name || 'student'}`;
+            const { error: reviewerEarningError } = await supabase.from('student_earnings').insert({
+              student_id: reviewerStudent.id,
+              task_id: taskId,
+              amount: reviewerRate,
+              description: reviewerDesc
+            });
+
+            if (reviewerEarningError) {
+              console.error('Error adding reviewer earnings:', reviewerEarningError);
+            } else {
+              toast.success(`Added ₹${reviewerRate} reviewer earning for ${reviewerStudent.name}`);
+            }
+          }
+        }
+      }
       
       loadClassTasks();
     } catch (error: any) {

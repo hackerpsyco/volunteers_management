@@ -10,8 +10,16 @@ import { toast } from 'sonner';
 import {
   Dialog,
   DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { useAcademicYear } from '@/contexts/AcademicYearContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface TaskItem {
   id: string;
@@ -28,6 +36,7 @@ interface TaskItem {
   session_title?: string;
   class_name?: string;
   earning_amount?: number;
+  feedback_type?: string;
 }
 
 interface TaskGroup {
@@ -47,8 +56,12 @@ export default function TaskDetail() {
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [verifyingTaskId, setVerifyingTaskId] = useState<string | null>(null);
+  const [verifyingAmount, setVerifyingAmount] = useState<number>(5);
+  const [verificationComment, setVerificationComment] = useState<string>('');
 
   const { selectedYear } = useAcademicYear();
+  const { user } = useAuth();
 
   useEffect(() => {
     fetchTaskDetail();
@@ -70,6 +83,7 @@ export default function TaskDetail() {
           session_id,
           earning_amount,
           academic_year,
+          feedback_type,
           students:student_id(name),
           sessions:session_id(title, class_batch)
         `)
@@ -95,6 +109,7 @@ export default function TaskDetail() {
           session_title: task.sessions?.title || '-',
           class_name: task.sessions?.class_batch || '-',
           earning_amount: task.earning_amount || 0,
+          feedback_type: task.feedback_type || '',
         }));
 
         setTaskGroup({
@@ -115,7 +130,7 @@ export default function TaskDetail() {
     }
   };
 
-  const handleMarkAsDone = async (taskId: string) => {
+  const handleMarkAsDone = async (taskId: string, amount: number, comment: string) => {
     try {
       setUpdatingId(taskId);
       
@@ -124,7 +139,12 @@ export default function TaskDetail() {
 
       const { data, error } = await supabase
         .from('student_task_feedback')
-        .update({ status: 'completed', updated_at: new Date().toISOString() })
+        .update({ 
+          status: 'completed', 
+          earning_amount: amount, 
+          feedback_notes: comment || null,
+          updated_at: new Date().toISOString() 
+        })
         .eq('id', taskId)
         .select();
 
@@ -135,11 +155,12 @@ export default function TaskDetail() {
       }
 
       // Add earning record
+      const earningDesc = `Completed task: ${task.title} (Verified)` + (comment ? `. Note: ${comment}` : '');
       const { error: earningError } = await supabase.from('student_earnings').insert({
         student_id: task.student_id,
         task_id: taskId,
-        amount: task.earning_amount || 5,
-        description: `Completed task: ${task.title} (Verified by Admin/Monitor)`
+        amount: amount,
+        description: earningDesc
       });
 
       if (earningError) {
@@ -147,16 +168,51 @@ export default function TaskDetail() {
         toast.warning('Task completed, but failed to add earnings');
       }
 
+      // Add reviewer earning if the verifying user is a student (class leader/monitor)
+      if (user?.email) {
+        const { data: reviewerStudent } = await supabase
+          .from('students')
+          .select('id, name')
+          .ilike('email', user.email)
+          .maybeSingle();
+
+        if (reviewerStudent) {
+          const { data: configData } = await supabase
+            .from('reward_configurations')
+            .select('reviewer_rate')
+            .eq('task_type', task.feedback_type)
+            .maybeSingle();
+
+          const reviewerRate = configData?.reviewer_rate ? Number(configData.reviewer_rate) : 0;
+          if (reviewerRate > 0) {
+            const reviewerDesc = `Reviewed task: ${task.title} for ${task.student_name}`;
+            const { error: reviewerEarningError } = await supabase.from('student_earnings').insert({
+              student_id: reviewerStudent.id,
+              task_id: taskId,
+              amount: reviewerRate,
+              description: reviewerDesc
+            });
+
+            if (reviewerEarningError) {
+              console.error('Error adding reviewer earnings:', reviewerEarningError);
+            } else {
+              toast.success(`Added ₹${reviewerRate} reviewer earning for ${reviewerStudent.name}`);
+            }
+          }
+        }
+      }
+
       if (taskGroup) {
         setTaskGroup({
           ...taskGroup,
           tasks: taskGroup.tasks.map(t =>
-            t.id === taskId ? { ...t, status: 'completed' } : t
+            t.id === taskId ? { ...t, status: 'completed', earning_amount: amount } : t
           ),
         });
       }
 
-      toast.success('Task marked as completed and earnings added');
+      toast.success('Task verified successfully');
+      setVerifyingTaskId(null);
     } catch (error: any) {
       console.error('Error updating task:', error);
       toast.error('Failed to update task: ' + (error.message || 'Unknown error'));
@@ -165,15 +221,19 @@ export default function TaskDetail() {
     }
   };
 
-  const handleResetToPending = async (taskId: string) => {
+  const handleRejectTask = async (taskId: string) => {
     try {
-      if (!confirm('Are you sure you want to reset this task to pending? This will remove any earnings associated with this task.')) return;
+      if (!confirm('Are you sure you want to reject this task submission? This will set status back to pending and remove any earnings associated with this task.')) return;
       
       setUpdatingId(taskId);
       
       const { data, error } = await supabase
         .from('student_task_feedback')
-        .update({ status: 'pending', updated_at: new Date().toISOString() })
+        .update({ 
+          status: 'pending', 
+          feedback_notes: null,
+          updated_at: new Date().toISOString() 
+        })
         .eq('id', taskId)
         .select();
 
@@ -198,10 +258,10 @@ export default function TaskDetail() {
         });
       }
 
-      toast.success('Task reset to pending and earnings removed');
+      toast.success('Task submission rejected and earnings removed');
     } catch (error: any) {
-      console.error('Error resetting task:', error);
-      toast.error('Failed to reset task: ' + (error.message || 'Unknown error'));
+      console.error('Error rejecting task:', error);
+      toast.error('Failed to reject task: ' + (error.message || 'Unknown error'));
     } finally {
       setUpdatingId(null);
     }
@@ -375,29 +435,33 @@ export default function TaskDetail() {
                         <ExternalLink className="h-4 w-4" />
                       </a>
                     )}
-                    <div className="flex gap-2">
-                      {task.status !== 'completed' && (
-                        <Button
-                          size="sm"
-                          className="bg-green-600 hover:bg-green-700"
-                          onClick={() => handleMarkAsDone(task.id)}
-                          disabled={updatingId === task.id}
-                        >
-                          {updatingId === task.id ? 'Updating...' : 'Done'}
-                        </Button>
-                      )}
-                      {task.status !== 'pending' && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleResetToPending(task.id)}
-                          disabled={updatingId === task.id}
-                          className="text-xs"
-                        >
-                          Reset
-                        </Button>
-                      )}
-                    </div>
+                     <div className="flex gap-2">
+                       {task.status !== 'completed' && (
+                         <Button
+                           size="sm"
+                           className="bg-green-600 hover:bg-green-700"
+                           onClick={() => {
+                             setVerifyingTaskId(task.id);
+                             setVerifyingAmount(task.earning_amount || 5);
+                             setVerificationComment('');
+                           }}
+                           disabled={updatingId === task.id}
+                         >
+                           {updatingId === task.id ? 'Updating...' : 'Verified'}
+                         </Button>
+                       )}
+                       {task.status !== 'pending' && (
+                         <Button
+                           size="sm"
+                           variant="outline"
+                           onClick={() => handleRejectTask(task.id)}
+                           disabled={updatingId === task.id}
+                           className="text-xs text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+                         >
+                           Reject
+                         </Button>
+                       )}
+                     </div>
                   </div>
                 </div>
               ))}
@@ -423,6 +487,69 @@ export default function TaskDetail() {
               </svg>
             </button>
           </div>
+        </DialogContent>
+      </Dialog>
+      {/* Verification Dialog */}
+      <Dialog open={!!verifyingTaskId} onOpenChange={(open) => !open && setVerifyingTaskId(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Verify Submission</DialogTitle>
+            <DialogDescription>
+              Assign the earning units and add an optional comment explaining any adjustments for {taskGroup.tasks.find(t => t.id === verifyingTaskId)?.student_name}'s work.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="verifying-amount">Earning Units (Credits)</Label>
+              <Input
+                id="verifying-amount"
+                type="number"
+                value={verifyingAmount}
+                onChange={(e) => setVerifyingAmount(Number(e.target.value))}
+                min={0}
+                className="w-full"
+              />
+              <p className="text-xs text-muted-foreground">
+                Default starting units for this task: {taskGroup.tasks.find(t => t.id === verifyingTaskId)?.earning_amount || 5} units
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="verifying-comment">Comment / Notes (Optional)</Label>
+              <Textarea
+                id="verifying-comment"
+                placeholder="Explain why the money was edited or any other notes for the student..."
+                value={verificationComment}
+                onChange={(e) => setVerificationComment(e.target.value)}
+                className="w-full min-h-[80px]"
+              />
+              <p className="text-xs text-muted-foreground">
+                This note will be shown to the student as a Teacher's Note and logged in their earnings report.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setVerifyingTaskId(null)}
+              disabled={updatingId === verifyingTaskId}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (verifyingTaskId) {
+                  handleMarkAsDone(verifyingTaskId, verifyingAmount, verificationComment);
+                }
+              }}
+              disabled={updatingId === verifyingTaskId}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              {updatingId === verifyingTaskId ? 'Verifying...' : 'Confirm Verified'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
       </div>

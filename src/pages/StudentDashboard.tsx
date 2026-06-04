@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Calendar, ListTodo, Clock, CheckCircle2, Wallet, ClipboardCheck } from 'lucide-react';
+import { Calendar, ListTodo, Clock, CheckCircle2, Wallet, ClipboardCheck, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { supabase } from '@/integrations/supabase/client';
@@ -214,9 +214,19 @@ export default function StudentDashboard() {
       return;
     }
 
-    // Validate submission date is not after deadline
-    if (new Date(submissionDate) > new Date(selectedTask.deadline)) {
-      toast.error('Submission date cannot be after the deadline');
+    // Validate submission is not more than 3 days past the deadline
+    const deadlineDate = new Date(selectedTask.deadline);
+    const cutoffDate = new Date(deadlineDate);
+    cutoffDate.setDate(cutoffDate.getDate() + 3);
+    cutoffDate.setHours(23, 59, 59, 999);
+
+    if (new Date() > cutoffDate) {
+      toast.error('Submission closed. The deadline was more than 3 days ago.');
+      return;
+    }
+
+    if (new Date(submissionDate) > cutoffDate) {
+      toast.error('Submission date cannot be more than 3 days after the deadline');
       return;
     }
 
@@ -469,112 +479,139 @@ export default function StudentDashboard() {
               <DialogClose />
             </DialogHeader>
 
-            {selectedTask && (
-              <div className="space-y-6">
-                {/* Task Information */}
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Task Name</p>
-                    <p className="font-semibold text-lg">{selectedTask.task_name}</p>
-                  </div>
+            {selectedTask && (() => {
+              const deadlineDate = new Date(selectedTask.deadline);
+              const cutoffDate = new Date(deadlineDate);
+              cutoffDate.setDate(cutoffDate.getDate() + 3);
+              cutoffDate.setHours(23, 59, 59, 999);
+              const isSubmissionClosed = new Date() > cutoffDate;
+              const maxDateString = cutoffDate.toISOString().split('T')[0];
+              const isReviewedOrApproved = selectedTask.status === 'reviewed' || selectedTask.status === 'approved';
 
-                  <div>
-                    <p className="text-xs text-muted-foreground">Type</p>
-                    <p className="font-medium capitalize">{selectedTask.feedback_type}</p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-muted-foreground">Deadline</p>
-                    <p className="font-medium">{new Date(selectedTask.deadline).toLocaleDateString()}</p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-muted-foreground">Status</p>
-                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold capitalize ${
-                      selectedTask.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                      selectedTask.status === 'submitted' ? 'bg-blue-100 text-blue-800' :
-                      selectedTask.status === 'reviewed' ? 'bg-purple-100 text-purple-800' :
-                      'bg-green-100 text-green-800'
-                    }`}>
-                      {selectedTask.status}
-                    </span>
-                  </div>
-
-                  {selectedTask.feedback_notes && (
+              return (
+                <div className="space-y-6">
+                  {/* Task Information */}
+                  <div className="space-y-4">
                     <div>
-                      <p className="text-xs text-muted-foreground">Feedback Notes</p>
-                      <p className="text-sm">{selectedTask.feedback_notes}</p>
+                      <p className="text-xs text-muted-foreground">Task Name</p>
+                      <p className="font-semibold text-lg">{selectedTask.task_name}</p>
                     </div>
-                  )}
-                </div>
 
-                {/* Submission Section */}
-                <div className="border-t border-border pt-4 space-y-4">
-                  <h3 className="font-semibold">Submit Your Work</h3>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Type</p>
+                      <p className="font-medium capitalize">{selectedTask.feedback_type}</p>
+                    </div>
 
-                  <div>
-                    <label className="text-sm font-medium text-foreground block mb-2">
-                      Submission Link
-                    </label>
-                    <input
-                      type="url"
-                      placeholder="https://example.com/your-submission"
-                      value={submissionLink}
-                      onChange={(e) => setSubmissionLink(e.target.value)}
-                      className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Deadline</p>
+                      <p className="font-medium">{new Date(selectedTask.deadline).toLocaleDateString()}</p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs text-muted-foreground">Status</p>
+                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold capitalize ${
+                        selectedTask.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                        selectedTask.status === 'submitted' ? 'bg-blue-100 text-blue-800' :
+                        selectedTask.status === 'reviewed' ? 'bg-purple-100 text-purple-800' :
+                        'bg-green-100 text-green-800'
+                      }`}>
+                        {selectedTask.status}
+                      </span>
+                    </div>
+
+                    {selectedTask.feedback_notes && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Feedback Notes</p>
+                        <p className="text-sm">{selectedTask.feedback_notes}</p>
+                      </div>
+                    )}
                   </div>
 
-                  <div>
-                    <label className="text-sm font-medium text-foreground block mb-2">
-                      Submission Date
-                    </label>
-                    <input
-                      type="date"
-                      value={submissionDate}
-                      onChange={(e) => setSubmissionDate(e.target.value)}
-                      max={selectedTask.deadline}
-                      className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Must be on or before deadline: {new Date(selectedTask.deadline).toLocaleDateString()}
-                    </p>
-                  </div>
+                  {/* Submission Section */}
+                  <div className="border-t border-border pt-4 space-y-4">
+                    <h3 className="font-semibold">Submit Your Work</h3>
 
-                  {selectedTask.submission_link && (
-                    <div className="bg-blue-50 border border-blue-200 rounded p-3">
-                      <p className="text-sm text-blue-800">
-                        <strong>Current Submission:</strong>{' '}
-                        <a
-                          href={selectedTask.submission_link.startsWith('http') ? selectedTask.submission_link : `https://${selectedTask.submission_link}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="underline hover:text-blue-900"
-                        >
-                          {selectedTask.submission_link}
-                        </a>
+                    {isSubmissionClosed && (
+                      <div className="bg-destructive/10 border border-destructive/20 text-destructive rounded-lg p-3 text-sm flex items-center gap-2 font-medium">
+                        <AlertCircle className="h-4 w-4 shrink-0" />
+                        <span>Submission period closed. Submissions are only allowed up to 3 days after the deadline.</span>
+                      </div>
+                    )}
+
+                    {isReviewedOrApproved && (
+                      <div className="bg-muted border border-border text-muted-foreground rounded-lg p-3 text-sm flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <span>This task has already been reviewed/approved and cannot be updated.</span>
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="text-sm font-medium text-foreground block mb-2">
+                        Submission Link
+                      </label>
+                      <input
+                        type="url"
+                        placeholder="https://example.com/your-submission"
+                        value={submissionLink}
+                        onChange={(e) => setSubmissionLink(e.target.value)}
+                        className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
+                        disabled={isSubmissionClosed || isReviewedOrApproved}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium text-foreground block mb-2">
+                        Submission Date
+                      </label>
+                      <input
+                        type="date"
+                        value={submissionDate}
+                        onChange={(e) => setSubmissionDate(e.target.value)}
+                        max={maxDateString}
+                        className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
+                        disabled={isSubmissionClosed || isReviewedOrApproved}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Must be on or before 3 days after deadline: {new Date(maxDateString).toLocaleDateString()}
                       </p>
                     </div>
-                  )}
-                </div>
 
-                {/* Action Buttons */}
-                <div className="flex gap-2 justify-end border-t border-border pt-4">
-                  <Button
-                    variant="outline"
-                    onClick={() => setSelectedTask(null)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleSubmitTask}
-                    className="bg-primary text-primary-foreground hover:bg-primary/90"
-                  >
-                    Save Submission
-                  </Button>
+                    {selectedTask.submission_link && (
+                      <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                        <p className="text-sm text-blue-800">
+                          <strong>Current Submission:</strong>{' '}
+                          <a
+                            href={selectedTask.submission_link.startsWith('http') ? selectedTask.submission_link : `https://${selectedTask.submission_link}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline hover:text-blue-900"
+                          >
+                            {selectedTask.submission_link}
+                          </a>
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-2 justify-end border-t border-border pt-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => setSelectedTask(null)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleSubmitTask}
+                      className="bg-primary text-primary-foreground hover:bg-primary/90"
+                      disabled={isSubmissionClosed || isReviewedOrApproved || !submissionLink.trim()}
+                    >
+                      Save Submission
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </DialogContent>
         </Dialog>
       </div>

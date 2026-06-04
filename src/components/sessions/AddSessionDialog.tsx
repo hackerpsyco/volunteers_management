@@ -526,26 +526,29 @@ export function AddSessionDialog({
 
   // Auto-generate title based on session type and selected fields
   const generateAutoTitle = () => {
+    const topic = useCustomTopic ? customTopicText : formData.topics_covered;
+    const module = useCustomTopic ? '' : formData.module_name;
+
     if (sessionType === 'guest_teacher') {
       // Format: WES GT Session - Class + Volunteer Name + Module + Topic
       const parts = ['WES GT Session'];
       if (formData.class_batch) parts.push(formData.class_batch);
       if (formData.volunteer_name) parts.push(`by ${formData.volunteer_name}`);
-      if (formData.module_name) parts.push(formData.module_name);
-      if (formData.topics_covered) parts.push(formData.topics_covered);
+      if (module) parts.push(module);
+      if (topic) parts.push(topic);
       return parts.join(' - ');
     } else if (sessionType === 'guest_speaker') {
       // Format: SVC WES Academy by Volunteer Name - Topic
       const parts = ['SVC WES Academy'];
       if (formData.volunteer_name) parts.push(`by ${formData.volunteer_name}`);
-      if (formData.topics_covered) parts.push(formData.topics_covered);
+      if (topic) parts.push(topic);
       return parts.join(' - ');
     } else if (sessionType === 'local_teacher') {
       // Format: WES LT Session - Class + Module + Topic
       const parts = ['WES LT Session'];
       if (formData.class_batch) parts.push(formData.class_batch);
-      if (formData.module_name) parts.push(formData.module_name);
-      if (formData.topics_covered) parts.push(formData.topics_covered);
+      if (module) parts.push(module);
+      if (topic) parts.push(topic);
       return parts.join(' - ');
     }
     return '';
@@ -569,7 +572,7 @@ export function AddSessionDialog({
     if (autoTitle) {
       setFormData(prev => ({ ...prev, custom_title: autoTitle }));
     }
-  }, [sessionType, formData.class_batch, formData.volunteer_name, formData.module_name, formData.topics_covered]);
+  }, [sessionType, formData.class_batch, formData.volunteer_name, formData.module_name, formData.topics_covered, useCustomTopic, customTopicText]);
 
   const handleCategoryChange = (category: string) => {
     setSelectedCategory(category);
@@ -714,6 +717,7 @@ export function AddSessionDialog({
         }
         // Inject custom topic into formData before submission
         formData.topics_covered = customTopicText.trim();
+        formData.title = customTopicText.trim();
         formData.content_category = formData.content_category || 'Custom';
         formData.module_name = formData.module_name || 'Custom';
       } else if (!selectedTopic) {

@@ -91,6 +91,13 @@ interface Session {
   updated_at: string;
 }
 
+const getLocalDateString = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export default function Sessions() {
   const navigate = useNavigate();
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -117,9 +124,15 @@ export default function Sessions() {
   const [dateToFilter, setDateToFilter] = useState<string>('');
   const [sessionTypeFilter, setSessionTypeFilter] = useState<string | null>(null);
   const [subjectFilter, setSubjectFilter] = useState<string | null>(null);
-  const [sortColumn, setSortColumn] = useState<keyof Session | null>(null);
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc' | null>(null);
+  const [sortColumn, setSortColumn] = useState<keyof Session | null>('session_date');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc' | null>('asc');
   const { selectedYear, getDateRange } = useAcademicYear();
+  const todayStr = useMemo(() => getLocalDateString(new Date()), []);
+  const tomorrowStr = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return getLocalDateString(d);
+  }, []);
 
   useEffect(() => {
     fetchSessions();
@@ -183,7 +196,7 @@ export default function Sessions() {
           centre_time_slots:centre_time_slot_id(day, start_time, end_time),
           subjects(name)
         `)
-        .order('session_date', { ascending: false });
+        .order('session_date', { ascending: true });
 
       if (error) throw error;
       
@@ -300,6 +313,10 @@ export default function Sessions() {
         filtered = filtered.filter(s => new Date(s.session_date) >= today);
       } else if (timeFilter === 'past') {
         filtered = filtered.filter(s => new Date(s.session_date) < today);
+      } else if (timeFilter === 'today') {
+        filtered = filtered.filter(s => s.session_date === todayStr);
+      } else if (timeFilter === 'tomorrow') {
+        filtered = filtered.filter(s => s.session_date === tomorrowStr);
       }
     }
 
@@ -539,6 +556,8 @@ export default function Sessions() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">All Times</SelectItem>
+                          <SelectItem value="today">Today</SelectItem>
+                          <SelectItem value="tomorrow">Tomorrow</SelectItem>
                           <SelectItem value="upcoming">Upcoming</SelectItem>
                           <SelectItem value="past">Past</SelectItem>
                         </SelectContent>
@@ -789,8 +808,16 @@ export default function Sessions() {
                     <TableBody>
                       {filteredSessions.map((session) => {
                         const isPastSession = new Date(session.session_date) < new Date();
+                        
+                        let rowBgClass = "hover:bg-muted/50 text-xs h-8 transition-colors";
+                        if (session.session_date === todayStr) {
+                          rowBgClass = "bg-amber-50/60 dark:bg-amber-950/25 hover:bg-amber-100/70 dark:hover:bg-amber-950/35 border-l-2 border-l-amber-500 text-xs h-8 transition-colors";
+                        } else if (session.session_date === tomorrowStr) {
+                          rowBgClass = "bg-blue-50/60 dark:bg-blue-950/25 hover:bg-blue-100/70 dark:hover:bg-blue-950/35 border-l-2 border-l-blue-500 text-xs h-8 transition-colors";
+                        }
+
                         return (
-                        <TableRow key={session.id} className="hover:bg-muted/50 text-xs h-8">
+                        <TableRow key={session.id} className={rowBgClass}>
                           <TableCell className="text-xs px-2 py-1 max-w-[70px]"><TruncatedText text={session.subject_name} maxLength={20} /></TableCell>
                           <TableCell className="text-xs px-2 py-1 max-w-[70px]"><TruncatedText text={session.content_category} maxLength={20} /></TableCell>
                           <TableCell className="text-xs px-2 py-1 max-w-[70px]"><TruncatedText text={session.module_name} maxLength={20} /></TableCell>
@@ -806,7 +833,21 @@ export default function Sessions() {
                           <TableCell className="text-xs px-2 py-1 max-w-[60px]"><TruncatedText text={session.class_batch} maxLength={15} /></TableCell>
                           <TableCell className="text-xs px-2 py-1 max-w-[70px]"><TruncatedText text={session.centre_name} maxLength={20} /></TableCell>
                           <TableCell className="text-xs px-2 py-1 whitespace-nowrap">
-                            {new Date(session.session_date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                            <div className="flex flex-col gap-0.5">
+                              <span>
+                                {new Date(session.session_date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                              </span>
+                              {session.session_date === todayStr && (
+                                <span className="inline-flex items-center rounded px-1 py-0.5 text-[9px] font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 w-fit">
+                                  Today
+                                </span>
+                              )}
+                              {session.session_date === tomorrowStr && (
+                                <span className="inline-flex items-center rounded px-1 py-0.5 text-[9px] font-semibold bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 w-fit">
+                                  Tomorrow
+                                </span>
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell className="text-xs px-2 py-1 whitespace-nowrap">
                             {session.slot_start_time && session.slot_end_time 
@@ -904,8 +945,16 @@ export default function Sessions() {
 
                 {/* Mobile Card View */}
                 <div className="md:hidden space-y-4">
-                  {filteredSessions.map((session) => (
-                    <div key={session.id} className="bg-muted/50 rounded-lg p-4 space-y-3 border border-border">
+                  {filteredSessions.map((session) => {
+                    let cardClass = "bg-muted/50 rounded-lg p-4 space-y-3 border border-border transition-all";
+                    if (session.session_date === todayStr) {
+                      cardClass = "bg-amber-50/40 dark:bg-amber-950/15 rounded-lg p-4 space-y-3 border-l-4 border-l-amber-500 border-t border-r border-b border-border/80 transition-all";
+                    } else if (session.session_date === tomorrowStr) {
+                      cardClass = "bg-blue-50/40 dark:bg-blue-950/15 rounded-lg p-4 space-y-3 border-l-4 border-l-blue-500 border-t border-r border-b border-border/80 transition-all";
+                    }
+
+                    return (
+                    <div key={session.id} className={cardClass}>
                       {/* Topic and Status */}
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
@@ -992,7 +1041,19 @@ export default function Sessions() {
                       <div className="grid grid-cols-2 gap-2 text-xs">
                         <div>
                           <span className="text-muted-foreground block">Date</span>
-                          <span className="font-medium text-sm">{new Date(session.session_date).toLocaleDateString()}</span>
+                          <span className="font-medium text-sm flex flex-wrap items-center gap-1">
+                            {new Date(session.session_date).toLocaleDateString()}
+                            {session.session_date === todayStr && (
+                              <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                                Today
+                              </span>
+                            )}
+                            {session.session_date === tomorrowStr && (
+                              <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-semibold bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300">
+                                Tomorrow
+                              </span>
+                            )}
+                          </span>
                         </div>
                         <div>
                           <span className="text-muted-foreground block">Time</span>
@@ -1085,7 +1146,8 @@ export default function Sessions() {
                         </Button>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
                   </>
                 )}

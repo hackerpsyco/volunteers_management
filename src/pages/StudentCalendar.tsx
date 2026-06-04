@@ -16,15 +16,41 @@ import { toast } from 'sonner';
 interface Session {
   id: string;
   title: string;
-  content_category?: string;
-  module_name?: string;
-  topics_covered?: string;
-  status: string;
   session_date: string;
   session_time: string;
-  facilitator_name?: string;
-  meeting_link?: string;
-  class_batch?: string;
+  session_type: string;
+  status: string;
+  content_category: string | null;
+  module_name: string | null;
+  topics_covered: string | null;
+  videos: string | null;
+  quiz_content_ppt: string | null;
+  facilitator_name: string | null;
+  volunteer_name: string | null;
+  coordinator_name: string | null;
+  meeting_link: string | null;
+  centre_id: string | null;
+  centre_time_slot_id: string | null;
+  class_batch: string | null;
+  centre_name?: string | null;
+  centre_location?: string | null;
+  slot_day?: string | null;
+  slot_start_time?: string | null;
+  slot_end_time?: string | null;
+  recording_url?: string | null;
+  recording_status?: string | null;
+  recording_duration?: number | null;
+  recording_size?: string | null;
+  recording_created_at?: string | null;
+  google_event_id?: string | null;
+  subject_id?: string | null;
+  subject_name?: string | null;
+  created_at: string;
+  updated_at: string;
+  facilitator_email?: string | null;
+  volunteer_email?: string | null;
+  coordinator_email?: string | null;
+  centre_email?: string | null;
 }
 
 interface CalendarDay {
@@ -84,23 +110,11 @@ export default function StudentCalendar() {
         const { data: sessionsData, error: sessionsError } = await supabase
           .from('sessions')
           .select(`
-            id,
-            title,
-            content_category,
-            module_name,
-            topics_covered,
-            status,
-            session_date,
-            session_time,
-            facilitator_name,
-            meeting_link,
-            class_batch,
-            coordinator_id,
-            centre_id,
-            centre_time_slot_id,
-            coordinators:coordinator_id(name),
+            *,
+            coordinators:coordinator_id(name, email),
             centres:centre_id(name, location),
-            centre_time_slots:centre_time_slot_id(day, start_time, end_time)
+            centre_time_slots:centre_time_slot_id(day, start_time, end_time),
+            subjects(name)
           `)
           .eq('class_batch', classData?.name)
           .order('session_date', { ascending: true });
@@ -110,12 +124,17 @@ export default function StudentCalendar() {
         // Transform data to flatten relationships
         const transformedData = (sessionsData || []).map((session: any) => ({
           ...session,
+          facilitator_email: null,
+          volunteer_email: null,
           coordinator_name: session.coordinators?.name || null,
+          coordinator_email: session.coordinators?.email || null,
           centre_name: session.centres?.name || null,
           centre_location: session.centres?.location || null,
+          centre_email: null,
           slot_day: session.centre_time_slots?.day || null,
           slot_start_time: session.centre_time_slots?.start_time || null,
           slot_end_time: session.centre_time_slots?.end_time || null,
+          subject_name: session.subjects?.name || null,
         }));
 
         setSessions(transformedData || []);
@@ -187,6 +206,37 @@ export default function StudentCalendar() {
         return 'bg-purple-100 text-purple-800';
       default:
         return 'bg-yellow-100 text-yellow-800';
+    }
+  };
+
+  const getSessionTypeLabel = (sessionType?: string) => {
+    switch (sessionType) {
+      case 'guest_teacher': return 'GT';
+      case 'guest_speaker': return 'GS';
+      case 'local_teacher': return 'LT';
+      default: return '';
+    }
+  };
+
+  const getSessionDisplayTitle = (session: Session) => {
+    const typeLabel = getSessionTypeLabel(session.session_type);
+    const parts: string[] = [];
+    parts.push(`WES ${typeLabel} Session`);
+    if (session.class_batch) parts.push(session.class_batch);
+    if (session.volunteer_name) {
+      parts.push(`by ${session.volunteer_name}`);
+    }
+    if (session.module_name) parts.push(session.module_name);
+    if (session.topics_covered) parts.push(session.topics_covered);
+    return parts.join(' - ');
+  };
+
+  const getSessionTypeColor = (sessionType?: string) => {
+    switch (sessionType) {
+      case 'guest_teacher': return 'bg-cyan-50 border-l-2 border-l-cyan-500 text-cyan-900';
+      case 'guest_speaker': return 'bg-violet-50 border-l-2 border-l-violet-500 text-violet-900';
+      case 'local_teacher': return 'bg-pink-50 border-l-2 border-l-pink-500 text-pink-900';
+      default: return 'bg-blue-50 border-l-2 border-l-blue-500 text-blue-900';
     }
   };
 
@@ -288,11 +338,14 @@ export default function StudentCalendar() {
                           {sessionsToShow.map((session, i) => (
                             <button
                               key={i}
-                              onClick={() => setSelectedSession(session)}
-                              className={`text-xs px-2 py-1 rounded truncate w-full text-left hover:opacity-80 ${getStatusColor(session.status)}`}
-                              title={session.title}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedSession(session);
+                              }}
+                              className={`text-xs px-2 py-1 rounded w-full text-left hover:opacity-80 whitespace-normal break-words ${getSessionTypeColor(session.session_type)}`}
+                              title={getSessionDisplayTitle(session)}
                             >
-                              {session.session_time} - {session.title}
+                              <div className="text-[11px] line-clamp-2 font-medium">{getSessionDisplayTitle(session)}</div>
                             </button>
                           ))}
                           {day.sessions.length > 2 && (
@@ -322,7 +375,8 @@ export default function StudentCalendar() {
             </DialogHeader>
 
             {selectedSession && (
-              <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Topic & Basic Info */}
                 <div className="space-y-3">
                   {selectedSession.content_category && (
                     <div>
@@ -342,49 +396,133 @@ export default function StudentCalendar() {
                       <p className="font-medium">{selectedSession.topics_covered}</p>
                     </div>
                   )}
+                  {selectedSession.class_batch && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Class</p>
+                      <p className="font-medium">{selectedSession.class_batch}</p>
+                    </div>
+                  )}
                   <div>
                     <p className="text-xs text-muted-foreground">Title</p>
-                    <p className="font-medium">{selectedSession.title}</p>
+                    <p className="font-medium">{getSessionDisplayTitle(selectedSession)}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">Date & Time</p>
-                    <p className="font-medium">
-                      {new Date(selectedSession.session_date).toLocaleDateString()} at {selectedSession.session_time}
-                    </p>
+                    <p className="text-xs text-muted-foreground">Date</p>
+                    <p className="font-medium">{new Date(selectedSession.session_date).toLocaleDateString()}</p>
                   </div>
-                  {selectedSession.facilitator_name && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">Time</p>
+                    <p className="font-medium">{selectedSession.session_time.split(':').slice(0, 2).join(':')}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Status</p>
+                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold capitalize ${
+                      selectedSession.status === 'completed' ? 'bg-green-100 text-green-800' :
+                      selectedSession.status === 'available' ? 'bg-blue-100 text-blue-800' :
+                      selectedSession.status === 'committed' ? 'bg-purple-100 text-purple-800' :
+                      'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {selectedSession.status}
+                    </span>
+                  </div>
+                  {selectedSession.session_type && (
                     <div>
-                      <p className="text-xs text-muted-foreground">Facilitator</p>
-                      <p className="font-medium">{selectedSession.facilitator_name}</p>
+                      <p className="text-xs text-muted-foreground">Session Type</p>
+                      <p className="font-medium capitalize">
+                        {selectedSession.session_type === 'guest_teacher' ? 'Guest Teacher' :
+                         selectedSession.session_type === 'guest_speaker' ? 'Guest Speaker' :
+                         selectedSession.session_type === 'local_teacher' ? 'Local Teacher' :
+                         selectedSession.session_type}
+                      </p>
                     </div>
                   )}
                 </div>
 
-                {/* Meeting Link */}
-                {selectedSession.meeting_link ? (
-                  <div className="border-t border-border pt-4">
-                    <h4 className="font-semibold text-sm mb-3">Join Session</h4>
-                    <a
-                      href={selectedSession.meeting_link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => {
-                        if (!selectedSession.meeting_link || selectedSession.meeting_link.trim() === '') {
-                          e.preventDefault();
-                          toast.error('Meeting link is not available');
+                {/* Participants & Details */}
+                <div className="space-y-3">
+                  <h4 className="font-semibold text-sm">Participants & Meeting Invites</h4>
+                  
+                  {selectedSession.facilitator_name && (
+                    <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                      <p className="text-xs text-muted-foreground">👤 Facilitator</p>
+                      <p className="font-medium text-sm">{selectedSession.facilitator_name}</p>
+                      {selectedSession.facilitator_email && (
+                        <p className="text-xs text-blue-600 mt-1">📧 {selectedSession.facilitator_email}</p>
+                      )}
+                    </div>
+                  )}
+                  
+                  {selectedSession.volunteer_name && (
+                    <div className="bg-purple-50 border border-purple-200 rounded p-3">
+                      <p className="text-xs text-muted-foreground">👥 Volunteer</p>
+                      <p className="font-medium text-sm">{selectedSession.volunteer_name}</p>
+                      {selectedSession.volunteer_email && (
+                        <p className="text-xs text-purple-600 mt-1">📧 {selectedSession.volunteer_email}</p>
+                      )}
+                    </div>
+                  )}
+                  
+                  {selectedSession.coordinator_name && (
+                    <div className="bg-green-50 border border-green-200 rounded p-3">
+                      <p className="text-xs text-muted-foreground">📋 Coordinator</p>
+                      <p className="font-medium text-sm">{selectedSession.coordinator_name}</p>
+                      {selectedSession.coordinator_email && (
+                        <p className="text-xs text-green-600 mt-1">📧 {selectedSession.coordinator_email}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {selectedSession.centre_name && (
+                    <div className="bg-orange-50 border border-orange-200 rounded p-3">
+                      <p className="text-xs text-muted-foreground">📍 Centre</p>
+                      <p className="font-medium text-sm">{selectedSession.centre_name}</p>
+                      {selectedSession.centre_location && (
+                        <p className="text-xs text-muted-foreground">{selectedSession.centre_location}</p>
+                      )}
+                      {selectedSession.centre_email && (
+                        <p className="text-xs text-orange-600 mt-1">📧 {selectedSession.centre_email}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {selectedSession.slot_start_time && selectedSession.slot_end_time && (
+                    <div className="bg-indigo-50 border border-indigo-200 rounded p-3">
+                      <p className="text-xs text-muted-foreground">⏰ Time Slot</p>
+                      <p className="font-medium text-sm">{selectedSession.slot_start_time.split(':').slice(0, 2).join(':')} - {selectedSession.slot_end_time.split(':').slice(0, 2).join(':')}</p>
+                    </div>
+                  )}
+
+                  {selectedSession.meeting_link && (
+                    <div className="bg-cyan-50 border border-cyan-200 rounded p-3">
+                      <p className="text-xs text-muted-foreground">🔗 Meeting Link</p>
+                      {(() => {
+                        let url = selectedSession.meeting_link;
+                        // Fix malformed Google Meet URLs
+                        if (url && url.includes('_meet/whoops')) {
+                          // Extract meeting code if embedded, or show raw link
+                          url = url.replace('/_meet/whoops', '');
                         }
-                      }}
-                      className="inline-block px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors"
-                    >
-                      Join Google Meet
-                    </a>
-                  </div>
-                ) : (
-                  <div className="border-t border-border pt-4">
-                    <h4 className="font-semibold text-sm mb-3">Join Session</h4>
-                    <p className="text-sm text-muted-foreground">Meeting link will be available soon</p>
-                  </div>
-                )}
+                        // Ensure URL has protocol
+                        if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
+                          url = `https://${url}`;
+                        }
+                        return (
+                          <>
+                            <a
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-cyan-600 hover:text-cyan-800 hover:underline text-sm font-medium break-all"
+                            >
+                              Join Meeting
+                            </a>
+                            <p className="text-xs text-muted-foreground mt-1 break-all">{url}</p>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </DialogContent>
