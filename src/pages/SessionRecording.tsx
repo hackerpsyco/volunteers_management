@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, Save, ChevronRight, ChevronLeft, Plus, Trash2, Shield, ExternalLink, Mic, MicOff, Check, ChevronsUpDown, X } from 'lucide-react';
+import { ArrowLeft, Save, ChevronRight, ChevronLeft, Plus, Trash2, Shield, ExternalLink, Mic, MicOff, Check, ChevronsUpDown, X, Edit, Search } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
@@ -125,6 +125,10 @@ export default function SessionRecording() {
   const [savingHomework, setSavingHomework] = useState(false);
   const [students, setStudents] = useState<any[]>([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
+  const [studentSearch, setStudentSearch] = useState('');
+  const [studentStatusFilter, setStudentStatusFilter] = useState<'all' | 'Present' | 'Absent'>('all');
+  const [studentSortField, setStudentSortField] = useState<'name' | 'rating' | 'questions'>('name');
+  const [studentSortDirection, setStudentSortDirection] = useState<'asc' | 'desc'>('asc');
   const [newHomework, setNewHomework] = useState({
     student_id: '',
     task_name: '',
@@ -137,6 +141,7 @@ export default function SessionRecording() {
   });
 
   const [isListening, setIsListening] = useState(false);
+  const [isEditingHomework, setIsEditingHomework] = useState(false);
 
   const toggleVoiceTyping = () => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
@@ -336,6 +341,7 @@ export default function SessionRecording() {
           student_id,
           feedback_type,
           task_name,
+          task_description,
           deadline,
           submission_link,
           status,
@@ -440,6 +446,63 @@ export default function SessionRecording() {
       };
       return perfData.attendance_status !== 'Absent';
     });
+  };
+
+  const getProcessedStudents = () => {
+    // 1. Resolve performance data for each student
+    const resolved = students.map(student => {
+      const formDataForStudent = studentFormData[student.id];
+      const dbDataForStudent = studentPerformance.find(sp => (sp.student_name || '').trim() === student.name.trim());
+      const perfData = formDataForStudent || dbDataForStudent || {
+        student_name: student.name,
+        attendance_status: 'Present',
+        questions_asked: 0,
+        performance_rating: 0,
+        performance_comment: '',
+      };
+      return {
+        student,
+        perfData,
+        dbDataForStudent
+      };
+    });
+
+    // 2. Filter
+    let filtered = resolved;
+
+    // Search query filter
+    if (studentSearch.trim()) {
+      const q = studentSearch.toLowerCase();
+      filtered = filtered.filter(item => 
+        item.student.name.toLowerCase().includes(q) || 
+        (item.student.student_id && item.student.student_id.toLowerCase().includes(q))
+      );
+    }
+
+    // Attendance status filter
+    if (studentStatusFilter !== 'all') {
+      filtered = filtered.filter(item => item.perfData.attendance_status === studentStatusFilter);
+    }
+
+    // 3. Sort
+    filtered.sort((a, b) => {
+      let comparison = 0;
+      if (studentSortField === 'name') {
+        comparison = a.student.name.localeCompare(b.student.name);
+      } else if (studentSortField === 'rating') {
+        const ratingA = Number(a.perfData.performance_rating) || 0;
+        const ratingB = Number(b.perfData.performance_rating) || 0;
+        comparison = ratingA - ratingB;
+      } else if (studentSortField === 'questions') {
+        const questionsA = Number(a.perfData.questions_asked) || 0;
+        const questionsB = Number(b.perfData.questions_asked) || 0;
+        comparison = questionsA - questionsB;
+      }
+
+      return studentSortDirection === 'asc' ? comparison : -comparison;
+    });
+
+    return filtered;
   };
 
   const handleTogglePerformer = (studentName: string) => {
@@ -823,6 +886,31 @@ export default function SessionRecording() {
     }
   };
 
+  const formatDatetimeLocal = (dateString?: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return '';
+    const tzOffset = date.getTimezoneOffset() * 60000;
+    return new Date(date.getTime() - tzOffset).toISOString().slice(0, 16);
+  };
+
+  const handleStartEditHomework = () => {
+    if (homeworkRecords.length > 0) {
+      const currentHw = homeworkRecords[0];
+      setNewHomework({
+        student_id: '',
+        task_name: currentHw.task_name || '',
+        task_type: currentHw.feedback_type || '',
+        deadline: currentHw.deadline ? formatDatetimeLocal(currentHw.deadline) : '',
+        task_description: currentHw.task_description || '',
+        submission_link: '',
+        feedback_notes: '',
+        earning_amount: currentHw.earning_amount?.toString() || '5',
+      });
+      setIsEditingHomework(true);
+    }
+  };
+
   const handleSaveHomework = async () => {
     if (!newHomework.task_name.trim()) {
       toast.error('Please enter a task name');
@@ -838,29 +926,48 @@ export default function SessionRecording() {
         return;
       }
 
-      // Create task for each student — tagged with current academic year
-      const homeworkRecords = students.map(student => ({
-        session_id: sessionId,
-        student_id: student.id,
-        feedback_type: newHomework.task_type || 'homework',
-        task_name: newHomework.task_name,
-        task_description: newHomework.task_description || null,
-        deadline: newHomework.deadline || null,
-        submission_link: newHomework.submission_link || null,
-        feedback_notes: newHomework.feedback_notes || null,
-        earning_amount: Number(newHomework.earning_amount) || 5,
-        academic_year: selectedYear,
-        status: 'pending',
-        created_at: new Date().toISOString(),
-      }));
+      if (isEditingHomework) {
+        // Update existing tasks for this session
+        const { error } = await supabase
+          .from('student_task_feedback')
+          .update({
+            feedback_type: newHomework.task_type || 'homework',
+            task_name: newHomework.task_name,
+            task_description: newHomework.task_description || null,
+            deadline: newHomework.deadline ? new Date(newHomework.deadline).toISOString() : null,
+            earning_amount: Number(newHomework.earning_amount) || 5,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('session_id', sessionId);
 
-      const { error } = await supabase
-        .from('student_task_feedback')
-        .insert(homeworkRecords);
+        if (error) throw error;
+        toast.success('Homework updated successfully');
+        setIsEditingHomework(false);
+      } else {
+        // Create task for each student — tagged with current academic year
+        const homeworkRecords = students.map(student => ({
+          session_id: sessionId,
+          student_id: student.id,
+          feedback_type: newHomework.task_type || 'homework',
+          task_name: newHomework.task_name,
+          task_description: newHomework.task_description || null,
+          deadline: newHomework.deadline ? new Date(newHomework.deadline).toISOString() : null,
+          submission_link: newHomework.submission_link || null,
+          feedback_notes: newHomework.feedback_notes || null,
+          earning_amount: Number(newHomework.earning_amount) || 5,
+          academic_year: selectedYear,
+          status: 'pending',
+          created_at: new Date().toISOString(),
+        }));
 
-      if (error) throw error;
+        const { error } = await supabase
+          .from('student_task_feedback')
+          .insert(homeworkRecords);
 
-      toast.success(`Homework assigned to ${students.length} students`);
+        if (error) throw error;
+        toast.success(`Homework assigned to ${students.length} students`);
+      }
+
       setNewHomework({
         student_id: '',
         task_name: '',
@@ -1069,11 +1176,11 @@ export default function SessionRecording() {
                     <CardTitle className="text-base">Session Objective</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <Textarea
-                      value={formData.session_objective}
-                      onChange={(e) => setFormData({ ...formData, session_objective: e.target.value })}
+                    <RichTextEditor
+                      value={formData.session_objective || ''}
+                      onChange={(value) => setFormData({ ...formData, session_objective: value })}
                       placeholder="What were the main objectives?"
-                      className="min-h-[80px]"
+                      minHeight="120px"
                     />
                   </CardContent>
                 </Card>
@@ -1144,11 +1251,11 @@ export default function SessionRecording() {
                     <CardTitle className="text-base">Practical Activities</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <Textarea
-                      value={formData.practical_activities}
-                      onChange={(e) => setFormData({ ...formData, practical_activities: e.target.value })}
+                    <RichTextEditor
+                      value={formData.practical_activities || ''}
+                      onChange={(value) => setFormData({ ...formData, practical_activities: value })}
                       placeholder="Describe the practical activities"
-                      className="min-h-[80px]"
+                      minHeight="120px"
                     />
                   </CardContent>
                 </Card>
@@ -1159,11 +1266,11 @@ export default function SessionRecording() {
                     <CardTitle className="text-base">Session Highlights</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <Textarea
-                      value={formData.session_highlights}
-                      onChange={(e) => setFormData({ ...formData, session_highlights: e.target.value })}
+                    <RichTextEditor
+                      value={formData.session_highlights || ''}
+                      onChange={(value) => setFormData({ ...formData, session_highlights: value })}
                       placeholder="Key highlights and summary"
-                      className="min-h-[80px]"
+                      minHeight="120px"
                     />
                   </CardContent>
                 </Card>
@@ -1174,11 +1281,11 @@ export default function SessionRecording() {
                     <CardTitle className="text-base">Learning Outcomes</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <Textarea
-                      value={formData.learning_outcomes}
-                      onChange={(e) => setFormData({ ...formData, learning_outcomes: e.target.value })}
+                    <RichTextEditor
+                      value={formData.learning_outcomes || ''}
+                      onChange={(value) => setFormData({ ...formData, learning_outcomes: value })}
                       placeholder="What did students learn?"
-                      className="min-h-[80px]"
+                      minHeight="120px"
                     />
                   </CardContent>
                 </Card>
@@ -1204,13 +1311,88 @@ export default function SessionRecording() {
                     {students.length === 0 ? (
                       <p className="text-muted-foreground text-sm">Loading students...</p>
                     ) : (
-                      <div className="space-y-2">
+                      <div className="space-y-4">
+                        {/* Filters and Sort Controls Row */}
+                        <div className="flex flex-col sm:flex-row gap-3 items-center justify-between pb-3 border-b border-border">
+                          {/* Search Input */}
+                          <div className="w-full sm:w-1/3 relative">
+                            <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                            <Input
+                              placeholder="Search student..."
+                              value={studentSearch}
+                              onChange={(e) => setStudentSearch(e.target.value)}
+                              className="pl-8 h-8 text-xs"
+                            />
+                            {studentSearch && (
+                              <button
+                                onClick={() => setStudentSearch('')}
+                                className="absolute right-2.5 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            )}
+                          </div>
+                          
+                          {/* Filter/Sort select boxes */}
+                          <div className="flex flex-wrap w-full sm:w-auto items-center gap-3 justify-end">
+                            {/* Attendance filter */}
+                            <div className="w-[130px]">
+                              <Select
+                                value={studentStatusFilter}
+                                onValueChange={(val: any) => setStudentStatusFilter(val)}
+                              >
+                                <SelectTrigger className="h-8 text-xs">
+                                  <SelectValue placeholder="All Attendance" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="all">All Attendance</SelectItem>
+                                  <SelectItem value="Present">Present Only</SelectItem>
+                                  <SelectItem value="Absent">Absent Only</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            {/* Sort Field */}
+                            <div className="w-[130px]">
+                              <Select
+                                value={studentSortField}
+                                onValueChange={(val: any) => setStudentSortField(val)}
+                              >
+                                <SelectTrigger className="h-8 text-xs">
+                                  <SelectValue placeholder="Sort By" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="name">Sort by Name</SelectItem>
+                                  <SelectItem value="rating">Sort by Rating</SelectItem>
+                                  <SelectItem value="questions">Sort by Questions</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            {/* Sort Direction */}
+                            <div className="w-[120px]">
+                              <Select
+                                value={studentSortDirection}
+                                onValueChange={(val: any) => setStudentSortDirection(val)}
+                              >
+                                <SelectTrigger className="h-8 text-xs">
+                                  <SelectValue placeholder="Order" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="asc">Ascending</SelectItem>
+                                  <SelectItem value="desc">Descending</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        </div>
+
                         {/* Header Row */}
                         <div className="grid grid-cols-12 gap-2 pb-2 border-b border-border">
                           <div className="col-span-3">
                             <p className="text-xs font-semibold text-muted-foreground">Student Name</p>
                           </div>
-                          <div className="col-span-2">
+                          <div className="col-span-2 text-center">
                             <p className="text-xs font-semibold text-muted-foreground">Status</p>
                           </div>
                           <div className="col-span-2">
@@ -1225,20 +1407,7 @@ export default function SessionRecording() {
                         </div>
 
                         {/* Student Rows */}
-                        {students.map((student) => {
-                          // Use form data if available, otherwise use database data
-                          const formDataForStudent = studentFormData[student.id];
-                          const dbDataForStudent = studentPerformance.find(sp => (sp.student_name || '').trim() === student.name.trim());
-
-                          // Default to Present if no data exists
-                          const perfData = formDataForStudent || dbDataForStudent || {
-                            student_name: student.name,
-                            attendance_status: 'Present',
-                            questions_asked: 0,
-                            performance_rating: 0,
-                            performance_comment: '',
-                          };
-
+                        {getProcessedStudents().map(({ student, perfData, dbDataForStudent }) => {
                           return (
                             <div key={student.id} className="grid grid-cols-12 gap-2 items-center py-2 hover:bg-muted/30 rounded px-2 transition-colors">
                               <div className="col-span-3">
@@ -1338,10 +1507,15 @@ export default function SessionRecording() {
                         })}
 
                         {/* Student Count Summary */}
-                        <div className="pt-3 mt-3 border-t border-border">
-                          <p className="text-sm font-semibold text-muted-foreground">
-                            Total Students: <span className="text-foreground">{students.length}</span>
+                        <div className="pt-3 mt-3 border-t border-border flex justify-between items-center text-xs font-semibold text-muted-foreground">
+                          <p>
+                            Total Students in Class: <span className="text-foreground">{students.length}</span>
                           </p>
+                          {(studentSearch || studentStatusFilter !== 'all') && (
+                            <p>
+                              Filtered: <span className="text-foreground">{getProcessedStudents().length}</span>
+                            </p>
+                          )}
                         </div>
                       </div>
                     )}
@@ -1354,11 +1528,11 @@ export default function SessionRecording() {
                     <CardTitle className="text-base">Facilitator Reflection</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <Textarea
-                      value={formData.facilitator_reflection}
-                      onChange={(e) => setFormData({ ...formData, facilitator_reflection: e.target.value })}
+                    <RichTextEditor
+                      value={formData.facilitator_reflection || ''}
+                      onChange={(value) => setFormData({ ...formData, facilitator_reflection: value })}
                       placeholder="Facilitator's reflection and remarks"
-                      className="min-h-[80px]"
+                      minHeight="120px"
                     />
                   </CardContent>
                 </Card>
@@ -1506,119 +1680,162 @@ export default function SessionRecording() {
                   </div>
                 )}
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Add Student Homework & Tasks</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {homeworkRecords.length > 0 && !isEditingHomework ? (
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between pb-3">
+                      <CardTitle className="text-base">Assigned Student Homework</CardTitle>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleStartEditHomework}
+                        className="gap-1.5"
+                      >
+                        <Edit className="h-3.5 w-3.5" />
+                        Edit Homework
+                      </Button>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 bg-muted/40 p-4 rounded-lg">
+                        <div>
+                          <span className="text-xs text-muted-foreground block">Task Name</span>
+                          <span className="font-bold text-foreground text-sm">{homeworkRecords[0].task_name}</span>
+                        </div>
+                        <div>
+                          <span className="text-xs text-muted-foreground block">Task Type</span>
+                          <span className="font-bold text-foreground text-sm capitalize">{homeworkRecords[0].feedback_type}</span>
+                        </div>
+                        <div>
+                          <span className="text-xs text-muted-foreground block">Deadline</span>
+                          <span className="font-bold text-foreground text-sm">
+                            {homeworkRecords[0].deadline 
+                              ? new Date(homeworkRecords[0].deadline).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) 
+                              : '-'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-xs text-muted-foreground block">Earning Amount</span>
+                          <span className="font-bold text-green-600 text-sm">{homeworkRecords[0].earning_amount || 5} units</span>
+                        </div>
+                      </div>
+                      {homeworkRecords[0].task_description && (
+                        <div>
+                          <span className="text-xs text-muted-foreground block mb-1">Task Description</span>
+                          <div 
+                            className="bg-muted/20 p-4 rounded-lg text-sm prose prose-sm max-w-none dark:prose-invert"
+                            dangerouslySetInnerHTML={{ __html: homeworkRecords[0].task_description }}
+                          />
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">
+                        {isEditingHomework ? 'Edit Student Homework & Tasks' : 'Add Student Homework & Tasks'}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="hw_task" className="text-sm">Task Name *</Label>
+                          <Input
+                            id="hw_task"
+                            placeholder="e.g., Chapter 5 Exercise"
+                            value={newHomework.task_name}
+                            onChange={(e) => setNewHomework({ ...newHomework, task_name: e.target.value })}
+                            className="mt-1"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="hw_type" className="text-sm">Task Type</Label>
+                          <Select
+                            value={newHomework.task_type}
+                            onValueChange={(v) => setNewHomework({ ...newHomework, task_type: v })}
+                          >
+                            <SelectTrigger id="hw_type" className="mt-1">
+                              <SelectValue placeholder="Select task type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="English Reading & speaking Task">English Reading & speaking Task</SelectItem>
+                              <SelectItem value="CCC - Computers - Task">CCC - Computers - Task</SelectItem>
+                              <SelectItem value="GT Session Task">GT Session Task</SelectItem>
+                              <SelectItem value="Mentor connect Task">Mentor connect Task</SelectItem>
+                              <SelectItem value="Bonus for 100% attendance">Bonus for 100% attendance</SelectItem>
+                              <SelectItem value="homework">Homework</SelectItem>
+                              <SelectItem value="task">Other Task</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label htmlFor="hw_deadline" className="text-sm">Deadline</Label>
+                          <Input
+                            id="hw_deadline"
+                            type="datetime-local"
+                            value={newHomework.deadline}
+                            onChange={(e) => setNewHomework({ ...newHomework, deadline: e.target.value })}
+                            className="mt-1"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="hw_earning" className="text-sm">Earning Amount</Label>
+                          <Input
+                            id="hw_earning"
+                            type="number"
+                            min="0"
+                            value={newHomework.earning_amount}
+                            onChange={(e) => setNewHomework({ ...newHomework, earning_amount: e.target.value })}
+                            placeholder="e.g. 5"
+                            className="mt-1"
+                          />
+                        </div>
+                      </div>
                       <div>
-                        <Label htmlFor="hw_task" className="text-sm">Task Name *</Label>
-                        <Input
-                          id="hw_task"
-                          placeholder="e.g., Chapter 5 Exercise"
-                          value={newHomework.task_name}
-                          onChange={(e) => setNewHomework({ ...newHomework, task_name: e.target.value })}
-                          className="mt-1"
+                        <div className="flex items-center justify-between mb-1">
+                          <Label htmlFor="hw_description" className="text-sm">Task Description</Label>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={toggleVoiceTyping}
+                            className={cn(
+                              "h-7 gap-1.5 text-[10px] font-bold uppercase tracking-wider transition-all",
+                              isListening ? "text-red-500 bg-red-50 animate-pulse border border-red-200" : "text-primary hover:bg-primary/10"
+                            )}
+                          >
+                            {isListening ? <MicOff className="h-3 w-3" /> : <Mic className="h-3 w-3" />}
+                            {isListening ? 'Stop Listening' : 'Speak to Type'}
+                          </Button>
+                        </div>
+                        <RichTextEditor
+                          value={newHomework.task_description}
+                          onChange={(value) => setNewHomework({ ...newHomework, task_description: value })}
+                          placeholder="Describe the task or assignment with formatting..."
                         />
                       </div>
-                      <div>
-                        <Label htmlFor="hw_type" className="text-sm">Task Type</Label>
-                        <Select
-                          value={newHomework.task_type}
-                          onValueChange={(v) => setNewHomework({ ...newHomework, task_type: v })}
-                        >
-                          <SelectTrigger id="hw_type" className="mt-1">
-                            <SelectValue placeholder="Select task type" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="English Reading & speaking Task">English Reading & speaking Task</SelectItem>
-                            <SelectItem value="CCC - Computers - Task">CCC - Computers - Task</SelectItem>
-                            <SelectItem value="GT Session Task">GT Session Task</SelectItem>
-                            <SelectItem value="Mentor connect Task">Mentor connect Task</SelectItem>
-                            <SelectItem value="Bonus for 100% attendance">Bonus for 100% attendance</SelectItem>
-                            <SelectItem value="homework">Homework</SelectItem>
-                            <SelectItem value="task">Other Task</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Label htmlFor="hw_deadline" className="text-sm">Deadline</Label>
-                        <Input
-                          id="hw_deadline"
-                          type="date"
-                          value={newHomework.deadline}
-                          onChange={(e) => setNewHomework({ ...newHomework, deadline: e.target.value })}
-                          className="mt-1"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="hw_earning" className="text-sm">Earning Amount</Label>
-                        <Input
-                          id="hw_earning"
-                          type="number"
-                          min="0"
-                          value={newHomework.earning_amount}
-                          onChange={(e) => setNewHomework({ ...newHomework, earning_amount: e.target.value })}
-                          placeholder="e.g. 5"
-                          className="mt-1"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <Label htmlFor="hw_description" className="text-sm">Task Description</Label>
+                      <div className="flex gap-3">
+                        {isEditingHomework && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setIsEditingHomework(false)}
+                            className="w-1/3"
+                          >
+                            Cancel
+                          </Button>
+                        )}
                         <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={toggleVoiceTyping}
-                          className={cn(
-                            "h-7 gap-1.5 text-[10px] font-bold uppercase tracking-wider transition-all",
-                            isListening ? "text-red-500 bg-red-50 animate-pulse border border-red-200" : "text-primary hover:bg-primary/10"
-                          )}
+                          onClick={handleSaveHomework}
+                          disabled={savingHomework}
+                          className={isEditingHomework ? "w-2/3 gap-2" : "w-full gap-2"}
                         >
-                          {isListening ? <MicOff className="h-3 w-3" /> : <Mic className="h-3 w-3" />}
-                          {isListening ? 'Stop Listening' : 'Speak to Type'}
+                          {isEditingHomework ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                          {savingHomework ? 'Saving...' : (isEditingHomework ? 'Save Changes' : 'Save Homework Feedback')}
                         </Button>
                       </div>
-                      <RichTextEditor
-                        value={newHomework.task_description}
-                        onChange={(value) => setNewHomework({ ...newHomework, task_description: value })}
-                        placeholder="Describe the task or assignment with formatting..."
-                      />
-                    </div>
-                    {/* <div>
-                      <Label htmlFor="hw_link" className="text-sm">Submission Link</Label>
-                      <Input
-                        id="hw_link"
-                        type="url"
-                        placeholder="https://example.com/submission"
-                        value={newHomework.submission_link}
-                        onChange={(e) => setNewHomework({ ...newHomework, submission_link: e.target.value })}
-                        className="mt-1"
-                      />
-                    </div> */}
-                    {/* <div>
-                      <Label htmlFor="hw_notes" className="text-sm">Feedback Notes</Label>
-                      <Textarea
-                        id="hw_notes"
-                        placeholder="Add feedback or instructions"
-                        value={newHomework.feedback_notes}
-                        onChange={(e) => setNewHomework({ ...newHomework, feedback_notes: e.target.value })}
-                        className="mt-1 min-h-[60px]"
-                      />
-                    </div> */}
-                    <Button
-                      onClick={handleSaveHomework}
-                      disabled={savingHomework}
-                      className="w-full gap-2"
-                    >
-                      <Plus className="h-4 w-4" />
-                      {savingHomework ? 'Saving...' : 'Save Homework Feedback'}
-                    </Button>
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Homework List */}
                 <Card>
@@ -1738,12 +1955,11 @@ export default function SessionRecording() {
               <CardContent className="space-y-3">
                 <div>
                   <Label htmlFor="guest_teacher_feedback" className="text-sm">Feedback</Label>
-                  <Textarea
-                    id="guest_teacher_feedback"
-                    value={formData.guest_teacher_feedback}
-                    onChange={(e) => setFormData({ ...formData, guest_teacher_feedback: e.target.value })}
+                  <RichTextEditor
+                    value={formData.guest_teacher_feedback || ''}
+                    onChange={(value) => setFormData({ ...formData, guest_teacher_feedback: value })}
                     placeholder="Feedback from guest teacher"
-                    className="min-h-[80px] mt-1"
+                    minHeight="120px"
                   />
                 </div>
               </CardContent>
@@ -1754,11 +1970,11 @@ export default function SessionRecording() {
                 <CardTitle className="text-base">Feedback by Coordinator</CardTitle>
               </CardHeader>
               <CardContent>
-                <Textarea
-                  value={formData.incharge_reviewer_feedback}
-                  onChange={(e) => setFormData({ ...formData, incharge_reviewer_feedback: e.target.value })}
+                <RichTextEditor
+                  value={formData.incharge_reviewer_feedback || ''}
+                  onChange={(value) => setFormData({ ...formData, incharge_reviewer_feedback: value })}
                   placeholder="Feedback from incharge or reviewer"
-                  className="min-h-[80px]"
+                  minHeight="120px"
                 />
               </CardContent>
             </Card>

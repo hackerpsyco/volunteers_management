@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -81,6 +82,7 @@ interface CalendarDay {
 
 export default function Calendar() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [sessions, setSessions] = useState<Session[]>([]);
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
@@ -858,6 +860,12 @@ export default function Calendar() {
                 </div>
                 
                 <div className="flex gap-2 flex-wrap">
+                  <button
+                    onClick={() => navigate(`/sessions/${selectedSession.id}/recording`)}
+                    className="flex-1 min-w-[120px] px-4 py-2 bg-green-600 border border-green-700 text-white rounded hover:bg-green-700 transition-colors text-sm font-medium"
+                  >
+                    Record Feedback
+                  </button>
                   <button
                     onClick={() => handleCancelSession(selectedSession.id)}
                     className="flex-1 min-w-[120px] px-4 py-2 bg-yellow-50 border border-yellow-200 text-yellow-700 rounded hover:bg-yellow-100 transition-colors text-sm font-medium"

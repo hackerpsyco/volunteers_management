@@ -141,7 +141,7 @@ export default function AddTask() {
         feedback_type: 'homework',
         task_name: formData.title,
         task_description: formData.description || null,
-        deadline: formData.due_date || null,
+        deadline: formData.due_date ? new Date(formData.due_date).toISOString() : null,
         submission_link: formData.submission_link || null,
         status: 'pending',
         created_at: new Date().toISOString(),
@@ -291,7 +291,7 @@ export default function AddTask() {
                 <Label htmlFor="due_date">Due Date</Label>
                 <Input
                   id="due_date"
-                  type="date"
+                  type="datetime-local"
                   value={formData.due_date}
                   onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
                 />

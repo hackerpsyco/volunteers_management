@@ -43,6 +43,14 @@ export default function TaskEdit() {
     fetchTaskData();
   }, [taskTitle]);
 
+  const formatDatetimeLocal = (dateString?: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return '';
+    const tzOffset = date.getTimezoneOffset() * 60000;
+    return new Date(date.getTime() - tzOffset).toISOString().slice(0, 16);
+  };
+
   const fetchTaskData = async () => {
     try {
       setLoading(true);
@@ -60,7 +68,7 @@ export default function TaskEdit() {
         setFormData({
           title: data.task_name || '',
           description: data.task_description || '',
-          dueDate: data.deadline ? new Date(data.deadline).toISOString().split('T')[0] : '',
+          dueDate: data.deadline ? formatDatetimeLocal(data.deadline) : '',
           academicYear: data.academic_year || '',
           reward: data.earning_amount || 0,
         });
@@ -219,7 +227,7 @@ export default function TaskEdit() {
                 Due Date
               </label>
               <input
-                type="date"
+                type="datetime-local"
                 value={formData.dueDate}
                 onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
                 className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"

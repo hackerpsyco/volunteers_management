@@ -340,31 +340,41 @@ export default function FeedbackDetails() {
                     {feedback.session_objective && (
                       <TableRow>
                         <TableCell className="font-semibold">Session Objective</TableCell>
-                        <TableCell className="whitespace-pre-wrap">{feedback.session_objective}</TableCell>
+                        <TableCell>
+                          <div dangerouslySetInnerHTML={{ __html: feedback.session_objective }} className="prose prose-sm max-w-none text-foreground/90 leading-relaxed" />
+                        </TableCell>
                       </TableRow>
                     )}
                     {feedback.practical_activities && (
                       <TableRow>
                         <TableCell className="font-semibold">Practical Activities</TableCell>
-                        <TableCell className="whitespace-pre-wrap">{feedback.practical_activities}</TableCell>
+                        <TableCell>
+                          <div dangerouslySetInnerHTML={{ __html: feedback.practical_activities }} className="prose prose-sm max-w-none text-foreground/90 leading-relaxed" />
+                        </TableCell>
                       </TableRow>
                     )}
                     {feedback.session_highlights && (
                       <TableRow>
                         <TableCell className="font-semibold">Session Highlights</TableCell>
-                        <TableCell className="whitespace-pre-wrap">{feedback.session_highlights}</TableCell>
+                        <TableCell>
+                          <div dangerouslySetInnerHTML={{ __html: feedback.session_highlights }} className="prose prose-sm max-w-none text-foreground/90 leading-relaxed" />
+                        </TableCell>
                       </TableRow>
                     )}
                     {feedback.learning_outcomes && (
                       <TableRow>
                         <TableCell className="font-semibold">Learning Outcomes</TableCell>
-                        <TableCell className="whitespace-pre-wrap">{feedback.learning_outcomes}</TableCell>
+                        <TableCell>
+                          <div dangerouslySetInnerHTML={{ __html: feedback.learning_outcomes }} className="prose prose-sm max-w-none text-foreground/90 leading-relaxed" />
+                        </TableCell>
                       </TableRow>
                     )}
                     {feedback.facilitator_reflection && (
                       <TableRow>
                         <TableCell className="font-semibold">Facilitator Reflection</TableCell>
-                        <TableCell className="whitespace-pre-wrap">{feedback.facilitator_reflection}</TableCell>
+                        <TableCell>
+                          <div dangerouslySetInnerHTML={{ __html: feedback.facilitator_reflection }} className="prose prose-sm max-w-none text-foreground/90 leading-relaxed" />
+                        </TableCell>
                       </TableRow>
                     )}
                     {feedback.best_performer && (
@@ -511,13 +521,17 @@ export default function FeedbackDetails() {
                     {feedback.guest_teacher_feedback && (
                       <TableRow>
                         <TableCell className="font-semibold">Guest Teacher Feedback</TableCell>
-                        <TableCell className="whitespace-pre-wrap">{feedback.guest_teacher_feedback}</TableCell>
+                        <TableCell>
+                          <div dangerouslySetInnerHTML={{ __html: feedback.guest_teacher_feedback }} className="prose prose-sm max-w-none text-foreground/90 leading-relaxed" />
+                        </TableCell>
                       </TableRow>
                     )}
                     {feedback.incharge_reviewer_feedback && (
                       <TableRow>
                         <TableCell className="font-semibold">Incharge/Reviewer Feedback</TableCell>
-                        <TableCell className="whitespace-pre-wrap">{feedback.incharge_reviewer_feedback}</TableCell>
+                        <TableCell>
+                          <div dangerouslySetInnerHTML={{ __html: feedback.incharge_reviewer_feedback }} className="prose prose-sm max-w-none text-foreground/90 leading-relaxed" />
+                        </TableCell>
                       </TableRow>
                     )}
                     {feedback.recording_url && (
