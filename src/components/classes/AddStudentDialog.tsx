@@ -84,40 +84,24 @@ export function AddStudentDialog({
 
       if (error) throw error;
       
-      // Automatically create Supabase Auth account via Edge Function
+      // Automatically create Supabase Auth account and User Profile via RPC
       try {
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
-                                import.meta.env.VITE_SUPABASE_ANON_KEY;
+        console.log('Ensuring student account for:', newStudent.email);
+        const { error: accountError } = await supabase.rpc('ensure_student_account', {
+          student_email: newStudent.email.trim(),
+          student_full_name: newStudent.name.trim(),
+          student_class_id: classId,
+          old_email: null
+        });
 
-        const response = await fetch(
-          `${supabaseUrl}/functions/v1/create-student-account`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${supabaseAnonKey}`,
-            },
-            body: JSON.stringify({
-              email: newStudent.email.trim(),
-              name: newStudent.name.trim(),
-            }),
-          }
-        );
-
-        const result = await response.json();
-
-        if (!response.ok) {
-          console.error('Account creation failed:', result);
+        if (accountError) {
+          console.error('Error ensuring student account:', accountError);
           toast.warning(
-            `Student added, but account creation failed: ${result.error || 'Unknown error'}. ` +
+            `Student added, but account creation failed: ${accountError.message || 'Unknown error'}. ` +
             'Student can be given access manually later.'
           );
-        } else if (result.already_existed) {
-          console.log('Auth account already existed for this email.');
-          // No extra toast — this is fine
         } else {
-          console.log('Auth account created:', result.userId);
+          console.log('Student auth account and profile ensured successfully');
         }
       } catch (accErr) {
         console.error('Exception during account creation:', accErr);
