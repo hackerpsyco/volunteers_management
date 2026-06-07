@@ -2,6 +2,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, ExternalLink, Edit2, Trash2 } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useState, useEffect } from 'react';
@@ -57,7 +58,7 @@ export default function TaskDetail() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [verifyingTaskId, setVerifyingTaskId] = useState<string | null>(null);
-  const [verifyingAmount, setVerifyingAmount] = useState<number>(5);
+  const [verifyingAmount, setVerifyingAmount] = useState<number | ''>(5);
   const [verificationComment, setVerificationComment] = useState<string>('');
 
   const { selectedYear } = useAcademicYear();
@@ -136,6 +137,13 @@ export default function TaskDetail() {
       
       const task = taskGroup?.tasks.find(t => t.id === taskId);
       if (!task) return;
+
+      const maxAmount = task.earning_amount || 5;
+      if (amount > maxAmount) {
+        toast.error(`Earning units cannot exceed the task limit of ${maxAmount} units.`);
+        setUpdatingId(null);
+        return;
+      }
 
       const { data, error } = await supabase
         .from('student_task_feedback')
@@ -492,64 +500,81 @@ export default function TaskDetail() {
       {/* Verification Dialog */}
       <Dialog open={!!verifyingTaskId} onOpenChange={(open) => !open && setVerifyingTaskId(null)}>
         <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Verify Submission</DialogTitle>
-            <DialogDescription>
-              Assign the earning units and add an optional comment explaining any adjustments for {taskGroup.tasks.find(t => t.id === verifyingTaskId)?.student_name}'s work.
-            </DialogDescription>
-          </DialogHeader>
+          {(() => {
+            const maxAmount = verifyingTaskId ? (taskGroup.tasks.find(t => t.id === verifyingTaskId)?.earning_amount || 5) : 5;
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle>Verify Submission</DialogTitle>
+                  <DialogDescription>
+                    Assign the earning units and add an optional comment explaining any adjustments for {taskGroup.tasks.find(t => t.id === verifyingTaskId)?.student_name}'s work.
+                  </DialogDescription>
+                </DialogHeader>
 
-          <div className="space-y-4 py-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="verifying-amount">Earning Units (Credits)</Label>
-              <Input
-                id="verifying-amount"
-                type="number"
-                value={verifyingAmount}
-                onChange={(e) => setVerifyingAmount(Number(e.target.value))}
-                min={0}
-                className="w-full"
-              />
-              <p className="text-xs text-muted-foreground">
-                Default starting units for this task: {taskGroup.tasks.find(t => t.id === verifyingTaskId)?.earning_amount || 5} units
-              </p>
-            </div>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="verifying-amount" className={cn(verifyingAmount !== '' && verifyingAmount > maxAmount && "text-destructive")}>Earning Units (Credits)</Label>
+                    <Input
+                      id="verifying-amount"
+                      type="number"
+                      value={verifyingAmount}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setVerifyingAmount(val === '' ? '' : Number(val));
+                      }}
+                      min={0}
+                      max={maxAmount}
+                      className={cn("w-full", verifyingAmount !== '' && verifyingAmount > maxAmount && "border-destructive focus-visible:ring-destructive")}
+                    />
+                    {verifyingAmount !== '' && verifyingAmount > maxAmount ? (
+                      <p className="text-xs text-destructive font-semibold">
+                        Earning units cannot exceed the task limit of {maxAmount} units.
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        Default starting units for this task: {maxAmount} units
+                      </p>
+                    )}
+                  </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="verifying-comment">Comment / Notes (Optional)</Label>
-              <Textarea
-                id="verifying-comment"
-                placeholder="Explain why the money was edited or any other notes for the student..."
-                value={verificationComment}
-                onChange={(e) => setVerificationComment(e.target.value)}
-                className="w-full min-h-[80px]"
-              />
-              <p className="text-xs text-muted-foreground">
-                This note will be shown to the student as a Teacher's Note and logged in their earnings report.
-              </p>
-            </div>
-          </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="verifying-comment">Comment / Notes (Optional)</Label>
+                    <Textarea
+                      id="verifying-comment"
+                      placeholder="Explain why the money was edited or any other notes for the student..."
+                      value={verificationComment}
+                      onChange={(e) => setVerificationComment(e.target.value)}
+                      className="w-full min-h-[80px]"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      This note will be shown to the student as a Teacher's Note and logged in their earnings report.
+                    </p>
+                  </div>
+                </div>
 
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setVerifyingTaskId(null)}
-              disabled={updatingId === verifyingTaskId}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                if (verifyingTaskId) {
-                  handleMarkAsDone(verifyingTaskId, verifyingAmount, verificationComment);
-                }
-              }}
-              disabled={updatingId === verifyingTaskId}
-              className="bg-green-600 hover:bg-green-700 text-white"
-            >
-              {updatingId === verifyingTaskId ? 'Verifying...' : 'Confirm Verified'}
-            </Button>
-          </DialogFooter>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => setVerifyingTaskId(null)}
+                    disabled={updatingId === verifyingTaskId}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      if (verifyingTaskId) {
+                        handleMarkAsDone(verifyingTaskId, verifyingAmount === '' ? 0 : verifyingAmount, verificationComment);
+                      }
+                    }}
+                    disabled={updatingId === verifyingTaskId || verifyingAmount === '' || verifyingAmount > maxAmount}
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    {updatingId === verifyingTaskId ? 'Verifying...' : 'Confirm Verified'}
+                  </Button>
+                </DialogFooter>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
       </div>

@@ -24,6 +24,7 @@ interface StudentPerformance {
   questions_asked: number;
   performance_rating: number;
   performance_comment: string;
+  bad_behaviour_points?: number;
 }
 
 interface Session {
@@ -43,6 +44,7 @@ export default function StudentPerformance() {
     questions_asked: 0,
     performance_rating: 5,
     performance_comment: '',
+    bad_behaviour_points: 0,
   });
 
   useEffect(() => {
@@ -80,7 +82,12 @@ export default function StudentPerformance() {
         .order('created_at', { ascending: true });
 
       if (error) throw error;
-      setStudentPerformance((data || []) as unknown as StudentPerformance[]);
+      
+      const cleaned = (data || []).map((item: any) => ({
+        ...item,
+        bad_behaviour_points: item.bad_behaviour_points ?? 0
+      }));
+      setStudentPerformance(cleaned as unknown as StudentPerformance[]);
     } catch (error) {
       console.error('Error fetching student performance:', error);
     }
@@ -102,18 +109,20 @@ export default function StudentPerformance() {
             questions_asked: newStudent.questions_asked,
             performance_rating: newStudent.performance_rating,
             performance_comment: newStudent.performance_comment,
+            bad_behaviour_points: newStudent.bad_behaviour_points ?? 0,
           },
         ])
         .select();
 
       if (error) throw error;
 
-      setStudentPerformance([...studentPerformance, data[0] as unknown as StudentPerformance]);
+      setStudentPerformance([...studentPerformance, { ...data[0], bad_behaviour_points: data[0].bad_behaviour_points ?? 0 } as unknown as StudentPerformance]);
       setNewStudent({
         student_name: '',
         questions_asked: 0,
         performance_rating: 5,
         performance_comment: '',
+        bad_behaviour_points: 0,
       });
       toast.success('Student added successfully');
     } catch (error) {
@@ -201,28 +210,50 @@ export default function StudentPerformance() {
               </div>
               <div>
                 <Label htmlFor="questions_asked" className="text-sm">No. of Questions Asked</Label>
-                <Input
+                <select
                   id="questions_asked"
-                  type="number"
-                  min="0"
                   value={newStudent.questions_asked}
                   onChange={(e) => setNewStudent({ ...newStudent, questions_asked: parseInt(e.target.value) || 0 })}
-                  className="mt-1"
-                />
+                  className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {Array.from({ length: 11 }, (_, i) => (
+                    <option key={i} value={i}>{i}</option>
+                  ))}
+                </select>
               </div>
               <div>
-                <Label htmlFor="performance_rating" className="text-sm">Performance Rating (1-10) *</Label>
-                <Input
+                <Label htmlFor="performance_rating" className="text-sm">Performance Rating (0-10) *</Label>
+                <select
                   id="performance_rating"
-                  type="number"
-                  min="1"
-                  max="10"
                   value={newStudent.performance_rating}
-                  onChange={(e) => setNewStudent({ ...newStudent, performance_rating: parseInt(e.target.value) || 5 })}
-                  className="mt-1"
-                />
+                  onChange={(e) => setNewStudent({ ...newStudent, performance_rating: parseInt(e.target.value) || 0 })}
+                  className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {Array.from({ length: 11 }, (_, i) => (
+                    <option key={i} value={i}>{i}</option>
+                  ))}
+                </select>
               </div>
-              <div className="flex items-end">
+              <div>
+                <Label htmlFor="bad_behaviour_points" className="text-sm">Bad Behaviour Points (0-10)</Label>
+                <select
+                  id="bad_behaviour_points"
+                  value={newStudent.bad_behaviour_points ?? 0}
+                  onChange={(e) => setNewStudent({ ...newStudent, bad_behaviour_points: parseInt(e.target.value) || 0 })}
+                  className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {Array.from({ length: 11 }, (_, i) => (
+                    <option key={i} value={i}>{i}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label className="text-sm">Calculated Total Rating</Label>
+                <div className="h-10 mt-1 flex items-center px-3 rounded-md border border-input bg-muted/50 text-sm font-bold text-blue-600">
+                  {Math.max(0, newStudent.performance_rating - (newStudent.bad_behaviour_points ?? 0))}/10
+                </div>
+              </div>
+              <div className="flex items-end md:col-span-2">
                 <Button
                   onClick={handleAddStudent}
                   className="w-full gap-2"
@@ -262,6 +293,8 @@ export default function StudentPerformance() {
                       <TableHead>Student Name</TableHead>
                       <TableHead className="w-[120px]">Questions</TableHead>
                       <TableHead className="w-[100px]">Rating</TableHead>
+                      <TableHead className="w-[120px]">Bad Behaviour</TableHead>
+                      <TableHead className="w-[100px]">Total Rating</TableHead>
                       <TableHead>Comment</TableHead>
                       <TableHead className="w-[60px]">Action</TableHead>
                     </TableRow>
@@ -273,6 +306,10 @@ export default function StudentPerformance() {
                         <TableCell className="font-medium">{student.student_name}</TableCell>
                         <TableCell className="text-center">{student.questions_asked}</TableCell>
                         <TableCell className="text-center font-medium">{student.performance_rating}/10</TableCell>
+                        <TableCell className="text-center font-medium">{(student.bad_behaviour_points ?? 0)}/10</TableCell>
+                        <TableCell className="text-center font-bold text-blue-600">
+                          {Math.max(0, (student.performance_rating ?? 0) - (student.bad_behaviour_points ?? 0))}/10
+                        </TableCell>
                         <TableCell className="max-w-[200px] truncate text-sm">{student.performance_comment || '-'}</TableCell>
                         <TableCell>
                           <Button

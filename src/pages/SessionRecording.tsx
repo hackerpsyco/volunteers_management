@@ -62,6 +62,7 @@ interface StudentPerformance {
   questions_asked: number;
   performance_rating: number;
   performance_comment: string | null;
+  bad_behaviour_points?: number;
 }
 
 interface SessionHoursTracker {
@@ -76,6 +77,12 @@ interface SessionHoursTracker {
   logged_hours_in_benevity: boolean;
   notes: string;
 }
+
+const isRichTextEmpty = (html: string | null | undefined) => {
+  if (!html) return true;
+  const stripped = html.replace(/<[^>]*>/g, '').trim();
+  return stripped.length === 0;
+};
 
 export default function SessionRecording() {
   const navigate = useNavigate();
@@ -142,6 +149,8 @@ export default function SessionRecording() {
 
   const [isListening, setIsListening] = useState(false);
   const [isEditingHomework, setIsEditingHomework] = useState(false);
+  const [isBestPerformerManual, setIsBestPerformerManual] = useState(false);
+  const [rewardConfigs, setRewardConfigs] = useState<{ task_type: string, rate_per_task: number }[]>([]);
 
   const toggleVoiceTyping = () => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
@@ -194,6 +203,55 @@ export default function SessionRecording() {
     }
   }, [user?.id]);
 
+  useEffect(() => {
+    if (isBestPerformerManual || students.length === 0) return;
+
+    // Calculate top 3 present students with highest score (Rating - Bad Behaviour)
+    const resolved = students.map(student => {
+      const formDataForStudent = studentFormData[student.id];
+      const dbDataForStudent = studentPerformance.find(sp => (sp.student_name || '').trim() === student.name.trim());
+      const perfData = formDataForStudent || dbDataForStudent || {
+        student_name: student.name,
+        attendance_status: 'Present',
+        questions_asked: 0,
+        performance_rating: 0,
+        performance_comment: '',
+        bad_behaviour_points: 0,
+      };
+      
+      const rating = Number(perfData.performance_rating) || 0;
+      const badBehaviour = Number((perfData as any).bad_behaviour_points) || 0;
+      const score = Math.max(0, rating - badBehaviour);
+      const questions = Number(perfData.questions_asked) || 0;
+
+      return {
+        name: student.name,
+        isPresent: perfData.attendance_status !== 'Absent',
+        score,
+        questions,
+      };
+    });
+
+    // Filter present students with a positive rating/score
+    const eligible = resolved.filter(s => s.isPresent && s.score > 0);
+
+    // Sort descending by score, then by questions asked
+    eligible.sort((a, b) => {
+      if (b.score !== a.score) {
+        return b.score - a.score;
+      }
+      return b.questions - a.questions;
+    });
+
+    // Get top 3 names
+    const top3Names = eligible.slice(0, 3).map(s => s.name).join(', ');
+
+    // Only update if changed to avoid infinite rendering loop
+    if (formData.best_performer !== top3Names) {
+      setFormData(prev => ({ ...prev, best_performer: top3Names }));
+    }
+  }, [studentFormData, studentPerformance, students, isBestPerformerManual, formData.best_performer]);
+
   const loadUserRole = async () => {
     try {
       const { data, error } = await supabase
@@ -221,8 +279,21 @@ export default function SessionRecording() {
       fetchHoursTracker();
       fetchHomeworkRecords();
       fetchStudents();
+      fetchRewardConfigs();
     }
   }, [sessionId, selectedYear]);
+
+  const fetchRewardConfigs = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('reward_configurations')
+        .select('task_type, rate_per_task')
+        .order('task_type');
+      if (!error && data) setRewardConfigs(data);
+    } catch (e) {
+      console.error('Error fetching reward configs:', e);
+    }
+  };
 
   const fetchSession = async () => {
     try {
@@ -257,13 +328,14 @@ export default function SessionRecording() {
         coordinator_name: sessionData.coordinators?.name || null,
         preferred_class: preferredClass,
       } as SessionRecording);
+      const bestPerformerVal = (sessionData as any).best_performer || '';
       setFormData({
         session_objective: (sessionData as any).session_objective || '',
         practical_activities: (sessionData as any).practical_activities || '',
         session_highlights: (sessionData as any).session_highlights || '',
         learning_outcomes: (sessionData as any).learning_outcomes || '',
         facilitator_reflection: (sessionData as any).facilitator_reflection || '',
-        best_performer: (sessionData as any).best_performer || '',
+        best_performer: bestPerformerVal,
         guest_teacher_feedback: (sessionData as any).guest_teacher_feedback || '',
         incharge_reviewer_feedback: (sessionData as any).incharge_reviewer_feedback || '',
         recording_url: (sessionData as any).recording_url || '',
@@ -276,6 +348,11 @@ export default function SessionRecording() {
         coordinator_session_strength: (sessionData as any).coordinator_session_strength || 5,
         class_batch: (sessionData as any).class_batch || '',
       } as any);
+      if (bestPerformerVal) {
+        setIsBestPerformerManual(true);
+      } else {
+        setIsBestPerformerManual(false);
+      }
     } catch (error) {
       console.error('Error fetching session:', error);
       toast.error('Failed to load session');
@@ -302,6 +379,7 @@ export default function SessionRecording() {
         performance_comment: (item.performance_comment === 'Present' || item.performance_comment === 'Absent') ? '' : (item.performance_comment || ''),
         performance_rating: item.performance_rating === 5 ? 0 : (item.performance_rating ?? 0),
         questions_asked: item.questions_asked ?? 0,
+        bad_behaviour_points: item.bad_behaviour_points ?? 0,
       }));
 
       setStudentPerformance(cleaned as unknown as StudentPerformance[]);
@@ -347,7 +425,8 @@ export default function SessionRecording() {
           status,
           feedback_notes,
           earning_amount,
-          students:student_id(name)
+          students:student_id(name),
+          student_earnings(amount)
         `)
         .eq('session_id', sessionId)
         .order('created_at', { ascending: false });
@@ -357,10 +436,16 @@ export default function SessionRecording() {
         return;
       }
 
-      const transformedData = (data || []).map((item: any) => ({
-        ...item,
-        student_name: item.students?.name || 'Unknown',
-      }));
+      const transformedData = (data || []).map((item: any) => {
+        const actualEarning = item.status === 'completed'
+          ? (item.student_earnings?.[0]?.amount ?? item.earning_amount ?? 5)
+          : 0;
+        return {
+          ...item,
+          student_name: item.students?.name || 'Unknown',
+          actual_earning: Number(actualEarning)
+        };
+      });
 
       setHomeworkRecords(transformedData);
     } catch (error) {
@@ -506,6 +591,7 @@ export default function SessionRecording() {
   };
 
   const handleTogglePerformer = (studentName: string) => {
+    setIsBestPerformerManual(true);
     const currentNames = formData.best_performer 
       ? formData.best_performer.split(',').map(name => name.trim()).filter(Boolean)
       : [];
@@ -520,6 +606,78 @@ export default function SessionRecording() {
 
   const handleSaveFeedback = async () => {
     if (!sessionId) return;
+
+    // Validation for Facilitator (Teacher) feedback fields
+    if (currentPage === 1) {
+      if (isRichTextEmpty(formData.session_objective)) {
+        toast.error("Session Objective is required");
+        return;
+      }
+      if (!formData.mic_sound_rating || formData.mic_sound_rating < 1 || formData.mic_sound_rating > 10) {
+        toast.error("Mic/Sound Quality rating is required (1-10)");
+        return;
+      }
+      if (!formData.seating_view_rating || formData.seating_view_rating < 1 || formData.seating_view_rating > 10) {
+        toast.error("Seating/View rating is required (1-10)");
+        return;
+      }
+      if (!formData.session_strength || formData.session_strength < 1 || formData.session_strength > 10) {
+        toast.error("Session Strength rating is required (1-10)");
+        return;
+      }
+      if (isRichTextEmpty(formData.practical_activities)) {
+        toast.error("Practical Activities is required");
+        return;
+      }
+      if (isRichTextEmpty(formData.session_highlights)) {
+        toast.error("Session Highlights is required");
+        return;
+      }
+      if (isRichTextEmpty(formData.learning_outcomes)) {
+        toast.error("Learning Outcomes is required");
+        return;
+      }
+      if (isRichTextEmpty(formData.facilitator_reflection)) {
+        toast.error("Facilitator Reflection is required");
+        return;
+      }
+      if (getPresentStudents().length > 0 && (!formData.best_performer || formData.best_performer.trim() === '')) {
+        toast.error("Best Performer is required (select at least one student)");
+        return;
+      }
+      if (!(formData as any).record_sheet_link || (formData as any).record_sheet_link.trim() === '') {
+        toast.error("Record Sheet Link is required");
+        return;
+      }
+    }
+
+    // Validation for Coordinator feedback fields
+    if (currentPage === 3) {
+      if (isRichTextEmpty(formData.guest_teacher_feedback)) {
+        toast.error("Guest Teacher Feedback is required");
+        return;
+      }
+      if (isRichTextEmpty(formData.incharge_reviewer_feedback)) {
+        toast.error("Feedback by Coordinator is required");
+        return;
+      }
+      if (!formData.recording_url || formData.recording_url.trim() === '') {
+        toast.error("Session Video Recording URL is required");
+        return;
+      }
+      if (!formData.coordinator_mic_sound_rating || formData.coordinator_mic_sound_rating < 1 || formData.coordinator_mic_sound_rating > 10) {
+        toast.error("Coordinator Mic/Sound Quality rating is required (1-10)");
+        return;
+      }
+      if (!formData.coordinator_seating_view_rating || formData.coordinator_seating_view_rating < 1 || formData.coordinator_seating_view_rating > 10) {
+        toast.error("Coordinator Seating/View rating is required (1-10)");
+        return;
+      }
+      if (!formData.coordinator_session_strength || formData.coordinator_session_strength < 1 || formData.coordinator_session_strength > 10) {
+        toast.error("Coordinator Session Strength rating is required (1-10)");
+        return;
+      }
+    }
 
     try {
       setSaving(true);
@@ -565,10 +723,9 @@ export default function SessionRecording() {
       // Determine what the statuses will be after this update
       const facilitatorStatus = currentPage === 1 ? 'done' : (currentSession?.facilitator_feedback_status || 'pending');
       const coordinatorStatus = currentPage === 3 ? 'done' : (currentSession?.coordinator_feedback_status || 'pending');
-      const supervisorStatus = currentSession?.supervisor_feedback_status || 'pending';
 
-      // If all three are done, mark the session as completed
-      if (facilitatorStatus === 'done' && coordinatorStatus === 'done' && supervisorStatus === 'done') {
+      // If both teacher (facilitator) and coordinator feedback are done, mark the session as completed
+      if (facilitatorStatus === 'done' && coordinatorStatus === 'done') {
         updateData.status = 'completed';
         updateData.admin_feedback_status = 'submitted';
       }
@@ -665,6 +822,51 @@ export default function SessionRecording() {
 
   const handleSaveHoursTracker = async () => {
     if (!sessionId) return;
+
+    if (
+      hoursData.plan_coordinate_hours === '' ||
+      hoursData.plan_coordinate_hours === null ||
+      hoursData.plan_coordinate_hours === undefined ||
+      hoursData.plan_coordinate_hours < 0
+    ) {
+      toast.error('Plan & Coordinate Hours is required and must be 0 or more.');
+      return;
+    }
+    if (
+      hoursData.preparation_hours === '' ||
+      hoursData.preparation_hours === null ||
+      hoursData.preparation_hours === undefined ||
+      hoursData.preparation_hours < 0
+    ) {
+      toast.error('Preparation Hours is required and must be 0 or more.');
+      return;
+    }
+    if (
+      hoursData.session_hours === '' ||
+      hoursData.session_hours === null ||
+      hoursData.session_hours === undefined ||
+      hoursData.session_hours < 0
+    ) {
+      toast.error('Session Hours is required and must be 0 or more.');
+      return;
+    }
+    if (
+      hoursData.reflection_feedback_followup_hours === '' ||
+      hoursData.reflection_feedback_followup_hours === null ||
+      hoursData.reflection_feedback_followup_hours === undefined ||
+      hoursData.reflection_feedback_followup_hours < 0
+    ) {
+      toast.error('Reflection & Feedback & Followup Hours is required and must be 0 or more.');
+      return;
+    }
+    if (!hoursValidationId || hoursValidationId.trim() === '') {
+      toast.error('Benevity ID is required.');
+      return;
+    }
+    if (!hoursData.notes || hoursData.notes.trim() === '') {
+      toast.error('Notes is required.');
+      return;
+    }
 
     try {
       setSaving(true);
@@ -767,6 +969,7 @@ export default function SessionRecording() {
       questions_asked: 0,
       performance_rating: 0,
       performance_comment: '',
+      bad_behaviour_points: 0,
     };
 
     const updatedData = {
@@ -803,6 +1006,7 @@ export default function SessionRecording() {
           attendance_status: data.attendance_status || 'Present',
           questions_asked: data.questions_asked ?? 0,
           performance_comment: data.performance_comment || '',
+          bad_behaviour_points: data.bad_behaviour_points ?? 0,
         };
 
         // Only include rating if it's not our "0" placeholder, or let the DB handle it if allowed
@@ -828,6 +1032,7 @@ export default function SessionRecording() {
               attendance_status: payload.attendance_status,
               questions_asked: payload.questions_asked,
               performance_comment: payload.performance_comment,
+              bad_behaviour_points: payload.bad_behaviour_points,
             }, { onConflict: 'session_id,student_name' });
           
           if (retryError) throw retryError;
@@ -914,6 +1119,11 @@ export default function SessionRecording() {
   const handleSaveHomework = async () => {
     if (!newHomework.task_name.trim()) {
       toast.error('Please enter a task name');
+      return;
+    }
+
+    if (!newHomework.task_type) {
+      toast.error('Please select a task type');
       return;
     }
 
@@ -1025,6 +1235,35 @@ export default function SessionRecording() {
       </DashboardLayout>
     );
   }
+
+  const handleNextPage = () => {
+    if (currentPage === 1) {
+      if (currentSubTab === 'a') {
+        setCurrentSubTab('b');
+      } else if (currentSubTab === 'b') {
+        setCurrentSubTab('c');
+      } else if (currentSubTab === 'c') {
+        setCurrentPage(3);
+      }
+    } else if (currentPage === 3) {
+      setCurrentPage(2);
+    }
+  };
+
+  const handlePreviousPage = () => {
+    if (currentPage === 2) {
+      setCurrentPage(3);
+    } else if (currentPage === 3) {
+      setCurrentPage(1);
+      setCurrentSubTab('c');
+    } else if (currentPage === 1) {
+      if (currentSubTab === 'c') {
+        setCurrentSubTab('b');
+      } else if (currentSubTab === 'b') {
+        setCurrentSubTab('a');
+      }
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -1169,11 +1408,10 @@ export default function SessionRecording() {
 
             {/* Sub-tab a: Session Objective Only */}
             {currentSubTab === 'a' && (
-              <div className="space-y-4">
-                {/* Session Objective */}
+              <div className="space-y-4">                 {/* Session Objective */}
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-base">Session Objective</CardTitle>
+                    <CardTitle className="text-base">Session Objective <span className="text-destructive">*</span></CardTitle>
                   </CardHeader>
                   <CardContent>
                     <RichTextEditor
@@ -1192,7 +1430,7 @@ export default function SessionRecording() {
                   <CardContent className="space-y-4">
                     <div className="grid grid-cols-3 gap-4">
                       <div>
-                        <Label className="text-sm font-medium">Mic/Sound Quality</Label>
+                        <Label className="text-sm font-medium">Mic/Sound Quality <span className="text-destructive">*</span></Label>
                         <Input
                           type="number"
                           min="1"
@@ -1207,7 +1445,7 @@ export default function SessionRecording() {
                         <p className="text-xs text-muted-foreground mt-1">Rate 1-10</p>
                       </div>
                       <div>
-                        <Label className="text-sm font-medium">Seating/View</Label>
+                        <Label className="text-sm font-medium">Seating/View <span className="text-destructive">*</span></Label>
                         <Input
                           type="number"
                           min="1"
@@ -1222,7 +1460,7 @@ export default function SessionRecording() {
                         <p className="text-xs text-muted-foreground mt-1">Rate 1-10</p>
                       </div>
                       <div>
-                        <Label className="text-sm font-medium">Session Strength</Label>
+                        <Label className="text-sm font-medium">Session Strength <span className="text-destructive">*</span></Label>
                         <Input
                           type="number"
                           min="1"
@@ -1248,7 +1486,7 @@ export default function SessionRecording() {
                 {/* Practical Activities */}
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-base">Practical Activities</CardTitle>
+                    <CardTitle className="text-base">Practical Activities <span className="text-destructive">*</span></CardTitle>
                   </CardHeader>
                   <CardContent>
                     <RichTextEditor
@@ -1263,7 +1501,7 @@ export default function SessionRecording() {
                 {/* Session Highlights */}
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-base">Session Highlights</CardTitle>
+                    <CardTitle className="text-base">Session Highlights <span className="text-destructive">*</span></CardTitle>
                   </CardHeader>
                   <CardContent>
                     <RichTextEditor
@@ -1278,7 +1516,7 @@ export default function SessionRecording() {
                 {/* Learning Outcomes */}
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-base">Learning Outcomes</CardTitle>
+                    <CardTitle className="text-base">Learning Outcomes <span className="text-destructive">*</span></CardTitle>
                   </CardHeader>
                   <CardContent>
                     <RichTextEditor
@@ -1389,19 +1627,25 @@ export default function SessionRecording() {
 
                         {/* Header Row */}
                         <div className="grid grid-cols-12 gap-2 pb-2 border-b border-border">
-                          <div className="col-span-3">
+                          <div className="col-span-2">
                             <p className="text-xs font-semibold text-muted-foreground">Student Name</p>
                           </div>
-                          <div className="col-span-2 text-center">
+                          <div className="col-span-1 text-center">
                             <p className="text-xs font-semibold text-muted-foreground">Status</p>
                           </div>
                           <div className="col-span-2">
-                            <p className="text-xs font-semibold text-muted-foreground">Questions</p>
+                            <p className="text-xs font-semibold text-muted-foreground text-center">Questions</p>
                           </div>
                           <div className="col-span-2">
-                            <p className="text-xs font-semibold text-muted-foreground">Rating</p>
+                            <p className="text-xs font-semibold text-muted-foreground text-center">Rating</p>
                           </div>
-                          <div className="col-span-3">
+                          <div className="col-span-2">
+                            <p className="text-xs font-semibold text-muted-foreground text-center">Bad Behaviour</p>
+                          </div>
+                          <div className="col-span-1 text-center">
+                            <p className="text-xs font-semibold text-muted-foreground">Total</p>
+                          </div>
+                          <div className="col-span-2">
                             <p className="text-xs font-semibold text-muted-foreground">Comment</p>
                           </div>
                         </div>
@@ -1410,14 +1654,14 @@ export default function SessionRecording() {
                         {getProcessedStudents().map(({ student, perfData, dbDataForStudent }) => {
                           return (
                             <div key={student.id} className="grid grid-cols-12 gap-2 items-center py-2 hover:bg-muted/30 rounded px-2 transition-colors">
-                              <div className="col-span-3">
+                              <div className="col-span-2">
                                 <p className="text-sm font-medium truncate">
                                   {student.name}
                                   {student.student_id && <span className="text-xs text-muted-foreground ml-1">({student.student_id})</span>}
                                 </p>
                               </div>
 
-                              <div className="col-span-2 flex justify-center">
+                              <div className="col-span-1 flex justify-center">
                                 {(() => {
                                   const isAbsent = perfData.attendance_status === 'Absent';
                                   return (
@@ -1428,7 +1672,7 @@ export default function SessionRecording() {
                                         setStudentFormData(prev => ({
                                           ...prev,
                                           [student.id]: { 
-                                            ...(prev[student.id] || dbDataForStudent || { attendance_status: 'Present', performance_rating: 0, questions_asked: 0, performance_comment: '' }), 
+                                            ...(prev[student.id] || dbDataForStudent || { attendance_status: 'Present', performance_rating: 0, questions_asked: 0, performance_comment: '', bad_behaviour_points: 0 }), 
                                             attendance_status: newValue 
                                           }
                                         }));
@@ -1445,47 +1689,73 @@ export default function SessionRecording() {
                                 })()}
                               </div>
                               <div className="col-span-2">
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  value={perfData.questions_asked ?? ''}
+                                <select
+                                  value={perfData.questions_asked ?? 0}
                                   onChange={(e) => {
-                                    const val = e.target.value;
-                                    const newValue = val === '' ? '' : parseInt(val);
+                                    const newValue = parseInt(e.target.value) || 0;
                                     setStudentFormData(prev => ({
                                       ...prev,
                                       [student.id]: { 
-                                        ...(prev[student.id] || dbDataForStudent || { attendance_status: 'Present', performance_rating: 0, questions_asked: 0, performance_comment: '' }), 
-                                        questions_asked: newValue as any
+                                        ...(prev[student.id] || dbDataForStudent || { attendance_status: 'Present', performance_rating: 0, questions_asked: 0, performance_comment: '', bad_behaviour_points: 0 }), 
+                                        questions_asked: newValue
                                       }
                                     }));
                                   }}
-                                  className="h-8 text-xs p-1"
-                                />
+                                  className="h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                                >
+                                  {Array.from({ length: 11 }, (_, i) => (
+                                    <option key={i} value={i}>{i}</option>
+                                  ))}
+                                </select>
                               </div>
  
                               <div className="col-span-2">
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  max="10"
-                                  value={perfData.performance_rating ?? ''}
+                                <select
+                                  value={perfData.performance_rating ?? 0}
                                   onChange={(e) => {
-                                    const val = e.target.value;
-                                    const newValue = val === '' ? '' : parseInt(val);
+                                    const newValue = parseInt(e.target.value) || 0;
                                     setStudentFormData(prev => ({
                                       ...prev,
                                       [student.id]: { 
-                                        ...(prev[student.id] || dbDataForStudent || { attendance_status: 'Present', performance_rating: 0, questions_asked: 0, performance_comment: '' }), 
-                                        performance_rating: newValue as any
+                                        ...(prev[student.id] || dbDataForStudent || { attendance_status: 'Present', performance_rating: 0, questions_asked: 0, performance_comment: '', bad_behaviour_points: 0 }), 
+                                        performance_rating: newValue
                                       }
                                     }));
                                   }}
-                                  className="h-8 text-xs p-1"
-                                />
+                                  className="h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                                >
+                                  {Array.from({ length: 11 }, (_, i) => (
+                                    <option key={i} value={i}>{i}</option>
+                                  ))}
+                                </select>
                               </div>
 
-                              <div className="col-span-3">
+                              <div className="col-span-2">
+                                <select
+                                  value={perfData.bad_behaviour_points ?? 0}
+                                  onChange={(e) => {
+                                    const newValue = parseInt(e.target.value) || 0;
+                                    setStudentFormData(prev => ({
+                                      ...prev,
+                                      [student.id]: { 
+                                        ...(prev[student.id] || dbDataForStudent || { attendance_status: 'Present', performance_rating: 0, questions_asked: 0, performance_comment: '', bad_behaviour_points: 0 }), 
+                                        bad_behaviour_points: newValue
+                                      }
+                                    }));
+                                  }}
+                                  className="h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                                >
+                                  {Array.from({ length: 11 }, (_, i) => (
+                                    <option key={i} value={i}>{i}</option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div className="col-span-1 text-center font-bold text-blue-600 text-sm">
+                                {Math.max(0, (perfData.performance_rating ?? 0) - (perfData.bad_behaviour_points ?? 0))}
+                              </div>
+
+                              <div className="col-span-2">
                                 <Input
                                   type="text"
                                   value={perfData.performance_comment || ''}
@@ -1493,7 +1763,7 @@ export default function SessionRecording() {
                                     setStudentFormData(prev => ({
                                       ...prev,
                                       [student.id]: { 
-                                        ...(prev[student.id] || dbDataForStudent || { attendance_status: 'Present', performance_rating: 0, questions_asked: 0, performance_comment: '' }), 
+                                        ...(prev[student.id] || dbDataForStudent || { attendance_status: 'Present', performance_rating: 0, questions_asked: 0, performance_comment: '', bad_behaviour_points: 0 }), 
                                         performance_comment: e.target.value 
                                       }
                                     }));
@@ -1521,11 +1791,10 @@ export default function SessionRecording() {
                     )}
                   </CardContent>
                 </Card>
-
-                {/* Facilitator Reflection */}
+                 {/* Facilitator Reflection */}
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-base">Facilitator Reflection</CardTitle>
+                    <CardTitle className="text-base">Facilitator Reflection <span className="text-destructive">*</span></CardTitle>
                   </CardHeader>
                   <CardContent>
                     <RichTextEditor
@@ -1540,7 +1809,7 @@ export default function SessionRecording() {
                 {/* Best Performer */}
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-base">Best Performer</CardTitle>
+                    <CardTitle className="text-base">Best Performer <span className="text-destructive">*</span></CardTitle>
                   </CardHeader>
                   <CardContent>
                     {(() => {
@@ -1633,12 +1902,12 @@ export default function SessionRecording() {
                   <CardHeader>
                     <CardTitle className="text-base flex items-center gap-2">
                       <ExternalLink className="h-4 w-4" />
-                      Record Sheet Link
+                      Record Sheet Link <span className="text-destructive">*</span>
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div>
-                      <Label htmlFor="record_sheet_link" className="text-sm">Record Sheet</Label>
+                      <Label htmlFor="record_sheet_link" className="text-sm">Record Sheet <span className="text-destructive">*</span></Label>
                       <Input
                         id="record_sheet_link"
                         type="url"
@@ -1748,22 +2017,27 @@ export default function SessionRecording() {
                           />
                         </div>
                         <div>
-                          <Label htmlFor="hw_type" className="text-sm">Task Type</Label>
+                          <Label htmlFor="hw_type" className="text-sm">Task Type *</Label>
                           <Select
                             value={newHomework.task_type}
-                            onValueChange={(v) => setNewHomework({ ...newHomework, task_type: v })}
+                            onValueChange={(v) => {
+                              const config = rewardConfigs.find(c => c.task_type === v);
+                              setNewHomework({ 
+                                ...newHomework, 
+                                task_type: v,
+                                earning_amount: config ? config.rate_per_task.toString() : newHomework.earning_amount
+                              });
+                            }}
                           >
                             <SelectTrigger id="hw_type" className="mt-1">
                               <SelectValue placeholder="Select task type" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="English Reading & speaking Task">English Reading & speaking Task</SelectItem>
-                              <SelectItem value="CCC - Computers - Task">CCC - Computers - Task</SelectItem>
-                              <SelectItem value="GT Session Task">GT Session Task</SelectItem>
-                              <SelectItem value="Mentor connect Task">Mentor connect Task</SelectItem>
-                              <SelectItem value="Bonus for 100% attendance">Bonus for 100% attendance</SelectItem>
-                              <SelectItem value="homework">Homework</SelectItem>
-                              <SelectItem value="task">Other Task</SelectItem>
+                              {rewardConfigs.map((config) => (
+                                <SelectItem key={config.task_type} value={config.task_type}>
+                                  {config.task_type}
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                         </div>
@@ -1905,8 +2179,8 @@ export default function SessionRecording() {
                               </div>
                               <div>
                                 <span className="text-muted-foreground">Earning</span>
-                                <p className="font-medium text-green-600 font-bold">
-                                  {homework.earning_amount || 5} units
+                                <p className={cn("font-medium font-bold", homework.status === 'completed' ? "text-green-600" : "text-muted-foreground")}>
+                                  {homework.actual_earning} units
                                 </p>
                               </div>
                             </div>
@@ -1950,11 +2224,11 @@ export default function SessionRecording() {
           <div className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Guest Teacher Feedback</CardTitle>
+                <CardTitle className="text-base">Guest Teacher Feedback <span className="text-destructive">*</span></CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div>
-                  <Label htmlFor="guest_teacher_feedback" className="text-sm">Feedback</Label>
+                  <Label htmlFor="guest_teacher_feedback" className="text-sm">Feedback <span className="text-destructive">*</span></Label>
                   <RichTextEditor
                     value={formData.guest_teacher_feedback || ''}
                     onChange={(value) => setFormData({ ...formData, guest_teacher_feedback: value })}
@@ -1967,7 +2241,7 @@ export default function SessionRecording() {
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Feedback by Coordinator</CardTitle>
+                <CardTitle className="text-base">Feedback by Coordinator <span className="text-destructive">*</span></CardTitle>
               </CardHeader>
               <CardContent>
                 <RichTextEditor
@@ -1983,12 +2257,12 @@ export default function SessionRecording() {
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
                   <ExternalLink className="h-4 w-4" />
-                  Session Video Recording
+                  Session Video Recording <span className="text-destructive">*</span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  <Label htmlFor="recording_url" className="text-sm">Session Video Recording URL</Label>
+                  <Label htmlFor="recording_url" className="text-sm">Session Video Recording URL <span className="text-destructive">*</span></Label>
                   <Input
                     id="recording_url"
                     type="url"
@@ -2014,12 +2288,12 @@ export default function SessionRecording() {
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Coordinator Quality Ratings</CardTitle>
+                <CardTitle className="text-base">Coordinator Quality Ratings <span className="text-destructive">*</span></CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <Label className="text-sm font-medium">Mic/Sound Quality</Label>
+                    <Label className="text-sm font-medium">Mic/Sound Quality <span className="text-destructive">*</span></Label>
                     <Input
                       type="number"
                       min="1"
@@ -2034,7 +2308,7 @@ export default function SessionRecording() {
                     <p className="text-xs text-muted-foreground mt-1">Rate 1-10</p>
                   </div>
                   <div>
-                    <Label className="text-sm font-medium">Seating/View</Label>
+                    <Label className="text-sm font-medium">Seating/View <span className="text-destructive">*</span></Label>
                     <Input
                       type="number"
                       min="1"
@@ -2049,7 +2323,7 @@ export default function SessionRecording() {
                     <p className="text-xs text-muted-foreground mt-1">Rate 1-10</p>
                   </div>
                   <div>
-                    <Label className="text-sm font-medium">Session Strength</Label>
+                    <Label className="text-sm font-medium">Session Strength <span className="text-destructive">*</span></Label>
                     <Input
                       type="number"
                       min="1"
@@ -2109,7 +2383,7 @@ export default function SessionRecording() {
                       <CardContent className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
-                            <Label htmlFor="plan_coordinate_hours" className="text-sm">Plan & Coordinate Hours</Label>
+                            <Label htmlFor="plan_coordinate_hours" className="text-sm">Plan & Coordinate Hours <span className="text-destructive">*</span></Label>
                             <Input
                               id="plan_coordinate_hours"
                               type="number"
@@ -2125,7 +2399,7 @@ export default function SessionRecording() {
                             />
                           </div>
                           <div>
-                            <Label htmlFor="preparation_hours" className="text-sm">Preparation Hours</Label>
+                            <Label htmlFor="preparation_hours" className="text-sm">Preparation Hours <span className="text-destructive">*</span></Label>
                             <Input
                               id="preparation_hours"
                               type="number"
@@ -2141,7 +2415,7 @@ export default function SessionRecording() {
                             />
                           </div>
                           <div>
-                            <Label htmlFor="session_hours" className="text-sm">Session Hours</Label>
+                            <Label htmlFor="session_hours" className="text-sm">Session Hours <span className="text-destructive">*</span></Label>
                             <Input
                               id="session_hours"
                               type="number"
@@ -2157,7 +2431,7 @@ export default function SessionRecording() {
                             />
                           </div>
                           <div>
-                            <Label htmlFor="reflection_feedback_followup_hours" className="text-sm">Reflection & Feedback & Followup Hours</Label>
+                            <Label htmlFor="reflection_feedback_followup_hours" className="text-sm">Reflection & Feedback & Followup Hours <span className="text-destructive">*</span></Label>
                             <Input
                               id="reflection_feedback_followup_hours"
                               type="number"
@@ -2206,7 +2480,7 @@ export default function SessionRecording() {
 
                         {/* Notes */}
                         <div>
-                          <Label htmlFor="hours_notes" className="text-sm">Notes</Label>
+                          <Label htmlFor="hours_notes" className="text-sm">Notes <span className="text-destructive">*</span></Label>
                           <Textarea
                             id="hours_notes"
                             value={hoursData.notes}
@@ -2229,7 +2503,7 @@ export default function SessionRecording() {
                       </CardHeader>
                       <CardContent className="space-y-4">
                         <div>
-                          <Label htmlFor="hours_validation_id" className="text-sm">Benevity ID</Label>
+                          <Label htmlFor="hours_validation_id" className="text-sm">Benevity ID <span className="text-destructive">*</span></Label>
                           <Input
                             id="hours_validation_id"
                             type="text"
@@ -2272,10 +2546,10 @@ export default function SessionRecording() {
           </Button>
 
           <div className="flex gap-2">
-            {currentPage > 1 && (
+            {!(currentPage === 1 && currentSubTab === 'a') && (
               <Button
                 variant="outline"
-                onClick={() => setCurrentPage(currentPage - 1)}
+                onClick={handlePreviousPage}
                 className="gap-2"
               >
                 <ChevronLeft className="h-4 w-4" />
@@ -2283,9 +2557,9 @@ export default function SessionRecording() {
               </Button>
             )}
 
-            {currentPage < 3 && (
+            {currentPage !== 2 && (
               <Button
-                onClick={() => setCurrentPage(currentPage + 1)}
+                onClick={handleNextPage}
                 variant="outline"
                 className="gap-2"
               >

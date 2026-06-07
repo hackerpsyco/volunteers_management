@@ -51,6 +51,7 @@ interface StudentPerformance {
   questions_asked: number;
   performance_rating: number;
   performance_comment: string;
+  bad_behaviour_points?: number;
 }
 
 interface SessionHoursTracker {
@@ -127,6 +128,7 @@ export default function FeedbackDetails() {
         student_name: (item.student_name || '').trim(),
         performance_comment: (item.performance_comment === 'Present' || item.performance_comment === 'Absent') ? '' : (item.performance_comment || ''),
         performance_rating: item.performance_rating === 5 ? 0 : (item.performance_rating ?? 0),
+        bad_behaviour_points: item.bad_behaviour_points ?? 0,
       }));
 
       const deduplicated = cleaned.reduce((acc: any[], current: any) => {
@@ -416,7 +418,7 @@ export default function FeedbackDetails() {
                 <div className="mt-6">
                   <h3 className="font-semibold text-sm mb-3">Student Performance Records</h3>
                   <div className="overflow-x-auto">
-                    <Table>
+                     <Table>
                       <TableHeader>
                         <TableRow>
                           <TableHead className="w-[50px]">SN</TableHead>
@@ -424,6 +426,8 @@ export default function FeedbackDetails() {
                           <TableHead className="w-[100px]">Status</TableHead>
                           <TableHead className="w-[100px]">Questions</TableHead>
                           <TableHead className="w-[100px]">Rating</TableHead>
+                          <TableHead className="w-[120px]">Bad Behaviour</TableHead>
+                          <TableHead className="w-[100px]">Total Rating</TableHead>
                           <TableHead>Comment</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -453,6 +457,10 @@ export default function FeedbackDetails() {
                                 </TableCell>
                                 <TableCell className="text-center">{hasData ? perfData.questions_asked : '-'}</TableCell>
                                 <TableCell className="text-center font-medium">{hasData ? `${perfData.performance_rating}/10` : '-'}</TableCell>
+                                <TableCell className="text-center font-medium">{hasData ? `${perfData.bad_behaviour_points ?? 0}/10` : '-'}</TableCell>
+                                <TableCell className="text-center font-bold text-blue-600">
+                                  {hasData ? `${Math.max(0, (perfData.performance_rating ?? 0) - (perfData.bad_behaviour_points ?? 0))}/10` : '-'}
+                                </TableCell>
                                 <TableCell className="max-w-[300px] truncate text-sm">
                                   {hasData ? perfData.performance_comment || '-' : '-'}
                                 </TableCell>
@@ -474,6 +482,10 @@ export default function FeedbackDetails() {
                                 </TableCell>
                                 <TableCell className="text-center">{student.questions_asked}</TableCell>
                                 <TableCell className="text-center font-medium">{student.performance_rating}/10</TableCell>
+                                <TableCell className="text-center font-medium">{(student.bad_behaviour_points ?? 0)}/10</TableCell>
+                                <TableCell className="text-center font-bold text-blue-600">
+                                  {Math.max(0, (student.performance_rating ?? 0) - (student.bad_behaviour_points ?? 0))}/10
+                                </TableCell>
                                 <TableCell className="max-w-[300px] truncate text-sm">
                                   {student.performance_comment || '-'}
                                 </TableCell>

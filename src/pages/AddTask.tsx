@@ -41,8 +41,21 @@ export default function AddTask() {
   const [sessions, setSessions] = useState<SessionOption[]>([]);
   const [students, setStudents] = useState<StudentOption[]>([]);
   const [subjects, setSubjects] = useState<{ id: string, name: string }[]>([]);
+  const [rewardConfigs, setRewardConfigs] = useState<{ task_type: string, rate_per_task: number }[]>([]);
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    title: string;
+    description: string;
+    class_id: string;
+    session_id: string;
+    student_id: string;
+    due_date: string;
+    submission_link: string;
+    academic_year: string;
+    subject_id: string;
+    earning_amount: number | '';
+    task_type: string;
+  }>({
     title: '',
     description: '',
     class_id: '',
@@ -53,12 +66,22 @@ export default function AddTask() {
     academic_year: selectedYear,
     subject_id: '',
     earning_amount: 5,
+    task_type: '',
   });
 
   useEffect(() => {
     fetchClasses();
     fetchSubjects();
+    fetchRewardConfigs();
   }, []);
+
+  const fetchRewardConfigs = async () => {
+    const { data, error } = await supabase
+      .from('reward_configurations')
+      .select('task_type, rate_per_task')
+      .order('task_type');
+    if (!error && data) setRewardConfigs(data);
+  };
 
   useEffect(() => {
     if (formData.class_id) {
@@ -108,8 +131,8 @@ export default function AddTask() {
   };
 
   const handleCreate = async () => {
-    if (!formData.title || !formData.class_id || !formData.academic_year) {
-      toast.error('Please fill in required fields (Title, Class, Academic Year)');
+    if (!formData.title || !formData.class_id || !formData.academic_year || !formData.task_type) {
+      toast.error('Please fill in required fields (Title, Task Type, Class, Academic Year)');
       return;
     }
 
@@ -138,7 +161,7 @@ export default function AddTask() {
       const taskRecords = studentsToAssign.map(student => ({
         session_id: formData.session_id || null,
         student_id: student.id,
-        feedback_type: 'homework',
+        feedback_type: formData.task_type,
         task_name: formData.title,
         task_description: formData.description || null,
         deadline: formData.due_date ? new Date(formData.due_date).toISOString() : null,
@@ -147,7 +170,7 @@ export default function AddTask() {
         created_at: new Date().toISOString(),
         academic_year: formData.academic_year,
         subject_id: formData.subject_id || null,
-        earning_amount: formData.earning_amount,
+        earning_amount: formData.earning_amount === '' ? 0 : formData.earning_amount,
       }));
 
       const { error } = await supabase.from('student_task_feedback').insert(taskRecords);
@@ -196,6 +219,32 @@ export default function AddTask() {
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="task_type">Task Type *</Label>
+                <Select
+                  value={formData.task_type}
+                  onValueChange={(value) => {
+                    const config = rewardConfigs.find(c => c.task_type === value);
+                    setFormData({
+                      ...formData,
+                      task_type: value,
+                      earning_amount: config ? config.rate_per_task : formData.earning_amount
+                    });
+                  }}
+                >
+                  <SelectTrigger id="task_type">
+                    <SelectValue placeholder="Select Task Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {rewardConfigs.map((config) => (
+                      <SelectItem key={config.task_type} value={config.task_type}>
+                        {config.task_type}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
@@ -303,7 +352,10 @@ export default function AddTask() {
                   id="reward"
                   type="number"
                   value={formData.earning_amount}
-                  onChange={(e) => setFormData({ ...formData, earning_amount: parseInt(e.target.value) || 0 })}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setFormData({ ...formData, earning_amount: val === '' ? '' : parseInt(val) || 0 });
+                  }}
                 />
               </div>
             </div>

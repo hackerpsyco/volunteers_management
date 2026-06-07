@@ -144,3 +144,16 @@
   transform: scale(1.02) !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
 }
+
+/* Style HTML description links to be blue, underlined, and hoverable */
+.prose a, .task-description-content a {
+  color: hsl(var(--primary)) !important;
+  text-decoration: underline !important;
+  font-weight: 500 !important;
+  transition: color 0.15s ease !important;
+}
+
+.prose a:hover, .task-description-content a:hover {
+  color: hsl(var(--primary) / 0.8) !important;
+}
+
