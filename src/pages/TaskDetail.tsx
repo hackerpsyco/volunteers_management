@@ -21,6 +21,16 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useAcademicYear } from '@/contexts/AcademicYearContext';
 import { useAuth } from '@/contexts/AuthContext';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface TaskItem {
   id: string;
@@ -60,6 +70,8 @@ export default function TaskDetail() {
   const [verifyingTaskId, setVerifyingTaskId] = useState<string | null>(null);
   const [verifyingAmount, setVerifyingAmount] = useState<number | ''>(5);
   const [verificationComment, setVerificationComment] = useState<string>('');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
   const { selectedYear } = useAcademicYear();
   const { user } = useAuth();
@@ -276,8 +288,6 @@ export default function TaskDetail() {
   };
 
   const handleDeleteTask = async () => {
-    if (!confirm('Are you sure you want to delete this task? This will delete it for all students.')) return;
-
     try {
       const { error } = await supabase
         .from('student_task_feedback')
@@ -292,6 +302,9 @@ export default function TaskDetail() {
     } catch (error) {
       console.error('Error deleting task:', error);
       toast.error('Failed to delete task');
+    } finally {
+      setDeleteDialogOpen(false);
+      setDeleteConfirmText('');
     }
   };
 
@@ -350,7 +363,7 @@ export default function TaskDetail() {
             <Button
               variant="destructive"
               size="sm"
-              onClick={handleDeleteTask}
+              onClick={() => setDeleteDialogOpen(true)}
               className="gap-2"
             >
               <Trash2 className="h-4 w-4" />
@@ -578,6 +591,49 @@ export default function TaskDetail() {
         </DialogContent>
       </Dialog>
       </div>
+      
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={(open) => {
+        setDeleteDialogOpen(open);
+        if (!open) {
+          setDeleteConfirmText('');
+        }
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Task</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  Are you sure you want to delete this task? This will delete it for all students and cannot be undone.
+                </p>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-foreground">
+                    Type <span className="font-mono font-bold text-destructive">DELETE</span> to confirm:
+                  </p>
+                  <Input
+                    id="delete-confirm-input"
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    placeholder="Type DELETE here"
+                    className="border-destructive/50 focus-visible:ring-destructive"
+                  />
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteTask}
+              disabled={deleteConfirmText !== 'DELETE'}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }

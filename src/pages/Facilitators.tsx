@@ -29,6 +29,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { SessionTypeDialog } from '@/components/sessions/SessionTypeDialog';
@@ -52,6 +53,7 @@ export default function Facilitators() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedFacilitator, setSelectedFacilitator] = useState<Facilitator | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [isTypeDialogOpen, setIsTypeDialogOpen] = useState(false);
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
   const [selectedSessionType, setSelectedSessionType] = useState<'guest_teacher' | 'guest_speaker' | null>(null);
@@ -447,19 +449,42 @@ export default function Facilitators() {
       />
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      <AlertDialog open={deleteDialogOpen} onOpenChange={(open) => {
+        setDeleteDialogOpen(open);
+        if (!open) {
+          setSelectedFacilitator(null);
+          setDeleteConfirmText('');
+        }
+      }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Facilitator</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete {selectedFacilitator?.name}? This action cannot be undone.
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  Are you sure you want to delete {selectedFacilitator?.name}? This action cannot be undone.
+                </p>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-foreground">
+                    Type <span className="font-mono font-bold text-destructive">DELETE</span> to confirm:
+                  </p>
+                  <Input
+                    id="delete-confirm-input"
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    placeholder="Type DELETE here"
+                    className="border-destructive/50 focus-visible:ring-destructive"
+                  />
+                </div>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => selectedFacilitator && handleDelete(selectedFacilitator.id)}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteConfirmText !== 'DELETE'}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
             >
               Delete
             </AlertDialogAction>

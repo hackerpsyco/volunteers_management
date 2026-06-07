@@ -112,6 +112,7 @@ export default function Sessions() {
   const [selectedSessionType, setSelectedSessionType] = useState<'guest_teacher' | 'guest_speaker' | 'local_teacher' | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [newStatus, setNewStatus] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [timeFilter, setTimeFilter] = useState<string | null>(null);
@@ -223,8 +224,6 @@ export default function Sessions() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this session?')) return;
-
     try {
       const { error } = await supabase
         .from('sessions')
@@ -236,6 +235,7 @@ export default function Sessions() {
       setSessions(sessions.filter((s) => s.id !== id));
       setDeleteDialogOpen(false);
       setSelectedSession(null);
+      setDeleteConfirmText('');
     } catch (error) {
       console.error('Error deleting session:', error);
       toast.error('Failed to delete session');
@@ -1181,19 +1181,42 @@ export default function Sessions() {
       />
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      <AlertDialog open={deleteDialogOpen} onOpenChange={(open) => {
+        setDeleteDialogOpen(open);
+        if (!open) {
+          setSelectedSession(null);
+          setDeleteConfirmText('');
+        }
+      }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Session</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete "{selectedSession?.topics_covered}"? This action cannot be undone.
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  Are you sure you want to delete "{selectedSession?.topics_covered}"? This action cannot be undone.
+                </p>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-foreground">
+                    Type <span className="font-mono font-bold text-destructive">DELETE</span> to confirm:
+                  </p>
+                  <Input
+                    id="delete-confirm-input"
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    placeholder="Type DELETE here"
+                    className="border-destructive/50 focus-visible:ring-destructive"
+                  />
+                </div>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => selectedSession && handleDelete(selectedSession.id)}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteConfirmText !== 'DELETE'}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
             >
               Delete
             </AlertDialogAction>

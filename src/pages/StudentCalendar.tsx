@@ -436,6 +436,32 @@ export default function StudentCalendar() {
                       </p>
                     </div>
                   )}
+                  {selectedSession.quiz_content_ppt && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Quiz/Content PPT</p>
+                      {(() => {
+                        const url = selectedSession.quiz_content_ppt.trim();
+                        const isLink = url.startsWith('http://') || url.startsWith('https://') || url.includes('.com') || url.includes('.org') || url.includes('.net') || url.includes('drive.google.com') || url.includes('docs.google.com');
+                        let resolvedUrl = url;
+                        if (isLink && !url.startsWith('http://') && !url.startsWith('https://')) {
+                          resolvedUrl = `https://${url}`;
+                        }
+                        return isLink ? (
+                          <a
+                            href={resolvedUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-800 hover:underline font-medium text-sm break-all flex items-center gap-1"
+                          >
+                            Open Quiz/Content Link
+                          </a>
+                        ) : (
+                          <p className="font-medium text-sm break-all">{url}</p>
+                        );
+                      })()}
+                      <p className="text-xs text-muted-foreground mt-0.5 font-normal">shared by guest / local teacher</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Participants & Details */}

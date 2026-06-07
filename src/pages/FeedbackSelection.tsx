@@ -298,9 +298,11 @@ export default function FeedbackSelection() {
     const todayString = today.toISOString().split('T')[0];
 
     return committedSessions.filter(session => {
+      // Exclude upcoming sessions entirely since feedback cannot be recorded for them yet
+      if (session.session_date > todayString) return false;
+
       if (dialogFilter === 'present') return session.session_date === todayString;
       if (dialogFilter === 'past') return session.session_date < todayString;
-      if (dialogFilter === 'upcoming') return session.session_date > todayString;
       return true;
     });
   };
@@ -656,7 +658,6 @@ export default function FeedbackSelection() {
             <Button variant={dialogFilter === 'recent' ? 'default' : 'outline'} size="sm" onClick={() => setDialogFilter('recent')}>Recent</Button>
             <Button variant={dialogFilter === 'past' ? 'default' : 'outline'} size="sm" onClick={() => setDialogFilter('past')}>Past</Button>
             <Button variant={dialogFilter === 'present' ? 'default' : 'outline'} size="sm" onClick={() => setDialogFilter('present')}>Today</Button>
-            <Button variant={dialogFilter === 'upcoming' ? 'default' : 'outline'} size="sm" onClick={() => setDialogFilter('upcoming')}>Upcoming</Button>
           </div>
           <div className="space-y-2">
             {getFilteredCommittedSessions().map(s => (

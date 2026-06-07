@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { User, Settings, LogOut, Edit } from 'lucide-react';
+import { User, Settings, LogOut, Edit, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAcademicYear } from '@/contexts/AcademicYearContext';
 import { Calendar as CalendarIcon, ChevronDown } from 'lucide-react';
@@ -35,6 +35,13 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [userRole, setUserRole] = useState<number | null>(null);
   const [roleLoaded, setRoleLoaded] = useState(false);
   const { selectedYear, setSelectedYear } = useAcademicYear();
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    return localStorage.getItem('sidebar-collapsed') === 'true';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('sidebar-collapsed', String(isSidebarCollapsed));
+  }, [isSidebarCollapsed]);
 
   useEffect(() => {
     if (user?.email) {
@@ -182,11 +189,28 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   // User is authenticated and role is loaded, render the dashboard
   return (
     <div className="min-h-screen bg-muted/30 flex w-full">
-      {userRole === 5 ? <StudentSidebar /> : <AppSidebar />}
+      {userRole === 5 ? (
+        <StudentSidebar collapsed={isSidebarCollapsed} />
+      ) : (
+        <AppSidebar collapsed={isSidebarCollapsed} />
+      )}
       <main className="flex-1 flex flex-col">
         {/* Top Header with Profile */}
         <div className="bg-card border-b border-border px-4 md:px-8 h-[72px] flex items-center justify-between">
           <div className="flex-1 flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              className="hidden md:flex h-9 w-9 text-muted-foreground hover:text-foreground mr-2"
+              title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+            >
+              {isSidebarCollapsed ? (
+                <PanelLeftOpen className="h-5 w-5" />
+              ) : (
+                <PanelLeftClose className="h-5 w-5" />
+              )}
+            </Button>
             <div className="flex items-center gap-2 bg-muted/50 px-3 py-1.5 rounded-lg border border-border/60">
               <CalendarIcon className="h-4 w-4 text-primary" />
               <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Academic Year:</span>

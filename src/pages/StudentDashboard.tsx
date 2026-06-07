@@ -45,6 +45,8 @@ export default function StudentDashboard() {
   const [submissionLink, setSubmissionLink] = useState('');
   const [submissionDate, setSubmissionDate] = useState(new Date().toISOString().split('T')[0]);
   const [totalEarnings, setTotalEarnings] = useState(0);
+  const [attendanceRate, setAttendanceRate] = useState('100%');
+  const [attendanceDetails, setAttendanceDetails] = useState('No sessions');
   const { selectedYear, getDateRange } = useAcademicYear();
 
   useEffect(() => {
@@ -143,6 +145,7 @@ export default function StudentDashboard() {
       }
 
       // If student has a class_id, fetch class-specific session data
+      let sessionsDataList: SessionMeeting[] = [];
       if (profileData?.class_id) {
         // Get the class info
         const { data: classData } = await supabase
@@ -165,10 +168,54 @@ export default function StudentDashboard() {
           console.error('Error fetching sessions:', sessionsError);
           setSessions([]);
         } else {
-          setSessions(sessionsData || []);
+          sessionsDataList = sessionsData || [];
+          setSessions(sessionsDataList);
         }
       } else {
         setSessions([]);
+      }
+
+      // Calculate attendance rate
+      if (profileData?.full_name && sessionsDataList.length > 0) {
+        const { data: perfData } = await supabase
+          .from('student_performance' as any)
+          .select('session_id, attendance_status')
+          .ilike('student_name', profileData.full_name.trim());
+
+        if (perfData) {
+          const now = new Date();
+          const currentYear = now.getFullYear();
+          const currentMonth = now.getMonth();
+
+          const currentMonthSessions = sessionsDataList.filter(s => {
+            const date = new Date(s.session_date);
+            return date.getFullYear() === currentYear && date.getMonth() === currentMonth;
+          });
+
+          let presentCount = 0;
+          let totalCount = 0;
+
+          currentMonthSessions.forEach(session => {
+            const perf = perfData.find(p => p.session_id === session.id);
+            if (perf) {
+              totalCount++;
+              if (perf.attendance_status === 'Present') {
+                presentCount++;
+              }
+            }
+          });
+
+          if (totalCount > 0) {
+            setAttendanceRate(`${Math.round((presentCount / totalCount) * 100)}%`);
+            setAttendanceDetails(`${presentCount} of ${totalCount} present`);
+          } else {
+            setAttendanceRate('100%');
+            setAttendanceDetails('0 sessions recorded');
+          }
+        }
+      } else {
+        setAttendanceRate('100%');
+        setAttendanceDetails('No sessions');
       }
     } catch (error) {
       console.error('Error loading student data:', error);
@@ -260,7 +307,7 @@ export default function StudentDashboard() {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <Card className="bg-card border-border/50 shadow-sm overflow-hidden border-l-4 border-l-primary">
             <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
               <CardTitle className="text-sm font-medium text-muted-foreground">Total Tasks</CardTitle>
@@ -304,6 +351,17 @@ export default function StudentDashboard() {
               <p className="text-xs text-muted-foreground mt-1">Tokens earned</p>
             </CardContent>
           </Card>
+
+          <Card className="bg-card border-border/50 shadow-sm overflow-hidden border-l-4 border-l-blue-500">
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Attendance</CardTitle>
+              <ClipboardCheck className="h-4 w-4 text-blue-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{attendanceRate}</div>
+              <p className="text-xs text-muted-foreground mt-1">{attendanceDetails} this month</p>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Tab Navigation */}
@@ -328,66 +386,24 @@ export default function StudentDashboard() {
 
         {/* Calendar Tab */}
         {activeTab === 'calendar' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Upcoming Tasks */}
-            <Card className="lg:col-span-2">
-              <CardHeader>
-                <CardTitle>Upcoming Tasks</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {tasks.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-8">No tasks assigned yet</p>
-                ) : (
-                  <div className="space-y-3">
-                    {tasks.map((task) => (
-                      <div
-                        key={task.id}
-                        onClick={() => handleTaskClick(task)}
-                        className="border border-border rounded-lg p-4 hover:bg-muted/50 transition-colors cursor-pointer"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1">
-                            <h3 className="font-semibold text-foreground">{task.task_name}</h3>
-                            <p className="text-sm text-muted-foreground capitalize">{task.feedback_type}</p>
-                          </div>
-                          <span className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${
-                            task.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                            task.status === 'submitted' ? 'bg-blue-100 text-blue-800' :
-                            task.status === 'reviewed' ? 'bg-purple-100 text-purple-800' :
-                            'bg-green-100 text-green-800'
-                          }`}>
-                            {task.status}
-                          </span>
-                        </div>
-                        <div className="mt-2 text-sm">
-                          <p className="text-muted-foreground">
-                            Deadline: {new Date(task.deadline).toLocaleDateString()}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
+          <div className="max-w-xl">
             {/* Upcoming Sessions */}
             <Card>
-              <CardHeader>
+              <CardHeader className="pb-3">
                 <CardTitle>Class Sessions</CardTitle>
               </CardHeader>
               <CardContent>
                 {sessions.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-8 text-sm">No upcoming sessions</p>
+                  <p className="text-muted-foreground text-center py-6 text-sm">No upcoming sessions</p>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {sessions.map((session) => (
                       <div
                         key={session.id}
-                        className="border border-border rounded-lg p-3 text-sm"
+                        className="border border-border rounded-lg p-2.5 text-sm"
                       >
                         <h4 className="font-semibold text-foreground">{session.title}</h4>
-                        <p className="text-muted-foreground text-xs mt-1">
+                        <p className="text-muted-foreground text-xs mt-0.5">
                           {new Date(session.session_date).toLocaleDateString()} at {session.session_time}
                         </p>
                         {session.facilitator_name && (
@@ -400,7 +416,7 @@ export default function StudentDashboard() {
                             href={session.meeting_link}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-primary hover:underline text-xs mt-2 inline-block"
+                            className="text-primary hover:underline text-xs mt-1 inline-block"
                           >
                             Join Meeting
                           </a>

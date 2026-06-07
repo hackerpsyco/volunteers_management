@@ -1280,6 +1280,7 @@ For any questions, contact the coordinator.
                   disabled={!!selectedTopic}
                   className="text-sm sm:text-base"
                 />
+                <p className="text-xs text-muted-foreground mt-1">shared by guest / local teacher</p>
               </div>
             </div>
           )}

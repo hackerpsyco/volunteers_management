@@ -78,7 +78,7 @@ const navGroups: NavGroup[] = [
   },
 ];
 
-export function AppSidebar() {
+export function AppSidebar({ collapsed = false }: { collapsed?: boolean }) {
   const { signOut, user } = useAuth();
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
@@ -129,15 +129,17 @@ export function AppSidebar() {
 
       {/* Sidebar */}
       <aside className={cn(
-        "fixed md:sticky md:top-0 h-screen w-64 bg-card border-r border-border flex flex-col transition-transform duration-300 z-40",
-        isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+        "fixed md:sticky md:top-0 h-screen bg-card border-r border-border flex flex-col transition-all duration-300 z-40",
+        collapsed ? "w-0 md:w-0 border-r-0 overflow-hidden" : "w-64",
+        isOpen ? "translate-x-0 w-64" : "-translate-x-full md:translate-x-0"
       )}>
-        {/* Logo Section */}
-        <div className="h-[72px] px-4 md:px-6 border-b border-border flex items-center">
-          <div className="flex items-center gap-3">
-            <img
-              src={wesLogo}
-              alt="WES Foundation Logo"
+        <div className="w-64 h-full flex flex-col flex-shrink-0">
+          {/* Logo Section */}
+          <div className="h-[72px] px-4 md:px-6 border-b border-border flex items-center">
+            <div className="flex items-center gap-3">
+              <img
+                src={wesLogo}
+                alt="WES Foundation Logo"
               className="h-10 md:h-12 w-10 md:w-12 object-contain"
             />
             <div className="min-w-0">
@@ -207,6 +209,7 @@ export function AppSidebar() {
             <LogOut className="h-5 w-5 flex-shrink-0" />
             <span className="truncate">Sign Out</span>
           </button>
+        </div>
         </div>
       </aside>
 

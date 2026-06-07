@@ -1154,8 +1154,15 @@ export default function SessionRecording() {
         toast.success('Homework updated successfully');
         setIsEditingHomework(false);
       } else {
-        // Create task for each student — tagged with current academic year
-        const homeworkRecords = students.map(student => ({
+        // Create task for each present student — tagged with current academic year
+        const presentStudents = getPresentStudents();
+        if (presentStudents.length === 0) {
+          toast.error('No present students found to assign homework to');
+          setSavingHomework(false);
+          return;
+        }
+
+        const homeworkRecords = presentStudents.map(student => ({
           session_id: sessionId,
           student_id: student.id,
           feedback_type: newHomework.task_type || 'homework',
@@ -1175,7 +1182,7 @@ export default function SessionRecording() {
           .insert(homeworkRecords);
 
         if (error) throw error;
-        toast.success(`Homework assigned to ${students.length} students`);
+        toast.success(`Homework assigned to ${presentStudents.length} present students`);
       }
 
       setNewHomework({

@@ -18,6 +18,17 @@ import {
   DialogTitle,
   DialogClose,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { AddSessionDialog } from '@/components/sessions/AddSessionDialog';
@@ -102,6 +113,8 @@ export default function Calendar() {
   const [expandedDateKey, setExpandedDateKey] = useState<string | null>(null);
   const [sessionTypeFilter, setSessionTypeFilter] = useState<string>('all');
   const [userRole, setUserRole] = useState<number | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
   useEffect(() => {
     if (user?.id) {
@@ -353,10 +366,6 @@ export default function Calendar() {
   };
 
   const handleDeleteSession = async (sessionId: string) => {
-    if (!confirm('Are you sure you want to permanently delete this session? This will remove it from Google Calendar and send cancellation emails to all participants.')) {
-      return;
-    }
-
     try {
       // Try to remove from Google Calendar first
       try {
@@ -393,6 +402,9 @@ export default function Calendar() {
     } catch (error) {
       console.error('Error deleting session:', error);
       toast.error('Failed to delete session');
+    } finally {
+      setDeleteDialogOpen(false);
+      setDeleteConfirmText('');
     }
   };
 
@@ -762,6 +774,32 @@ export default function Calendar() {
                       </p>
                     </div>
                   )}
+                  {selectedSession.quiz_content_ppt && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Quiz/Content PPT</p>
+                      {(() => {
+                        const url = selectedSession.quiz_content_ppt.trim();
+                        const isLink = url.startsWith('http://') || url.startsWith('https://') || url.includes('.com') || url.includes('.org') || url.includes('.net') || url.includes('drive.google.com') || url.includes('docs.google.com');
+                        let resolvedUrl = url;
+                        if (isLink && !url.startsWith('http://') && !url.startsWith('https://')) {
+                          resolvedUrl = `https://${url}`;
+                        }
+                        return isLink ? (
+                          <a
+                            href={resolvedUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-800 hover:underline font-medium text-sm break-all flex items-center gap-1"
+                          >
+                            Open Quiz/Content Link
+                          </a>
+                        ) : (
+                          <p className="font-medium text-sm break-all">{url}</p>
+                        );
+                      })()}
+                      <p className="text-xs text-muted-foreground mt-0.5 font-normal">shared by guest / local teacher</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Participants & Details */}
@@ -873,7 +911,7 @@ export default function Calendar() {
                     Cancel Session
                   </button>
                   <button
-                    onClick={() => handleDeleteSession(selectedSession.id)}
+                    onClick={() => setDeleteDialogOpen(true)}
                     className="flex-1 min-w-[120px] px-4 py-2 bg-red-50 border border-red-200 text-red-700 rounded hover:bg-red-100 transition-colors text-sm font-medium"
                   >
                     Delete Session
@@ -924,6 +962,49 @@ export default function Calendar() {
           }}
         />
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={(open) => {
+        setDeleteDialogOpen(open);
+        if (!open) {
+          setDeleteConfirmText('');
+        }
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Session</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  Are you sure you want to permanently delete this session? This will remove it from Google Calendar and send cancellation emails to all participants. This action cannot be undone.
+                </p>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-foreground">
+                    Type <span className="font-mono font-bold text-destructive">DELETE</span> to confirm:
+                  </p>
+                  <Input
+                    id="delete-confirm-input"
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    placeholder="Type DELETE here"
+                    className="border-destructive/50 focus-visible:ring-destructive"
+                  />
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => selectedSession && handleDeleteSession(selectedSession.id)}
+              disabled={deleteConfirmText !== 'DELETE'}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }
