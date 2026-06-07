@@ -88,6 +88,7 @@ export default function AdminStudentEarnings() {
   const [rewardConfigs, setRewardConfigs] = useState<RewardConfig[]>([]);
   const [isEditingConfigs, setIsEditingConfigs] = useState(false);
   const [editingConfigs, setEditingConfigs] = useState<RewardConfig[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const { selectedYear, getDateRange } = useAcademicYear();
 
   useEffect(() => {
@@ -95,7 +96,7 @@ export default function AdminStudentEarnings() {
     fetchStudentEarnings();
     fetchRewardConfigs();
     fetchSubjects();
-  }, [selectedYear]);
+  }, [selectedYear, selectedMonth]);
 
   const fetchSubjects = async () => {
     const { data } = await supabase.from('subjects').select('id, name').order('name');
@@ -158,7 +159,9 @@ export default function AdminStudentEarnings() {
       const aggregated = (students || []).map((s: any) => {
         const filteredEarnings = (s.student_earnings || []).filter((e: any) => {
           const earnedAt = new Date(e.earned_at);
-          return earnedAt >= startDate && earnedAt <= endDate;
+          const matchesAcademicYear = earnedAt >= startDate && earnedAt <= endDate;
+          const matchesMonth = selectedMonth === 'all' || earnedAt.getMonth().toString() === selectedMonth;
+          return matchesAcademicYear && matchesMonth;
         });
         
         const total = filteredEarnings.reduce((sum: number, e: any) => sum + parseFloat(e.amount), 0);
@@ -373,6 +376,28 @@ export default function AdminStudentEarnings() {
               </SelectContent>
             </Select>
           </div>
+          <div className="w-full sm:w-48">
+            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+              <SelectTrigger>
+                <SelectValue placeholder="All Months" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Months</SelectItem>
+                <SelectItem value="5">June</SelectItem>
+                <SelectItem value="6">July</SelectItem>
+                <SelectItem value="7">August</SelectItem>
+                <SelectItem value="8">September</SelectItem>
+                <SelectItem value="9">October</SelectItem>
+                <SelectItem value="10">November</SelectItem>
+                <SelectItem value="11">December</SelectItem>
+                <SelectItem value="0">January</SelectItem>
+                <SelectItem value="1">February</SelectItem>
+                <SelectItem value="2">March</SelectItem>
+                <SelectItem value="3">April</SelectItem>
+                <SelectItem value="4">May</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <Card>
@@ -458,69 +483,55 @@ export default function AdminStudentEarnings() {
                       <TableHead>Session</TableHead>
                       <TableHead>Deadline</TableHead>
                       <TableHead className="text-right">Amount</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {studentRecords.length === 0 ? (
+                    {studentRecords.filter(r => {
+                      const earnedAt = new Date(r.earned_at);
+                      return selectedMonth === 'all' || earnedAt.getMonth().toString() === selectedMonth;
+                    }).length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={4} className="text-center py-6 text-muted-foreground">
+                        <TableCell colSpan={6} className="text-center py-6 text-muted-foreground">
                           No records found for this student
                         </TableCell>
                       </TableRow>
                     ) : (
-                      studentRecords.map((r) => (
-                        <TableRow key={r.id}>
-                          <TableCell className="text-xs">
-                            {new Date(r.earned_at).toLocaleDateString()}
-                          </TableCell>
-                          <TableCell>
-                            <div className="font-medium text-sm">
-                              {(r as any).student_task_feedback?.task_name || r.description || 'Reward'}
-                            </div>
-                            {(r as any).student_task_feedback?.task_name && r.description && (
-                              <div className="text-[10px] text-muted-foreground">{r.description}</div>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {(r as any).student_task_feedback?.subjects?.name ? (
-                              <Badge variant="outline" className="text-[10px] uppercase font-bold">
-                                {(r as any).student_task_feedback?.subjects?.name}
-                              </Badge>
-                            ) : '-'}
-                          </TableCell>
-                          <TableCell className="text-xs truncate max-w-[100px]">
-                            {(r as any).student_task_feedback?.sessions?.title || '-'}
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
-                            {(r as any).student_task_feedback?.deadline ? new Date((r as any).student_task_feedback.deadline).toLocaleDateString() : '-'}
-                          </TableCell>
-                          <TableCell className="text-right font-bold text-green-600">
-                            ₹{r.amount}
-                          </TableCell>
-                          <TableCell className="text-right flex justify-end gap-2">
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-8 w-8 text-blue-600"
-                              onClick={() => {
-                                setEditingRecord(r);
-                                setIsEditModalOpen(true);
-                              }}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-8 w-8 text-destructive"
-                              onClick={() => handleDeleteRecord(r.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))
+                      studentRecords
+                        .filter(r => {
+                          const earnedAt = new Date(r.earned_at);
+                          return selectedMonth === 'all' || earnedAt.getMonth().toString() === selectedMonth;
+                        })
+                        .map((r) => (
+                          <TableRow key={r.id}>
+                            <TableCell className="text-xs">
+                              {new Date(r.earned_at).toLocaleDateString()}
+                            </TableCell>
+                            <TableCell>
+                              <div className="font-medium text-sm">
+                                {(r as any).student_task_feedback?.task_name || r.description || 'Reward'}
+                              </div>
+                              {(r as any).student_task_feedback?.task_name && r.description && (
+                                <div className="text-[10px] text-muted-foreground">{r.description}</div>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {(r as any).student_task_feedback?.subjects?.name ? (
+                                <Badge variant="outline" className="text-[10px] uppercase font-bold">
+                                  {(r as any).student_task_feedback?.subjects?.name}
+                                </Badge>
+                              ) : '-'}
+                            </TableCell>
+                            <TableCell className="text-xs truncate max-w-[100px]">
+                              {(r as any).student_task_feedback?.sessions?.title || '-'}
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {(r as any).student_task_feedback?.deadline ? new Date((r as any).student_task_feedback.deadline).toLocaleDateString() : '-'}
+                            </TableCell>
+                            <TableCell className="text-right font-bold text-green-600">
+                              ₹{r.amount}
+                            </TableCell>
+                          </TableRow>
+                        ))
                     )}
                   </TableBody>
                 </Table>

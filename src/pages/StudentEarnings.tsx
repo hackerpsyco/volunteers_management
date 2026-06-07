@@ -58,6 +58,7 @@ export default function StudentEarnings() {
   const [subjects, setSubjects] = useState<{id: string, name: string}[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterSubject, setFilterSubject] = useState('all');
+  const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const { selectedYear, getDateRange } = useAcademicYear();
 
   useEffect(() => {
@@ -255,6 +256,29 @@ export default function StudentEarnings() {
               </SelectContent>
             </Select>
           </div>
+          <div className="w-full sm:w-48">
+            <Label className="mb-2 block">Filter Month</Label>
+            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+              <SelectTrigger>
+                <SelectValue placeholder="All Months" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Months</SelectItem>
+                <SelectItem value="5">June</SelectItem>
+                <SelectItem value="6">July</SelectItem>
+                <SelectItem value="7">August</SelectItem>
+                <SelectItem value="8">September</SelectItem>
+                <SelectItem value="9">October</SelectItem>
+                <SelectItem value="10">November</SelectItem>
+                <SelectItem value="11">December</SelectItem>
+                <SelectItem value="0">January</SelectItem>
+                <SelectItem value="1">February</SelectItem>
+                <SelectItem value="2">March</SelectItem>
+                <SelectItem value="3">April</SelectItem>
+                <SelectItem value="4">May</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* Transaction History */}
@@ -297,15 +321,28 @@ export default function StudentEarnings() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {earnings
-                      .filter(record => {
+                    {(() => {
+                      const filtered = earnings.filter(record => {
                         const matchesSearch = 
                           (record.task_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                           (record.description || '').toLowerCase().includes(searchQuery.toLowerCase());
                         const matchesSubject = filterSubject === 'all' || record.subject_name === filterSubject;
-                        return matchesSearch && matchesSubject;
-                      })
-                      .map((record) => (
+                        const recordDate = new Date(record.earned_at);
+                        const matchesMonth = selectedMonth === 'all' || recordDate.getMonth().toString() === selectedMonth;
+                        return matchesSearch && matchesSubject && matchesMonth;
+                      });
+
+                      if (filtered.length === 0) {
+                        return (
+                          <TableRow>
+                            <TableCell colSpan={6} className="text-center py-6 text-muted-foreground">
+                              No matching transactions found
+                            </TableCell>
+                          </TableRow>
+                        );
+                      }
+
+                      return filtered.map((record) => (
                         <TableRow key={record.id} className="hover:bg-muted/30 transition-colors">
                           <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                             {new Date(record.earned_at).toLocaleDateString()}
@@ -335,7 +372,8 @@ export default function StudentEarnings() {
                             +₹{record.amount}
                           </TableCell>
                         </TableRow>
-                      ))}
+                      ));
+                    })()}
                   </TableBody>
                 </Table>
               </div>
