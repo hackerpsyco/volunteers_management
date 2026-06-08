@@ -76,6 +76,7 @@ interface TaskGroup {
   latestCompletionDate: string | null;
   tasks: TaskItem[];
   completedCount: number;
+  submittedCount: number;
 }
 
 interface ClassOption {
@@ -182,6 +183,7 @@ export default function Tasks() {
           latestCompletionDate: null,
           tasks: [],
           completedCount: 0,
+          submittedCount: 0,
         });
       }
       const group = grouped.get(key)!;
@@ -210,6 +212,10 @@ export default function Tasks() {
         if (!group.latestCompletionDate || completionDate > group.latestCompletionDate) {
           group.latestCompletionDate = completionDate;
         }
+      }
+      
+      if (task.status === 'submitted' || task.status === 'completed') {
+        group.submittedCount++;
       }
     });
     setTaskGroups(Array.from(grouped.values()));
@@ -394,6 +400,12 @@ export default function Tasks() {
     if (key === 'completion') {
       aVal = a.tasks.length ? a.completedCount / a.tasks.length : 0;
       bVal = b.tasks.length ? b.completedCount / b.tasks.length : 0;
+    } else if (key === 'submitted') {
+      aVal = a.tasks.length ? a.submittedCount / a.tasks.length : 0;
+      bVal = b.tasks.length ? b.submittedCount / b.tasks.length : 0;
+    } else if (key === 'approved') {
+      aVal = a.tasks.length ? a.completedCount / a.tasks.length : 0;
+      bVal = b.tasks.length ? b.completedCount / b.tasks.length : 0;
     } else if (key === 'created_at' || key === 'due_date') {
       aVal = aVal ? new Date(aVal).getTime() : 0;
       bVal = bVal ? new Date(bVal).getTime() : 0;
@@ -493,6 +505,7 @@ export default function Tasks() {
                 <SelectItem value="in_progress">In Progress</SelectItem>
                 <SelectItem value="submitted">Submitted</SelectItem>
                 <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="rejected">Rejected</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -560,8 +573,9 @@ export default function Tasks() {
                       <TableHead><div className="flex items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('academic_year')}>Year <ArrowUpDown className="h-3 w-3" /></div></TableHead>
                       <TableHead><div className="flex items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('reward')}>Reward <ArrowUpDown className="h-3 w-3" /></div></TableHead>
                       <TableHead><div className="flex items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('due_date')}>Deadline <ArrowUpDown className="h-3 w-3" /></div></TableHead>
-                      <TableHead><div className="flex items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('completion')}>Status <ArrowUpDown className="h-3 w-3" /></div></TableHead>
-                      <TableHead className="text-center"><div className="flex justify-center items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('completion')}>Completion <ArrowUpDown className="h-3 w-3" /></div></TableHead>
+                      <TableHead><div className="flex items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('approved')}>Status <ArrowUpDown className="h-3 w-3" /></div></TableHead>
+                      <TableHead className="text-center"><div className="flex justify-center items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('submitted')}>Submitted <ArrowUpDown className="h-3 w-3" /></div></TableHead>
+                      <TableHead className="text-center"><div className="flex justify-center items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('approved')}>Approved <ArrowUpDown className="h-3 w-3" /></div></TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -616,7 +630,12 @@ export default function Tasks() {
                           </div>
                         </TableCell>
                         <TableCell className="text-sm font-medium text-center">
-                          <span className={group.completedCount === group.tasks.length ? "text-green-600" : "text-foreground"}>
+                          <span className={group.submittedCount === group.tasks.length ? "text-blue-600 font-semibold" : "text-foreground"}>
+                            {group.submittedCount}/{group.tasks.length}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-sm font-medium text-center">
+                          <span className={group.completedCount === group.tasks.length ? "text-green-600 font-semibold" : "text-foreground"}>
                             {group.completedCount}/{group.tasks.length}
                           </span>
                         </TableCell>

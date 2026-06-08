@@ -15,12 +15,12 @@ const supabase = createClient(supabaseUrl, supabaseKey)
 
 async function checkSchema() {
     const { data, error } = await supabase
-        .from('student_performance')
+        .from('student_task_feedback')
         .select('*')
         .limit(1)
 
     if (error) {
-        console.error('Error fetching student_performance:', error)
+        console.error('Error fetching student_task_feedback:', error)
     } else {
         console.log('Sample data:', data[0])
         console.log('Columns:', Object.keys(data[0] || {}))

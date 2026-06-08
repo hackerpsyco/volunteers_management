@@ -170,6 +170,13 @@ export default function ClassTaskReview() {
       // Find the task to get its earning amount
       const studentGroup = studentGroups.find(g => g.id === studentId);
       const task = studentGroup?.tasks.find(t => t.id === taskId);
+      
+      // Validation: student must have submitted the homework before it can be verified
+      if (task && task.status !== 'submitted') {
+        toast.error('Student needs to submit homework first');
+        return;
+      }
+
       const amount = task?.earning_amount || 5;
 
       const { data, error: updateError } = await supabase

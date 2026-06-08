@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ExternalLink, Edit2, Trash2 } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Edit2, Trash2, XCircle, MessageSquare, Pencil } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -48,6 +48,7 @@ interface TaskItem {
   class_name?: string;
   earning_amount?: number;
   feedback_type?: string;
+  rejection_comment?: string | null;
 }
 
 interface TaskGroup {
@@ -72,6 +73,11 @@ export default function TaskDetail() {
   const [verificationComment, setVerificationComment] = useState<string>('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  // Reject dialog state
+  const [rejectingTaskId, setRejectingTaskId] = useState<string | null>(null);
+  const [rejectionComment, setRejectionComment] = useState('');
+  const [editingCommentTaskId, setEditingCommentTaskId] = useState<string | null>(null);
+  const [editCommentValue, setEditCommentValue] = useState('');
 
   const { selectedYear } = useAcademicYear();
   const { user } = useAuth();
@@ -97,6 +103,7 @@ export default function TaskDetail() {
           earning_amount,
           academic_year,
           feedback_type,
+          rejection_comment,
           students:student_id(name),
           sessions:session_id(title, class_batch)
         `)
@@ -123,6 +130,7 @@ export default function TaskDetail() {
           class_name: task.sessions?.class_batch || '-',
           earning_amount: task.earning_amount || 0,
           feedback_type: task.feedback_type || '',
+          rejection_comment: task.rejection_comment || null,
         }));
 
         setTaskGroup({
@@ -241,16 +249,17 @@ export default function TaskDetail() {
     }
   };
 
-  const handleRejectTask = async (taskId: string) => {
+  const handleRejectTask = async () => {
+    const taskId = rejectingTaskId;
+    if (!taskId) return;
     try {
-      if (!confirm('Are you sure you want to reject this task submission? This will set status back to pending and remove any earnings associated with this task.')) return;
-      
       setUpdatingId(taskId);
       
       const { data, error } = await supabase
         .from('student_task_feedback')
         .update({ 
-          status: 'pending', 
+          status: 'rejected', 
+          rejection_comment: rejectionComment.trim() || null,
           feedback_notes: null,
           updated_at: new Date().toISOString() 
         })
@@ -273,15 +282,47 @@ export default function TaskDetail() {
         setTaskGroup({
           ...taskGroup,
           tasks: taskGroup.tasks.map(t =>
-            t.id === taskId ? { ...t, status: 'pending' } : t
+            t.id === taskId ? { ...t, status: 'rejected', rejection_comment: rejectionComment.trim() || null } : t
           ),
         });
       }
 
-      toast.success('Task submission rejected and earnings removed');
+      toast.success('Task rejected with comment');
+      setRejectingTaskId(null);
+      setRejectionComment('');
     } catch (error: any) {
       console.error('Error rejecting task:', error);
       toast.error('Failed to reject task: ' + (error.message || 'Unknown error'));
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const handleEditComment = async () => {
+    const taskId = editingCommentTaskId;
+    if (!taskId) return;
+    try {
+      setUpdatingId(taskId);
+      const { error } = await supabase
+        .from('student_task_feedback')
+        .update({ rejection_comment: editCommentValue.trim() || null, updated_at: new Date().toISOString() })
+        .eq('id', taskId);
+
+      if (error) throw error;
+
+      if (taskGroup) {
+        setTaskGroup({
+          ...taskGroup,
+          tasks: taskGroup.tasks.map(t =>
+            t.id === taskId ? { ...t, rejection_comment: editCommentValue.trim() || null } : t
+          ),
+        });
+      }
+      toast.success('Rejection comment updated');
+      setEditingCommentTaskId(null);
+      setEditCommentValue('');
+    } catch (error: any) {
+      toast.error('Failed to update comment: ' + (error.message || 'Unknown error'));
     } finally {
       setUpdatingId(null);
     }
@@ -427,63 +468,103 @@ export default function TaskDetail() {
           <CardContent>
             <div className="space-y-2">
               {taskGroup.tasks.map((task) => (
-                <div key={task.id} className="flex items-center justify-between p-4 bg-muted/30 rounded border border-border">
-                  <div className="flex-1">
-                    <div className="font-medium text-foreground">{task.student_name}</div>
-                    <div className="text-sm text-muted-foreground">{task.class_name}</div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Badge
-                      variant={
-                        task.status === 'completed'
-                          ? 'default'
-                          : task.status === 'submitted'
-                          ? 'secondary'
-                          : task.status === 'in_progress'
-                          ? 'outline'
-                          : 'secondary'
-                      }
-                    >
-                      {task.status}
-                    </Badge>
-                    {task.submission_link && (
-                      <a
-                        href={task.submission_link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:underline"
+                <div key={task.id} className="flex flex-col gap-2 p-4 bg-muted/30 rounded border border-border">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex-1">
+                      <div className="font-medium text-foreground">{task.student_name}</div>
+                      <div className="text-sm text-muted-foreground">{task.class_name}</div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Badge
+                        variant={
+                          task.status === 'completed'
+                            ? 'default'
+                            : task.status === 'submitted'
+                            ? 'secondary'
+                            : task.status === 'rejected'
+                            ? 'destructive'
+                            : task.status === 'in_progress'
+                            ? 'outline'
+                            : 'secondary'
+                        }
+                        className={task.status === 'rejected' ? 'bg-red-100 text-red-700 border-red-200 hover:bg-red-100' : ''}
                       >
-                        <ExternalLink className="h-4 w-4" />
-                      </a>
-                    )}
-                     <div className="flex gap-2">
-                       {task.status !== 'completed' && (
-                         <Button
-                           size="sm"
-                           className="bg-green-600 hover:bg-green-700"
-                           onClick={() => {
-                             setVerifyingTaskId(task.id);
-                             setVerifyingAmount(task.earning_amount || 5);
-                             setVerificationComment('');
-                           }}
-                           disabled={updatingId === task.id}
-                         >
-                           {updatingId === task.id ? 'Updating...' : 'Verified'}
-                         </Button>
-                       )}
-                       {task.status !== 'pending' && (
-                         <Button
-                           size="sm"
-                           variant="outline"
-                           onClick={() => handleRejectTask(task.id)}
-                           disabled={updatingId === task.id}
-                           className="text-xs text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
-                         >
-                           Reject
-                         </Button>
-                       )}
-                     </div>
+                        {task.status}
+                      </Badge>
+                      {task.submission_link && (
+                        <a
+                          href={task.submission_link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                      )}
+                      <div className="flex gap-2">
+                        {task.status !== 'completed' && task.status !== 'rejected' && (
+                          <Button
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700"
+                            onClick={() => {
+                              setVerifyingTaskId(task.id);
+                              setVerifyingAmount(task.earning_amount || 5);
+                              setVerificationComment('');
+                            }}
+                            disabled={updatingId === task.id}
+                          >
+                            {updatingId === task.id ? 'Updating...' : 'Verify'}
+                          </Button>
+                        )}
+                        {task.status !== 'pending' && task.status !== 'rejected' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setRejectingTaskId(task.id);
+                              setRejectionComment('');
+                            }}
+                            disabled={updatingId === task.id}
+                            className="text-xs text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+                          >
+                            <XCircle className="h-3 w-3 mr-1" />
+                            Reject
+                          </Button>
+                        )}
+                        {task.status === 'rejected' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setEditingCommentTaskId(task.id);
+                              setEditCommentValue(task.rejection_comment || '');
+                            }}
+                            disabled={updatingId === task.id}
+                            className="text-xs text-blue-600 border-blue-200 hover:bg-blue-50"
+                          >
+                            <Pencil className="h-3 w-3 mr-1" />
+                            Edit Comment
+                          </Button>
+                        )}
+                      </div>
+                    </div>
                   </div>
+                  {/* Rejection comment display */}
+                  {task.status === 'rejected' && task.rejection_comment && (
+                    <div className="flex items-start gap-2 mt-1 px-3 py-2 rounded-lg bg-red-50 border border-red-200">
+                      <MessageSquare className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-xs font-semibold text-red-600 mb-0.5">Rejection Reason:</p>
+                        <p className="text-sm text-red-700">{task.rejection_comment}</p>
+                      </div>
+                    </div>
+                  )}
+                  {task.status === 'rejected' && !task.rejection_comment && (
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-50 border border-red-200">
+                      <MessageSquare className="h-3.5 w-3.5 text-red-400" />
+                      <p className="text-xs text-red-500 italic">No rejection reason added. Click "Edit Comment" to add one.</p>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -510,6 +591,84 @@ export default function TaskDetail() {
           </div>
         </DialogContent>
       </Dialog>
+      {/* Reject Dialog */}
+      <Dialog open={!!rejectingTaskId} onOpenChange={(open) => { if (!open) { setRejectingTaskId(null); setRejectionComment(''); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <XCircle className="h-5 w-5" />
+              Reject Task Submission
+            </DialogTitle>
+            <DialogDescription>
+              Rejecting this will set the task status to <strong>Rejected</strong> and remove any earnings. Please add a reason so the student knows why their work was rejected.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="rejection-comment">Rejection Reason <span className="text-muted-foreground font-normal">(required)</span></Label>
+              <Textarea
+                id="rejection-comment"
+                placeholder="e.g. Submission link is broken, work is incomplete, wrong format..."
+                value={rejectionComment}
+                onChange={(e) => setRejectionComment(e.target.value)}
+                className="min-h-[100px]"
+              />
+              <p className="text-xs text-muted-foreground">This comment will be shown to the student in their task details.</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setRejectingTaskId(null); setRejectionComment(''); }}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleRejectTask}
+              disabled={!rejectionComment.trim() || updatingId === rejectingTaskId}
+            >
+              {updatingId === rejectingTaskId ? 'Rejecting...' : 'Confirm Reject'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Rejection Comment Dialog */}
+      <Dialog open={!!editingCommentTaskId} onOpenChange={(open) => { if (!open) { setEditingCommentTaskId(null); setEditCommentValue(''); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-5 w-5" />
+              Edit Rejection Comment
+            </DialogTitle>
+            <DialogDescription>
+              Update the rejection reason shown to the student.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-rejection-comment">Rejection Reason</Label>
+              <Textarea
+                id="edit-rejection-comment"
+                placeholder="Enter rejection reason..."
+                value={editCommentValue}
+                onChange={(e) => setEditCommentValue(e.target.value)}
+                className="min-h-[100px]"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setEditingCommentTaskId(null); setEditCommentValue(''); }}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleEditComment}
+              disabled={updatingId === editingCommentTaskId}
+            >
+              {updatingId === editingCommentTaskId ? 'Saving...' : 'Save Comment'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Verification Dialog */}
       <Dialog open={!!verifyingTaskId} onOpenChange={(open) => !open && setVerifyingTaskId(null)}>
         <DialogContent className="max-w-md">

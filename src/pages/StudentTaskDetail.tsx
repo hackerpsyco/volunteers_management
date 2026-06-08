@@ -31,6 +31,7 @@ interface StudentTask {
   created_at: string;
   earning_amount?: number;
   academic_year?: string;
+  rejection_comment?: string | null;
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType }> = {
@@ -38,6 +39,8 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
   submitted: { label: 'Submitted', color: 'bg-blue-100 text-blue-700 border-blue-200',     icon: CheckCircle2 },
   reviewed:  { label: 'Reviewed',  color: 'bg-purple-100 text-purple-700 border-purple-200', icon: Trophy },
   approved:  { label: 'Approved',  color: 'bg-green-100 text-green-700 border-green-200',  icon: CheckCircle2 },
+  completed: { label: 'Completed', color: 'bg-green-100 text-green-700 border-green-200',  icon: CheckCircle2 },
+  rejected:  { label: 'Rejected',  color: 'bg-red-100 text-red-700 border-red-200',        icon: AlertCircle },
 };
 
 
@@ -138,6 +141,7 @@ export default function StudentTaskDetail() {
   const StatusIcon = statusCfg.icon;
   const isDeadlinePast = task.deadline && new Date(task.deadline) < new Date();
   const canSubmit = task.status === 'pending';
+  const isRejected = task.status === 'rejected';
 
   const deadlineDate = task.deadline ? new Date(task.deadline) : null;
   const cutoffDate = deadlineDate ? (() => {
@@ -242,6 +246,24 @@ export default function StudentTaskDetail() {
           </div>
         )}
 
+        {/* Rejection Comment — shown prominently when rejected */}
+        {isRejected && (
+          <div className="rounded-2xl border-2 border-red-300 bg-red-50 p-6 shadow-sm space-y-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-red-700 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4" /> Task Rejected
+            </h2>
+            {task.rejection_comment ? (
+              <div>
+                <p className="text-xs text-red-500 font-medium mb-1">Reason from admin/facilitator:</p>
+                <p className="text-sm text-red-800 leading-relaxed font-medium">{task.rejection_comment}</p>
+              </div>
+            ) : (
+              <p className="text-sm text-red-600 italic">Your submission was rejected. Please contact your class monitor or facilitator for more details.</p>
+            )}
+            <p className="text-xs text-red-500">Please fix the issues and resubmit your work.</p>
+          </div>
+        )}
+
         {/* Current Submission */}
         {task.submission_link && (
           <div className="rounded-2xl border border-blue-200 bg-blue-50 p-6 shadow-sm space-y-2">
@@ -264,10 +286,10 @@ export default function StudentTaskDetail() {
         <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-4">
           <h2 className="text-base font-semibold flex items-center gap-2">
             <CheckCircle2 className="h-5 w-5 text-green-600" />
-            {canSubmit ? 'Submit Your Work' : 'Update Submission'}
+            {canSubmit || isRejected ? 'Submit Your Work' : 'Update Submission'}
           </h2>
 
-          {!canSubmit && task.status !== 'submitted' ? (
+          {!canSubmit && !isRejected && task.status !== 'submitted' ? (
             <div className="rounded-xl bg-muted/60 border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
               This task has been <strong className="text-foreground capitalize">{task.status}</strong> — no further submissions needed.
             </div>
@@ -295,7 +317,7 @@ export default function StudentTaskDetail() {
                 </p>
               </div>
 
-              {(canSubmit || task.status === 'submitted') && (
+              {(canSubmit || isRejected || task.status === 'submitted') && (
                 <Button
                   onClick={handleSubmit}
                   disabled={saving || !submissionLink.trim() || isSubmissionClosed}
@@ -305,7 +327,7 @@ export default function StudentTaskDetail() {
                   {saving ? (
                     <><Loader2 className="h-4 w-4 animate-spin" /> Submitting...</>
                   ) : (
-                    <><CheckCircle2 className="h-4 w-4" /> Save Submission</>
+                    <><CheckCircle2 className="h-4 w-4" /> {isRejected ? 'Resubmit Work' : 'Save Submission'}</>
                   )}
                 </Button>
               )}
