@@ -551,6 +551,9 @@ export default function AdminPanel() {
                   <TableBody>
                     {users
                       .filter(u => {
+                        const studentRole = roles.find(r => r.name.toLowerCase() === 'student');
+                        if (studentRole && u.role_id === studentRole.id) return false;
+                        
                         const matchesRole = roleFilter === 'all' || u.role_id?.toString() === roleFilter;
                         const matchesSearch = !searchQuery || 
                           u.email.toLowerCase().includes(searchQuery.toLowerCase()) || 

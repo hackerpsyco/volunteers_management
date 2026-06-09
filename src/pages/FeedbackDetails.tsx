@@ -182,6 +182,7 @@ export default function FeedbackDetails() {
 
       if (studentsError) throw studentsError;
 
+      console.log('Students fetched:', studentsData);
       setAllStudents(studentsData || []);
     } catch (error) {
       console.error('Error fetching all students:', error);
@@ -415,90 +416,112 @@ export default function FeedbackDetails() {
               </div>
 
               {studentPerformance.length > 0 || allStudents.length > 0 ? (
-                <div className="mt-6">
-                  <h3 className="font-semibold text-sm mb-3">Student Performance Records</h3>
-                  <div className="overflow-x-auto">
-                     <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-[50px]">SN</TableHead>
-                          <TableHead>Student Name</TableHead>
-                          <TableHead className="w-[100px]">Status</TableHead>
-                          <TableHead className="w-[100px]">Questions</TableHead>
-                          <TableHead className="w-[100px]">Rating</TableHead>
-                          <TableHead className="w-[120px]">Bad Behaviour</TableHead>
-                          <TableHead className="w-[100px]">Total Rating</TableHead>
-                          <TableHead>Comment</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {allStudents.length > 0 ? (
-                          // Show all students from class with their performance data if available
-                          allStudents.map((student, index) => {
-                            const perfData = studentPerformance.find(sp => (sp.student_name || '').trim() === student.name.trim());
-                            const isAbsent = perfData?.attendance_status === 'Absent';
-                            const hasData = !!perfData;
+                <div className="mt-6 w-full space-y-3">
+                  <h3 className="font-semibold text-base mb-4">Student Performance Records</h3>
+                  {allStudents.length > 0 ? (
+                    // Show all students from class with their performance data
+                    allStudents.map((student, index) => {
+                      const perfData = studentPerformance.find(sp => (sp.student_name || '').trim() === student.name.trim());
+                      const isAbsent = perfData?.attendance_status === 'Absent';
+                      const hasData = !!perfData;
+                      
+                      return (
+                        <div key={student.id} className={`p-3 border-l-4 rounded ${!hasData ? 'bg-gray-50 border-l-gray-300' : 'bg-white border-l-blue-500'}`}>
+                          <div className="flex flex-col gap-2">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs text-gray-500 mb-0.5">Student #{index + 1}</p>
+                                <p className="font-bold text-lg text-gray-900 break-words overflow-visible whitespace-normal">{student.name}</p>
+                                {student.student_id && <p className="text-xs text-gray-600 mt-1">ID: {student.student_id}</p>}
+                              </div>
+                              {hasData && (
+                                <Badge className={isAbsent ? 'bg-red-500' : 'bg-green-500'}>
+                                  {isAbsent ? 'Absent' : 'Present'}
+                                </Badge>
+                              )}
+                            </div>
                             
-                            return (
-                              <TableRow key={student.id} className={!hasData ? 'bg-muted/30' : ''}>
-                                <TableCell className="font-medium">{index + 1}</TableCell>
-                                <TableCell className="font-medium">
-                                  {student.name}
-                                  {student.student_id && <span className="text-xs text-muted-foreground ml-1">({student.student_id})</span>}
-                                </TableCell>
-                                <TableCell>
-                                  {hasData ? (
-                                    <Badge variant={isAbsent ? 'destructive' : 'default'} className={isAbsent ? '' : 'bg-green-600 hover:bg-green-700'}>
-                                      {isAbsent ? 'Absent' : 'Present'}
-                                    </Badge>
-                                  ) : (
-                                    <Badge variant="outline">No Data</Badge>
-                                  )}
-                                </TableCell>
-                                <TableCell className="text-center">{hasData ? perfData.questions_asked : '-'}</TableCell>
-                                <TableCell className="text-center font-medium">{hasData ? `${perfData.performance_rating}/10` : '-'}</TableCell>
-                                <TableCell className="text-center font-medium">{hasData ? `${perfData.bad_behaviour_points ?? 0}/10` : '-'}</TableCell>
-                                <TableCell className="text-center font-bold text-blue-600">
-                                  {hasData ? `${Math.max(0, (perfData.performance_rating ?? 0) - (perfData.bad_behaviour_points ?? 0))}/10` : '-'}
-                                </TableCell>
-                                <TableCell className="max-w-[300px] truncate text-sm">
-                                  {hasData ? perfData.performance_comment || '-' : '-'}
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })
-                        ) : (
-                          // Fallback to showing only students with performance data
-                          studentPerformance.map((student, index) => {
-                            const isAbsent = student.attendance_status === 'Absent';
-                            return (
-                              <TableRow key={student.id}>
-                                <TableCell className="font-medium">{index + 1}</TableCell>
-                                <TableCell className="font-medium">{student.student_name}</TableCell>
-                                <TableCell>
-                                  <Badge variant={isAbsent ? 'destructive' : 'default'} className={isAbsent ? '' : 'bg-green-600 hover:bg-green-700'}>
-                                    {isAbsent ? 'Absent' : 'Present'}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell className="text-center">{student.questions_asked}</TableCell>
-                                <TableCell className="text-center font-medium">{student.performance_rating}/10</TableCell>
-                                <TableCell className="text-center font-medium">{(student.bad_behaviour_points ?? 0)}/10</TableCell>
-                                <TableCell className="text-center font-bold text-blue-600">
-                                  {Math.max(0, (student.performance_rating ?? 0) - (student.bad_behaviour_points ?? 0))}/10
-                                </TableCell>
-                                <TableCell className="max-w-[300px] truncate text-sm">
-                                  {student.performance_comment || '-'}
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
+                            {hasData && (
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 mt-2 border-t border-gray-200">
+                                <div>
+                                  <p className="text-xs text-gray-600">Questions</p>
+                                  <p className="font-semibold">{perfData.questions_asked}</p>
+                                </div>
+                                <div>
+                                  <p className="text-xs text-gray-600">Rating</p>
+                                  <p className="font-semibold">{perfData.performance_rating}/10</p>
+                                </div>
+                                <div>
+                                  <p className="text-xs text-gray-600">Bad Behaviour</p>
+                                  <p className="font-semibold">{perfData.bad_behaviour_points ?? 0}/10</p>
+                                </div>
+                                <div>
+                                  <p className="text-xs text-gray-600">Total</p>
+                                  <p className="font-bold text-blue-600">{Math.max(0, (perfData.performance_rating ?? 0) - (perfData.bad_behaviour_points ?? 0))}/10</p>
+                                </div>
+                              </div>
+                            )}
+                            
+                            {perfData?.performance_comment && (
+                              <div className="pt-2 mt-2 border-t border-gray-200">
+                                <p className="text-xs text-gray-600 mb-1">Comment:</p>
+                                <p className="text-sm text-gray-700 break-words">{perfData.performance_comment}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    // Fallback: show only students with performance data
+                    studentPerformance.map((student, index) => {
+                      const isAbsent = student.attendance_status === 'Absent';
+                      return (
+                        <div key={student.id} className="p-3 border-l-4 border-l-blue-500 bg-white rounded">
+                          <div className="flex flex-col gap-2">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs text-gray-500 mb-0.5">Student #{index + 1}</p>
+                                <p className="font-bold text-lg text-gray-900 break-words overflow-visible whitespace-normal">{student.student_name}</p>
+                              </div>
+                              <Badge className={isAbsent ? 'bg-red-500' : 'bg-green-500'}>
+                                {isAbsent ? 'Absent' : 'Present'}
+                              </Badge>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 mt-2 border-t border-gray-200">
+                              <div>
+                                <p className="text-xs text-gray-600">Questions</p>
+                                <p className="font-semibold">{student.questions_asked}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-gray-600">Rating</p>
+                                <p className="font-semibold">{student.performance_rating}/10</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-gray-600">Bad Behaviour</p>
+                                <p className="font-semibold">{(student.bad_behaviour_points ?? 0)}/10</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-gray-600">Total</p>
+                                <p className="font-bold text-blue-600">{Math.max(0, (student.performance_rating ?? 0) - (student.bad_behaviour_points ?? 0))}/10</p>
+                              </div>
+                            </div>
+                            
+                            {student.performance_comment && (
+                              <div className="pt-2 mt-2 border-t border-gray-200">
+                                <p className="text-xs text-gray-600 mb-1">Comment:</p>
+                                <p className="text-sm text-gray-700 break-words">{student.performance_comment}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
                   
                   {/* Student Count Summary */}
-                  <div className="mt-3 pt-3 border-t border-border flex justify-between items-center">
+                  <div className="mt-4 pt-4 border-t border-border flex flex-col sm:flex-row sm:justify-between gap-2">
                     <p className="text-sm font-semibold text-muted-foreground">
                       Total Students in Class: <span className="text-foreground">{allStudents.length > 0 ? allStudents.length : studentPerformance.length}</span>
                     </p>

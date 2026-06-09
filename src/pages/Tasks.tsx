@@ -139,9 +139,7 @@ export default function Tasks() {
     if (filterSubject !== 'all') {
       filtered = filtered.filter((t) => t.subject_name === filterSubject);
     }
-    if (filterStatus !== 'all') {
-      filtered = filtered.filter((t) => t.status === filterStatus);
-    }
+    // Status filtering is applied after grouping to maintain correct denominator counts
     if (filterDateFrom || filterDateTo) {
       filtered = filtered.filter((t) => {
         if (!t.due_date) return false;
@@ -218,7 +216,11 @@ export default function Tasks() {
         group.submittedCount++;
       }
     });
-    setTaskGroups(Array.from(grouped.values()));
+    let finalGroups = Array.from(grouped.values());
+    if (filterStatus !== 'all') {
+      finalGroups = finalGroups.filter((g) => g.tasks.some((t) => t.status === filterStatus));
+    }
+    setTaskGroups(finalGroups);
   }, [tasks, filterClass, filterSession, filterSubject, filterStatus, filterDateFrom, filterDateTo, searchQuery, classes]);
 
   const fetchClasses = async () => {
@@ -367,6 +369,20 @@ export default function Tasks() {
   const handleDeleteTask = async () => {
     if (!taskToDelete) return;
     try {
+      // First, get all task IDs in this group to delete their associated earnings
+      const taskIds = taskToDelete.tasks.map(t => t.id);
+      
+      if (taskIds.length > 0) {
+        const { error: earningError } = await supabase
+          .from('student_earnings')
+          .delete()
+          .in('task_id', taskIds);
+          
+        if (earningError) {
+          console.error("Error deleting associated earnings:", earningError);
+        }
+      }
+
       const { error } = await supabase
         .from('student_task_feedback')
         .delete()
@@ -504,7 +520,7 @@ export default function Tasks() {
                 <SelectItem value="pending">Pending</SelectItem>
                 <SelectItem value="in_progress">In Progress</SelectItem>
                 <SelectItem value="submitted">Submitted</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="completed">Approved</SelectItem>
                 <SelectItem value="rejected">Rejected</SelectItem>
               </SelectContent>
             </Select>
@@ -635,8 +651,8 @@ export default function Tasks() {
                           </span>
                         </TableCell>
                         <TableCell className="text-sm font-medium text-center">
-                          <span className={group.completedCount === group.tasks.length ? "text-green-600 font-semibold" : "text-foreground"}>
-                            {group.completedCount}/{group.tasks.length}
+                          <span className={group.completedCount === group.submittedCount && group.submittedCount > 0 ? "text-green-600 font-semibold" : "text-foreground"}>
+                            {group.completedCount}/{group.submittedCount}
                           </span>
                         </TableCell>
                         <TableCell className="text-right">

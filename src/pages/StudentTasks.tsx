@@ -29,7 +29,7 @@ export default function StudentTasks() {
   const navigate = useNavigate();
   const [tasks, setTasks] = useState<StudentTask[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'pending' | 'submitted' | 'upcoming'>('all');
+  const [filter, setFilter] = useState<'all' | 'pending' | 'submitted' | 'upcoming' | 'completed'>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   const { selectedYear, getDateRange } = useAcademicYear();
@@ -77,6 +77,7 @@ export default function StudentTasks() {
 
     if (filter === 'all') return matchesSearch;
     if (filter === 'submitted') return matchesSearch && task.status === 'submitted';
+    if (filter === 'completed') return matchesSearch && task.status === 'completed';
     if (filter === 'pending') return matchesSearch && task.status === 'pending';
     if (filter === 'upcoming') {
       const isPending = task.status === 'pending';
@@ -124,6 +125,9 @@ export default function StudentTasks() {
             </Button>
             <Button variant={filter === 'submitted' ? 'default' : 'ghost'} onClick={() => setFilter('submitted')} size="sm" className="gap-1.5">
               <CheckCircle2 className="h-4 w-4" /> Submitted
+            </Button>
+            <Button variant={filter === 'completed' ? 'default' : 'ghost'} onClick={() => setFilter('completed')} size="sm" className="gap-1.5 text-green-600 hover:text-green-700 hover:bg-green-50">
+              <CheckCircle2 className="h-4 w-4" /> Approved
             </Button>
           </div>
         </div>

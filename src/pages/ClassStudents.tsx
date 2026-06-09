@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Plus, Trash2, ArrowLeft, MoreVertical, Edit, ArrowUpRight, Info, UserCog } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, MoreVertical, Edit, ArrowUpRight, Info, Key, UserCog } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -43,6 +43,7 @@ import { EditStudentDialog } from '@/components/classes/EditStudentDialog';
 import { StudentInfoDialog } from '@/components/classes/StudentInfoDialog';
 import { PromoteStudentDialog } from '@/components/classes/PromoteStudentDialog';
 import { AssignMonitorDialog } from '@/components/classes/AssignMonitorDialog';
+import { StudentAuthDialog } from '@/components/classes/StudentAuthDialog';
 import { Badge } from '@/components/ui/badge';
 import { useAcademicYear } from '@/contexts/AcademicYearContext';
 
@@ -99,6 +100,8 @@ export default function ClassStudents() {
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
   const [isAssignMonitorOpen, setIsAssignMonitorOpen] = useState(false);
   const [studentForMonitor, setStudentForMonitor] = useState<Student | null>(null);
+  const [isAuthDialogOpen, setIsAuthDialogOpen] = useState(false);
+  const [studentForAuth, setStudentForAuth] = useState<Student | null>(null);
 
   const handleColumnSort = (column: SortColumn) => {
     if (sortColumn === column) {
@@ -437,6 +440,13 @@ export default function ClassStudents() {
                                   <UserCog className="h-4 w-4 mr-2" />
                                   Assign Monitor
                                 </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => {
+                                  setStudentForAuth(student);
+                                  setIsAuthDialogOpen(true);
+                                }}>
+                                  <Key className="h-4 w-4 mr-2" />
+                                  Reset Password
+                                </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={() => {
                                     setStudentToDelete(student);
@@ -544,6 +554,18 @@ export default function ClassStudents() {
                         </Button>
                         <Button
                           size="sm"
+                          variant="secondary"
+                          onClick={() => {
+                            setStudentForAuth(student);
+                            setIsAuthDialogOpen(true);
+                          }}
+                          className="flex-1 min-w-[45%]"
+                        >
+                          <Key className="h-4 w-4 mr-1" />
+                          Reset Password
+                        </Button>
+                        <Button
+                          size="sm"
                           variant="destructive"
                           onClick={() => {
                             setStudentToDelete(student);
@@ -646,6 +668,14 @@ export default function ClassStudents() {
         student={studentForMonitor}
         classId={classId!}
         onSuccess={fetchClassAndStudents}
+      />
+
+      {/* Auth Settings Dialog */}
+      <StudentAuthDialog
+        open={isAuthDialogOpen}
+        onOpenChange={setIsAuthDialogOpen}
+        student={studentForAuth}
+        classId={classId!}
       />
     </DashboardLayout>
   );

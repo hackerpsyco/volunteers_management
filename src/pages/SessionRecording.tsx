@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, Save, ChevronRight, ChevronLeft, Plus, Trash2, Shield, ExternalLink, Mic, MicOff, Check, ChevronsUpDown, X, Edit, Search } from 'lucide-react';
+import { ArrowLeft, Save, ChevronRight, ChevronLeft, Plus, Trash2, Shield, ExternalLink, Mic, MicOff, Check, ChevronsUpDown, X, Edit, Search, ArrowUpDown } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
@@ -140,6 +140,7 @@ export default function SessionRecording() {
     student_id: '',
     task_name: '',
     task_type: '',
+    custom_task_type: '',
     deadline: '',
     task_description: '',
     submission_link: '',
@@ -151,6 +152,29 @@ export default function SessionRecording() {
   const [isEditingHomework, setIsEditingHomework] = useState(false);
   const [isBestPerformerManual, setIsBestPerformerManual] = useState(false);
   const [rewardConfigs, setRewardConfigs] = useState<{ task_type: string, rate_per_task: number }[]>([]);
+
+  useEffect(() => {
+    if (session && rewardConfigs.length > 0 && !newHomework.task_type) {
+      const typeStr = session.session_type?.toLowerCase() || '';
+      let matchedType = '';
+      if (typeStr === 'guest_teacher') matchedType = rewardConfigs.find(c => c.task_type.toLowerCase().includes('guest teacher'))?.task_type || '';
+      else if (typeStr === 'local_teacher') matchedType = rewardConfigs.find(c => c.task_type.toLowerCase().includes('local teacher'))?.task_type || '';
+      else if (typeStr === 'guest_speaker') matchedType = rewardConfigs.find(c => c.task_type.toLowerCase().includes('guest speaker'))?.task_type || '';
+      
+      if (!matchedType) {
+        matchedType = rewardConfigs.find(c => c.task_type.toLowerCase() === 'other' || c.task_type.toLowerCase().includes('other'))?.task_type || '';
+      }
+      
+      if (matchedType) {
+        const config = rewardConfigs.find(c => c.task_type === matchedType);
+        setNewHomework(prev => ({ 
+          ...prev, 
+          task_type: matchedType,
+          earning_amount: config?.rate_per_task?.toString() || '5'
+        }));
+      }
+    }
+  }, [session, rewardConfigs, newHomework.task_type]);
 
   const toggleVoiceTyping = () => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
@@ -533,6 +557,15 @@ export default function SessionRecording() {
     });
   };
 
+  const handleStudentSort = (field: string) => {
+    if (studentSortField === field) {
+      setStudentSortDirection(studentSortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setStudentSortField(field);
+      setStudentSortDirection('asc');
+    }
+  };
+
   const getProcessedStudents = () => {
     // 1. Resolve performance data for each student
     const resolved = students.map(student => {
@@ -574,14 +607,22 @@ export default function SessionRecording() {
       let comparison = 0;
       if (studentSortField === 'name') {
         comparison = a.student.name.localeCompare(b.student.name);
-      } else if (studentSortField === 'rating') {
+      } else if (studentSortField === 'response') {
         const ratingA = Number(a.perfData.performance_rating) || 0;
         const ratingB = Number(b.perfData.performance_rating) || 0;
         comparison = ratingA - ratingB;
+      } else if (studentSortField === 'rating') {
+        const totalA = ((Number(a.perfData.questions_asked) || 0) + (Number(a.perfData.performance_rating) || 0) - (Number(a.perfData.bad_behaviour_points) || 0)) / 2;
+        const totalB = ((Number(b.perfData.questions_asked) || 0) + (Number(b.perfData.performance_rating) || 0) - (Number(b.perfData.bad_behaviour_points) || 0)) / 2;
+        comparison = totalA - totalB;
       } else if (studentSortField === 'questions') {
         const questionsA = Number(a.perfData.questions_asked) || 0;
         const questionsB = Number(b.perfData.questions_asked) || 0;
         comparison = questionsA - questionsB;
+      } else if (studentSortField === 'bad_behaviour') {
+        const bbA = Number(a.perfData.bad_behaviour_points) || 0;
+        const bbB = Number(b.perfData.bad_behaviour_points) || 0;
+        comparison = bbA - bbB;
       }
 
       return studentSortDirection === 'asc' ? comparison : -comparison;
@@ -728,6 +769,8 @@ export default function SessionRecording() {
       if (facilitatorStatus === 'done' && coordinatorStatus === 'done') {
         updateData.status = 'completed';
         updateData.admin_feedback_status = 'submitted';
+      } else if (facilitatorStatus === 'done' || coordinatorStatus === 'done') {
+        updateData.status = 'in_progress';
       }
 
       const { error } = await supabase
@@ -1106,6 +1149,7 @@ export default function SessionRecording() {
         student_id: '',
         task_name: currentHw.task_name || '',
         task_type: currentHw.feedback_type || '',
+        custom_task_type: '',
         deadline: currentHw.deadline ? formatDatetimeLocal(currentHw.deadline) : '',
         task_description: currentHw.task_description || '',
         submission_link: '',
@@ -1127,6 +1171,13 @@ export default function SessionRecording() {
       return;
     }
 
+    if (newHomework.task_type === 'Other' && !newHomework.custom_task_type?.trim()) {
+      toast.error('Please specify the custom task type');
+      return;
+    }
+
+    const finalTaskType = newHomework.task_type === 'Other' ? newHomework.custom_task_type : newHomework.task_type;
+
     try {
       setSavingHomework(true);
 
@@ -1141,7 +1192,7 @@ export default function SessionRecording() {
         const { error } = await supabase
           .from('student_task_feedback')
           .update({
-            feedback_type: newHomework.task_type || 'homework',
+            feedback_type: finalTaskType || 'homework',
             task_name: newHomework.task_name,
             task_description: newHomework.task_description || null,
             deadline: newHomework.deadline ? new Date(newHomework.deadline).toISOString() : null,
@@ -1165,7 +1216,7 @@ export default function SessionRecording() {
         const homeworkRecords = presentStudents.map(student => ({
           session_id: sessionId,
           student_id: student.id,
-          feedback_type: newHomework.task_type || 'homework',
+          feedback_type: finalTaskType || 'homework',
           task_name: newHomework.task_name,
           task_description: newHomework.task_description || null,
           deadline: newHomework.deadline ? new Date(newHomework.deadline).toISOString() : null,
@@ -1189,6 +1240,7 @@ export default function SessionRecording() {
         student_id: '',
         task_name: '',
         task_type: '',
+        custom_task_type: '',
         deadline: '',
         task_description: '',
         submission_link: '',
@@ -1208,6 +1260,16 @@ export default function SessionRecording() {
     if (!confirm('Delete this homework feedback?')) return;
 
     try {
+      // Delete associated earnings first to prevent orphan records
+      const { error: earningError } = await supabase
+        .from('student_earnings')
+        .delete()
+        .eq('task_id', id);
+
+      if (earningError) {
+        console.error('Error deleting associated earnings:', earningError);
+      }
+
       const { error } = await supabase
         .from('student_task_feedback')
         .delete()
@@ -1438,48 +1500,45 @@ export default function SessionRecording() {
                     <div className="grid grid-cols-3 gap-4">
                       <div>
                         <Label className="text-sm font-medium">Mic/Sound Quality <span className="text-destructive">*</span></Label>
-                        <Input
-                          type="number"
-                          min="1"
-                          max="10"
-                          value={formData.mic_sound_rating}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setFormData({ ...formData, mic_sound_rating: val === '' ? '' : parseInt(val) } as any);
-                          }}
-                          className="mt-1"
-                        />
-                        <p className="text-xs text-muted-foreground mt-1">Rate 1-10</p>
+                        <Select
+                          value={formData.mic_sound_rating?.toString() || ''}
+                          onValueChange={(val) => setFormData({ ...formData, mic_sound_rating: parseInt(val) } as any)}
+                        >
+                          <SelectTrigger className="mt-1"><SelectValue placeholder="Rate 1-10" /></SelectTrigger>
+                          <SelectContent>
+                            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
+                              <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div>
                         <Label className="text-sm font-medium">Seating/View <span className="text-destructive">*</span></Label>
-                        <Input
-                          type="number"
-                          min="1"
-                          max="10"
-                          value={formData.seating_view_rating}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setFormData({ ...formData, seating_view_rating: val === '' ? '' : parseInt(val) } as any);
-                          }}
-                          className="mt-1"
-                        />
-                        <p className="text-xs text-muted-foreground mt-1">Rate 1-10</p>
+                        <Select
+                          value={formData.seating_view_rating?.toString() || ''}
+                          onValueChange={(val) => setFormData({ ...formData, seating_view_rating: parseInt(val) } as any)}
+                        >
+                          <SelectTrigger className="mt-1"><SelectValue placeholder="Rate 1-10" /></SelectTrigger>
+                          <SelectContent>
+                            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
+                              <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div>
                         <Label className="text-sm font-medium">Session Strength <span className="text-destructive">*</span></Label>
-                        <Input
-                          type="number"
-                          min="1"
-                          max="10"
-                          value={formData.session_strength}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setFormData({ ...formData, session_strength: val === '' ? '' : parseInt(val) } as any);
-                          }}
-                          className="mt-1"
-                        />
-                        <p className="text-xs text-muted-foreground mt-1">Rate 1-10</p>
+                        <Select
+                          value={formData.session_strength?.toString() || ''}
+                          onValueChange={(val) => setFormData({ ...formData, session_strength: parseInt(val) } as any)}
+                        >
+                          <SelectTrigger className="mt-1"><SelectValue placeholder="Rate 1-10" /></SelectTrigger>
+                          <SelectContent>
+                            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
+                              <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
                   </CardContent>
@@ -1597,60 +1656,33 @@ export default function SessionRecording() {
                               </Select>
                             </div>
 
-                            {/* Sort Field */}
-                            <div className="w-[130px]">
-                              <Select
-                                value={studentSortField}
-                                onValueChange={(val: any) => setStudentSortField(val)}
-                              >
-                                <SelectTrigger className="h-8 text-xs">
-                                  <SelectValue placeholder="Sort By" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="name">Sort by Name</SelectItem>
-                                  <SelectItem value="rating">Sort by Rating</SelectItem>
-                                  <SelectItem value="questions">Sort by Questions</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-
-                            {/* Sort Direction */}
-                            <div className="w-[120px]">
-                              <Select
-                                value={studentSortDirection}
-                                onValueChange={(val: any) => setStudentSortDirection(val)}
-                              >
-                                <SelectTrigger className="h-8 text-xs">
-                                  <SelectValue placeholder="Order" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="asc">Ascending</SelectItem>
-                                  <SelectItem value="desc">Descending</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
                           </div>
                         </div>
 
                         {/* Header Row */}
-                        <div className="grid grid-cols-12 gap-2 pb-2 border-b border-border">
-                          <div className="col-span-2">
+                        <div className="grid grid-cols-12 gap-2 pb-2 border-b border-border items-center">
+                          <div className="col-span-2 cursor-pointer hover:text-primary flex items-center gap-1" onClick={() => handleStudentSort('name')}>
                             <p className="text-xs font-semibold text-muted-foreground">Student Name</p>
+                            <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
                           </div>
                           <div className="col-span-1 text-center">
                             <p className="text-xs font-semibold text-muted-foreground">Status</p>
                           </div>
-                          <div className="col-span-2">
+                          <div className="col-span-2 cursor-pointer hover:text-primary flex items-center justify-center gap-1" onClick={() => handleStudentSort('questions')}>
                             <p className="text-xs font-semibold text-muted-foreground text-center">Questions</p>
+                            <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
                           </div>
-                          <div className="col-span-2">
-                            <p className="text-xs font-semibold text-muted-foreground text-center">Rating</p>
+                          <div className="col-span-2 cursor-pointer hover:text-primary flex items-center justify-center gap-1" onClick={() => handleStudentSort('response')}>
+                            <p className="text-xs font-semibold text-muted-foreground text-center">Response</p>
+                            <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
                           </div>
-                          <div className="col-span-2">
+                          <div className="col-span-2 cursor-pointer hover:text-primary flex items-center justify-center gap-1" onClick={() => handleStudentSort('bad_behaviour')}>
                             <p className="text-xs font-semibold text-muted-foreground text-center">Bad Behaviour</p>
+                            <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
                           </div>
-                          <div className="col-span-1 text-center">
-                            <p className="text-xs font-semibold text-muted-foreground">Total</p>
+                          <div className="col-span-1 cursor-pointer hover:text-primary flex items-center justify-center gap-1" onClick={() => handleStudentSort('rating')}>
+                            <p className="text-xs font-semibold text-muted-foreground">Rating</p>
+                            <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
                           </div>
                           <div className="col-span-2">
                             <p className="text-xs font-semibold text-muted-foreground">Comment</p>
@@ -1662,7 +1694,7 @@ export default function SessionRecording() {
                           return (
                             <div key={student.id} className="grid grid-cols-12 gap-2 items-center py-2 hover:bg-muted/30 rounded px-2 transition-colors">
                               <div className="col-span-2">
-                                <p className="text-sm font-medium truncate">
+                                <p className="text-sm font-medium break-words whitespace-normal">
                                   {student.name}
                                   {student.student_id && <span className="text-xs text-muted-foreground ml-1">({student.student_id})</span>}
                                 </p>
@@ -1759,7 +1791,7 @@ export default function SessionRecording() {
                               </div>
 
                               <div className="col-span-1 text-center font-bold text-blue-600 text-sm">
-                                {Math.max(0, (perfData.performance_rating ?? 0) - (perfData.bad_behaviour_points ?? 0))}
+                                {Math.max(0, ((perfData.questions_asked ?? 0) + (perfData.performance_rating ?? 0) - (perfData.bad_behaviour_points ?? 0)) / 2)}
                               </div>
 
                               <div className="col-span-2">
@@ -2045,9 +2077,24 @@ export default function SessionRecording() {
                                   {config.task_type}
                                 </SelectItem>
                               ))}
+                              {!rewardConfigs.some(c => c.task_type === 'Other') && (
+                                <SelectItem value="Other">Other</SelectItem>
+                              )}
                             </SelectContent>
                           </Select>
                         </div>
+                        {newHomework.task_type === 'Other' && (
+                          <div className="md:col-span-2">
+                            <Label htmlFor="hw_custom_type" className="text-sm">Specify Task Type *</Label>
+                            <Input
+                              id="hw_custom_type"
+                              placeholder="Type custom task type"
+                              value={newHomework.custom_task_type || ''}
+                              onChange={(e) => setNewHomework({ ...newHomework, custom_task_type: e.target.value })}
+                              className="mt-1"
+                            />
+                          </div>
+                        )}
                         <div>
                           <Label htmlFor="hw_deadline" className="text-sm">Deadline</Label>
                           <Input
@@ -2301,48 +2348,45 @@ export default function SessionRecording() {
                 <div className="grid grid-cols-3 gap-4">
                   <div>
                     <Label className="text-sm font-medium">Mic/Sound Quality <span className="text-destructive">*</span></Label>
-                    <Input
-                      type="number"
-                      min="1"
-                      max="10"
-                      value={formData.coordinator_mic_sound_rating}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setFormData({ ...formData, coordinator_mic_sound_rating: val === '' ? '' : parseInt(val) } as any);
-                      }}
-                      className="mt-1"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">Rate 1-10</p>
+                    <Select
+                      value={formData.coordinator_mic_sound_rating?.toString() || ''}
+                      onValueChange={(val) => setFormData({ ...formData, coordinator_mic_sound_rating: parseInt(val) } as any)}
+                    >
+                      <SelectTrigger className="mt-1"><SelectValue placeholder="Rate 1-10" /></SelectTrigger>
+                      <SelectContent>
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
+                          <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
                     <Label className="text-sm font-medium">Seating/View <span className="text-destructive">*</span></Label>
-                    <Input
-                      type="number"
-                      min="1"
-                      max="10"
-                      value={formData.coordinator_seating_view_rating}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setFormData({ ...formData, coordinator_seating_view_rating: val === '' ? '' : parseInt(val) } as any);
-                      }}
-                      className="mt-1"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">Rate 1-10</p>
+                    <Select
+                      value={formData.coordinator_seating_view_rating?.toString() || ''}
+                      onValueChange={(val) => setFormData({ ...formData, coordinator_seating_view_rating: parseInt(val) } as any)}
+                    >
+                      <SelectTrigger className="mt-1"><SelectValue placeholder="Rate 1-10" /></SelectTrigger>
+                      <SelectContent>
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
+                          <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
                     <Label className="text-sm font-medium">Session Strength <span className="text-destructive">*</span></Label>
-                    <Input
-                      type="number"
-                      min="1"
-                      max="10"
-                      value={formData.coordinator_session_strength}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setFormData({ ...formData, coordinator_session_strength: val === '' ? '' : parseInt(val) } as any);
-                      }}
-                      className="mt-1"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">Rate 1-10</p>
+                    <Select
+                      value={formData.coordinator_session_strength?.toString() || ''}
+                      onValueChange={(val) => setFormData({ ...formData, coordinator_session_strength: parseInt(val) } as any)}
+                    >
+                      <SelectTrigger className="mt-1"><SelectValue placeholder="Rate 1-10" /></SelectTrigger>
+                      <SelectContent>
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
+                          <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </CardContent>

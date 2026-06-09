@@ -502,7 +502,7 @@ export default function TaskDetail() {
                         </a>
                       )}
                       <div className="flex gap-2">
-                        {task.status !== 'completed' && task.status !== 'rejected' && (
+                        {task.status !== 'pending' && task.status !== 'completed' && task.status !== 'rejected' && (
                           <Button
                             size="sm"
                             className="bg-green-600 hover:bg-green-700"
