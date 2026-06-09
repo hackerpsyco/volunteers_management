@@ -51,6 +51,7 @@ import { UnifiedImportDialog } from '@/components/sessions/UnifiedImportDialog';
 import { Input } from '@/components/ui/input';
 import { EditCurriculumDialog } from '@/components/curriculum/EditCurriculumDialog';
 import { AddTopicDialog } from '@/components/curriculum/AddTopicDialog';
+import { ExportCurriculumDialog } from '@/components/curriculum/ExportCurriculumDialog';
 import { Badge } from '@/components/ui/badge';
 
 interface RawCurriculumData {
@@ -112,6 +113,7 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
   const [filteredCurriculum, setFilteredCurriculum] = useState<CurriculumItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isExportOpen, setIsExportOpen] = useState(false);
   const [isAddTopicOpen, setIsAddTopicOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -619,12 +621,20 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
           </div>
           {!isStudent && (
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-              <Button onClick={() => setIsAddTopicOpen(true)} className="flex-1 sm:flex-none gap-2" variant="outline">
-                <Plus className="h-4 w-4" /> Add Topic
-              </Button>
-              <Button onClick={() => setIsImportOpen(true)} className="flex-1 sm:flex-none gap-2">
-                <Upload className="h-4 w-4" /> Import Curriculum
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-2 mt-2 sm:mt-0 w-full sm:w-auto">
+                <Button variant="outline" onClick={() => setIsExportOpen(true)} className="gap-2 shrink-0 h-10 border-primary/20 hover:bg-primary/5">
+                  <Upload className="h-4 w-4 rotate-180" />
+                  Export Report
+                </Button>
+                <Button variant="outline" onClick={() => setIsImportOpen(true)} className="gap-2 shrink-0 h-10 border-primary/20 hover:bg-primary/5">
+                  <Upload className="h-4 w-4" />
+                  Import Curriculum
+                </Button>
+                <Button onClick={() => setIsAddTopicOpen(true)} className="gap-2 shrink-0 h-10">
+                  <Plus className="h-4 w-4" />
+                  Add Topic
+                </Button>
+              </div>
             </div>
           )}
         </div>
@@ -1336,6 +1346,14 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
         open={isImportOpen}
         onOpenChange={setIsImportOpen}
         onSuccess={fetchCurriculum}
+      />
+
+      {/* Export Dialog */}
+      <ExportCurriculumDialog
+        isOpen={isExportOpen}
+        onClose={() => setIsExportOpen(false)}
+        classes={classes}
+        defaultClassId={selectedClass}
       />
 
       {/* Add Topic Dialog */}
