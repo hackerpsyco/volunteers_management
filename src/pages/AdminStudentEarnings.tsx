@@ -483,6 +483,7 @@ export default function AdminStudentEarnings() {
                       <TableHead>Session</TableHead>
                       <TableHead>Deadline</TableHead>
                       <TableHead className="text-right">Amount</TableHead>
+                      <TableHead className="text-right">Action</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -491,7 +492,7 @@ export default function AdminStudentEarnings() {
                       return selectedMonth === 'all' || earnedAt.getMonth().toString() === selectedMonth;
                     }).length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-6 text-muted-foreground">
+                        <TableCell colSpan={7} className="text-center py-6 text-muted-foreground">
                           No records found for this student
                         </TableCell>
                       </TableRow>
@@ -529,6 +530,15 @@ export default function AdminStudentEarnings() {
                             </TableCell>
                             <TableCell className="text-right font-bold text-green-600">
                               ₹{r.amount}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <button
+                                onClick={() => handleDeleteRecord(r.id)}
+                                className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                title="Delete this earning record"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
                             </TableCell>
                           </TableRow>
                         ))

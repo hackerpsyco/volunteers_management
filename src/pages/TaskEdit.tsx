@@ -23,6 +23,12 @@ interface TaskData {
   session_id: string;
   academic_year: string;
   earning_amount: number;
+  class_id?: string;
+}
+
+interface ClassOption {
+  id: string;
+  name: string;
 }
 
 export default function TaskEdit() {
@@ -31,17 +37,43 @@ export default function TaskEdit() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [taskData, setTaskData] = useState<TaskData | null>(null);
+  const [classes, setClasses] = useState<ClassOption[]>([]);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     dueDate: '',
     academicYear: '',
     reward: 0,
+    classId: '',
   });
 
   useEffect(() => {
-    fetchTaskData();
+    if (taskTitle) {
+      loadData();
+    }
   }, [taskTitle]);
+
+  const loadData = async () => {
+    setLoading(true);
+    // Fetch classes first, then task data
+    await fetchClasses();
+    await fetchTaskData();
+    setLoading(false);
+  };
+
+  const fetchClasses = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('classes')
+        .select('id, name')
+        .order('name');
+      
+      if (error) throw error;
+      setClasses(data || []);
+    } catch (error) {
+      console.error('Error fetching classes:', error);
+    }
+  };
 
   const formatDatetimeLocal = (dateString?: string) => {
     if (!dateString) return '';
@@ -53,7 +85,6 @@ export default function TaskEdit() {
 
   const fetchTaskData = async () => {
     try {
-      setLoading(true);
       const { data, error } = await supabase
         .from('student_task_feedback')
         .select('*')
@@ -71,14 +102,13 @@ export default function TaskEdit() {
           dueDate: data.deadline ? formatDatetimeLocal(data.deadline) : '',
           academicYear: data.academic_year || '',
           reward: data.earning_amount || 0,
+          classId: data.class_id || '',
         });
       }
     } catch (error) {
       console.error('Error fetching task data:', error);
       toast.error('Failed to load task');
       navigate('/tasks');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -98,6 +128,7 @@ export default function TaskEdit() {
           deadline: formData.dueDate ? new Date(formData.dueDate).toISOString() : null,
           academic_year: formData.academicYear,
           earning_amount: formData.reward,
+          class_id: formData.classId || null,
         })
         .eq('task_name', decodeURIComponent(taskTitle || ''));
 
@@ -205,6 +236,33 @@ export default function TaskEdit() {
                   <SelectItem value="2027-28">2027-28</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Class */}
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Select Class (Optional)
+              </label>
+              <Select
+                value={formData.classId || ''}
+                onValueChange={(value) => setFormData({ ...formData, classId: value })}
+              >
+                <SelectTrigger className="w-full bg-background border-border">
+                  <SelectValue placeholder="Select Class" />
+                </SelectTrigger>
+                <SelectContent>
+                  {classes.map((cls) => (
+                    <SelectItem key={cls.id} value={cls.id}>
+                      {cls.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {formData.classId && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  Currently assigned to: <span className="font-semibold text-foreground">{classes.find(c => c.id === formData.classId)?.name}</span>
+                </p>
+              )}
             </div>
 
             {/* Reward */}

@@ -231,6 +231,13 @@ export default function StudentTaskDetail() {
                 if (target.tagName === 'IMG') {
                   setLightboxImage((target as HTMLImageElement).src);
                 }
+                if (target.tagName === 'A') {
+                  e.preventDefault();
+                  const href = target.getAttribute('href');
+                  if (href) {
+                    window.open(href, '_blank', 'noopener,noreferrer');
+                  }
+                }
               }}
             />
           </div>

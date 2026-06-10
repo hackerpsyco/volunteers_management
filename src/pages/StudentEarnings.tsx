@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Wallet, TrendingUp, History, Gift, ArrowUpRight, CheckCircle2 } from 'lucide-react';
+import { Wallet, TrendingUp, History, Gift, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { supabase } from '@/integrations/supabase/client';
@@ -335,7 +335,7 @@ export default function StudentEarnings() {
                       if (filtered.length === 0) {
                         return (
                           <TableRow>
-                            <TableCell colSpan={6} className="text-center py-6 text-muted-foreground">
+                            <TableCell colSpan={7} className="text-center py-6 text-muted-foreground">
                               No matching transactions found
                             </TableCell>
                           </TableRow>
