@@ -53,16 +53,32 @@ export function EditClassDialog({
     try {
       setSaving(true);
 
+      const newName = className.trim();
+      const oldName = classData.name;
+
       const { error } = await (supabase as any)
         .from('classes')
         .update({
-          name: className.trim(),
-          description: className.trim(),
+          name: newName,
+          description: newName,
           email: email.trim(),
         })
         .eq('id', classData.id);
 
       if (error) throw error;
+
+      // If the class name was changed, update all string references in other tables
+      if (oldName && oldName !== newName) {
+        await (supabase as any)
+          .from('sessions')
+          .update({ class_batch: newName })
+          .eq('class_batch', oldName);
+          
+        await (supabase as any)
+          .from('volunteers')
+          .update({ preferred_class: newName })
+          .eq('preferred_class', oldName);
+      }
 
       toast.success('Class updated successfully');
 

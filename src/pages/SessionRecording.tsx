@@ -338,12 +338,13 @@ export default function SessionRecording() {
       // Fetch volunteer's preferred class separately
       let preferredClass = null;
       if (sessionData.volunteer_name) {
-        const { data: volunteerData } = await supabase
+        const { data: volunteerDataList } = await supabase
           .from('volunteers')
           .select('preferred_class')
           .eq('name', sessionData.volunteer_name)
-          .single();
+          .limit(1);
 
+        const volunteerData = volunteerDataList?.[0];
         preferredClass = volunteerData?.preferred_class || null;
       }
 
@@ -418,15 +419,15 @@ export default function SessionRecording() {
         .from('session_hours_tracker' as any)
         .select('*')
         .eq('session_id', sessionId)
-        .single();
+        .limit(1);
 
       if (error && error.code !== 'PGRST116') {
         // PGRST116 is "no rows found" which is expected if no hours tracker exists
         throw error;
       }
-      if (data && typeof data === 'object') {
-        setHoursData(data as unknown as SessionHoursTracker);
-        setHoursValidationId((data as any).validation_id || '');
+      if (data && data.length > 0) {
+        setHoursData(data[0] as unknown as SessionHoursTracker);
+        setHoursValidationId((data[0] as any).validation_id || '');
       }
     } catch (error) {
       console.error('Error fetching hours tracker:', error);
@@ -498,41 +499,29 @@ export default function SessionRecording() {
       }
 
       // Find class by matching class_batch name
-      const { data: classData, error: classError } = await supabase
+      const { data: classDataList, error: classError } = await supabase
         .from('classes')
         .select('id')
         .ilike('name', `%${sessionData.class_batch}%`)
-        .single();
+        .limit(1);
 
-      if (classError) {
+      if (classError || !classDataList || classDataList.length === 0) {
         console.warn('Could not find class by name:', sessionData.class_batch);
         toast.error('Could not find class for this session');
         return;
       }
+      
+      const classData = classDataList[0];
 
       // Fetch students from that class filtered by selected academic year
-      let studentsData = null;
-      let { data: tryData, error: tryError } = await supabase
+      const { data: studentsData, error: studentsError } = await supabase
         .from('students')
-        .select('id, name, student_id, best_performance_dates')
+        .select('id, name, student_id')
         .eq('class_id', classData.id)
         .eq('academic_year', selectedYear)
         .order('name', { ascending: true });
-
-      if (tryError) {
-        console.warn('Could not fetch best_performance_dates, retrying without it:', tryError);
-        const { data: fallbackData, error: fallbackError } = await supabase
-          .from('students')
-          .select('id, name, student_id')
-          .eq('class_id', classData.id)
-          .eq('academic_year', selectedYear)
-          .order('name', { ascending: true });
-          
-        if (fallbackError) throw fallbackError;
-        studentsData = fallbackData;
-      } else {
-        studentsData = tryData;
-      }
+        
+      if (studentsError) throw studentsError;
 
       setStudents(studentsData || []);
       if ((studentsData || []).length === 0) {
@@ -787,53 +776,20 @@ export default function SessionRecording() {
           ? formData.best_performer.split(',').map(name => name.trim()).filter(Boolean)
           : [];
 
-        for (const student of students) {
-          // Parse current best performance dates list
-          let currentHistory: any[] = [];
-          try {
-            if (student.best_performance_dates) {
-              currentHistory = Array.isArray(student.best_performance_dates) 
-                ? student.best_performance_dates 
-                : JSON.parse(JSON.stringify(student.best_performance_dates));
-            }
-          } catch (e) {
-            console.error('Error parsing student best performer history:', e);
-          }
-          
+        // Update performance records with is_best_performer flag
+        const presentStudents = getPresentStudents();
+        for (const student of presentStudents) {
           const isSelected = selectedPerformerNames.includes(student.name);
-          const hasSessionRecord = currentHistory.some((record: any) => record?.session_id === sessionId);
           
-          let updatedHistory = [...currentHistory];
-          let needsUpdate = false;
-          
-          if (isSelected) {
-            if (!hasSessionRecord) {
-              // Add record
-              updatedHistory.push({
-                session_id: sessionId,
-                date: sessionDateStr
-              });
-              needsUpdate = true;
-            }
-          } else {
-            if (hasSessionRecord) {
-              // Remove record
-              updatedHistory = currentHistory.filter((record: any) => record?.session_id !== sessionId);
-              needsUpdate = true;
-            }
-          }
-          
-          if (needsUpdate) {
-            const { error: studentUpdateError } = await supabase
-              .from('students')
-              .update({ best_performance_dates: updatedHistory })
-              .eq('id', student.id);
+          const dbDataForStudent = studentPerformance.find(sp => (sp.student_name || '').trim() === student.name.trim());
+          if (dbDataForStudent) {
+            const { error: spError } = await supabase
+              .from('student_performance')
+              .update({ is_best_performer: isSelected })
+              .eq('id', dbDataForStudent.id);
               
-            if (studentUpdateError) {
-              console.error(`Failed to update student profile for ${student.name}:`, studentUpdateError);
-            } else {
-              // Sync local state
-              student.best_performance_dates = updatedHistory;
+            if (spError) {
+              console.error(`Failed to update performance flag for ${student.name}:`, spError);
             }
           }
         }
@@ -915,11 +871,12 @@ export default function SessionRecording() {
       setSaving(true);
 
       // Check if hours tracker already exists
-      const { data: existingData } = await supabase
+      const { data: existingDataList } = await supabase
         .from('session_hours_tracker' as any)
         .select('id')
         .eq('session_id', sessionId)
-        .single();
+        .limit(1);
+      const existingData = existingDataList?.[0];
 
       if (existingData) {
         // Update existing record
@@ -1942,9 +1899,6 @@ export default function SessionRecording() {
                                 <div className="space-y-1">
                                   {presentStudents.map((student) => {
                                     const isSelected = selectedPerformerNames.includes(student.name);
-                                    const count = Array.isArray(student.best_performance_dates)
-                                      ? student.best_performance_dates.length
-                                      : 0;
                                       
                                     return (
                                       <div
@@ -1958,11 +1912,6 @@ export default function SessionRecording() {
                                         />
                                         <span className="text-sm font-medium leading-none cursor-pointer flex-grow flex justify-between items-center">
                                           <span>{student.name}</span>
-                                          {count > 0 && (
-                                            <Badge variant="outline" className="ml-2 text-[10px] py-0 px-1.5 bg-amber-50 text-amber-700 border-amber-200 font-semibold shrink-0">
-                                              ⭐ {count} {count === 1 ? 'time' : 'times'}
-                                            </Badge>
-                                          )}
                                         </span>
                                       </div>
                                     );
@@ -2022,16 +1971,6 @@ export default function SessionRecording() {
             {/* Sub-tab c: Student Homework Feedback */}
             {currentSubTab === 'c' && (
               <div className="space-y-4">
-                {/* Fetch students when this tab opens */}
-                {students.length === 0 && !studentsLoading && (
-                  <div className="mb-4">
-                    {(() => {
-                      fetchStudents();
-                      return null;
-                    })()}
-                  </div>
-                )}
-
                 {homeworkRecords.length > 0 && !isEditingHomework ? (
                   <Card>
                     <CardHeader className="flex flex-row items-center justify-between pb-3">
