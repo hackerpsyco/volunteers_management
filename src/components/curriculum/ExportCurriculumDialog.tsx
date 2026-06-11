@@ -38,14 +38,14 @@ export function ExportCurriculumDialog({
   defaultClassId,
 }: ExportCurriculumDialogProps) {
   const { selectedYear } = useAcademicYear();
-  const [selectedClass, setSelectedClass] = useState<string>(defaultClassId || '');
+  const [selectedClass, setSelectedClass] = useState<string>(defaultClassId || 'all');
   const [timeframe, setTimeframe] = useState<TimeframeOption>('current_year');
   const [selectedMonth, setSelectedMonth] = useState<string>('');
   const [isExporting, setIsExporting] = useState(false);
 
   // Update default when changed
   React.useEffect(() => {
-    if (defaultClassId && !selectedClass) {
+    if (defaultClassId && selectedClass !== 'all' && !selectedClass) {
       setSelectedClass(defaultClassId);
     }
   }, [defaultClassId, selectedClass]);
@@ -94,41 +94,56 @@ export function ExportCurriculumDialog({
 
     setIsExporting(true);
     try {
-      const classObj = classes.find((c) => c.id === selectedClass);
-      if (!classObj) throw new Error('Class not found');
+      let classObj: any = null;
+      if (selectedClass !== 'all') {
+        classObj = classes.find((c) => c.id === selectedClass);
+        if (!classObj) throw new Error('Class not found');
+      }
 
       // 1. Fetch Curriculum
-      const { data: curriculumData, error: curriculumError } = await supabase
+      let curriculumQuery = supabase
         .from('curriculum')
-        .select(`*, subjects:subject_id(name)`)
-        .eq('class_id', selectedClass)
+        .select(`*, subjects:subject_id(name), classes:class_id(name)`)
         .order('content_category', { ascending: true })
         .order('module_no', { ascending: true });
+
+      if (selectedClass !== 'all') {
+        curriculumQuery = curriculumQuery.eq('class_id', selectedClass);
+      }
+
+      const { data: curriculumData, error: curriculumError } = await curriculumQuery;
 
       if (curriculumError) throw curriculumError;
 
       // 2. Fetch Sessions
       const { startDate, endDate } = getDateRangeForTimeframe();
-      const { data: sessionData, error: sessionError } = await supabase
+      let sessionQuery = supabase
         .from('sessions')
-        .select('id, topics_covered, status, volunteer_name')
-        .eq('class_batch', classObj.name)
+        .select('id, topics_covered, status, volunteer_name, class_batch, session_date')
         .gte('session_date', startDate.toISOString())
         .lte('session_date', endDate.toISOString());
 
+      if (selectedClass !== 'all') {
+        sessionQuery = sessionQuery.eq('class_batch', classObj.name);
+      }
+
+      const { data: sessionData, error: sessionError } = await sessionQuery;
+
       if (sessionError) throw sessionError;
 
-      // 3. Map Sessions to Topics
+      // 3. Map Sessions to Topics by Class
       const topicSessions = new Map<string, any[]>();
       (sessionData || []).forEach(session => {
-        if (!session.topics_covered) return;
-        const existing = topicSessions.get(session.topics_covered) || [];
+        if (!session.topics_covered || !session.class_batch) return;
+        const key = `${session.class_batch}||${session.topics_covered}`;
+        const existing = topicSessions.get(key) || [];
         existing.push(session);
-        topicSessions.set(session.topics_covered, existing);
+        topicSessions.set(key, existing);
       });
 
       // 4. Generate CSV
       const headers = [
+        'Class Name',
         'Content Category',
         'Module No',
         'Module Name',
@@ -138,7 +153,8 @@ export function ExportCurriculumDialog({
         'Fresh Session',
         'Revision Session',
         'Status',
-        'Completed By Volunteer'
+        'Latest Date',
+        'Volunteer'
       ];
 
       const escapeCsv = (val: any) => {
@@ -153,24 +169,50 @@ export function ExportCurriculumDialog({
       const csvRows = [headers.join(',')];
 
       (curriculumData || []).forEach(item => {
+        const className = item.classes?.name || (classObj ? classObj.name : 'Unknown');
         const cleanModuleTitle = item.module_name?.replace(/^-\s+/, '') || '';
         const topic = item.topics_covered || '';
-        const sessions = topicSessions.get(topic) || [];
+        const key = `${className}||${topic}`;
+        const sessions = topicSessions.get(key) || [];
         
-        let status = 'Not Completed';
+        let status = 'Not Started';
         let volunteerName = '-';
+        let latestDate = '-';
 
-        const completedSession = sessions.find(s => s.status === 'completed');
-        if (completedSession) {
-          status = 'Completed';
-          volunteerName = completedSession.volunteer_name || 'Unknown';
-        } else if (sessions.some(s => s.status === 'in_progress' || s.status === 'committed' || s.status === 'pending')) {
-           // Not completed but there's a session record
-           status = 'Not Completed';
-           volunteerName = sessions[0].volunteer_name || '-';
+        const formatDate = (dateStr: string) => {
+          if (!dateStr) return '-';
+          const d = new Date(dateStr);
+          if (isNaN(d.getTime())) return '-';
+          const day = String(d.getDate()).padStart(2, '0');
+          const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          const month = months[d.getMonth()];
+          const year = d.getFullYear();
+          // Adding a normal space at the start prevents Excel from applying a very long default date format that overflows the column.
+          return ` ${day} ${month} ${year}`;
+        };
+
+        if (sessions.length > 0) {
+            // Sort sessions by date descending to get the latest one
+            sessions.sort((a, b) => new Date(b.session_date).getTime() - new Date(a.session_date).getTime());
+            
+            // Find if there's any completed session
+            const completedSession = sessions.find(s => s.status === 'completed');
+            
+            if (completedSession) {
+                status = 'Completed';
+                volunteerName = completedSession.volunteer_name || 'Unknown';
+                latestDate = formatDate(completedSession.session_date);
+            } else {
+                // Not completed, so use the status of the latest session
+                const latestSession = sessions[0];
+                status = latestSession.status ? (latestSession.status.charAt(0).toUpperCase() + latestSession.status.slice(1).replace('_', ' ')) : 'In Progress';
+                volunteerName = latestSession.volunteer_name || '-';
+                latestDate = formatDate(latestSession.session_date);
+            }
         }
 
         const rowData = [
+          className,
           item.content_category,
           item.module_no,
           cleanModuleTitle,
@@ -180,6 +222,7 @@ export function ExportCurriculumDialog({
           item.fresh_session,
           item.revision_session,
           status,
+          latestDate,
           volunteerName
         ];
 
@@ -194,7 +237,8 @@ export function ExportCurriculumDialog({
       
       let timeframeStr = timeframe;
       if (timeframe === 'monthly') timeframeStr = selectedMonth;
-      link.setAttribute('download', `Curriculum_Report_${classObj.name.replace(/\s+/g, '_')}_${timeframeStr}.csv`);
+      const fileNameClass = selectedClass === 'all' ? 'All_Classes_Mixed' : classObj.name.replace(/\s+/g, '_');
+      link.setAttribute('download', `Curriculum_Report_${fileNameClass}_${timeframeStr}.csv`);
       
       document.body.appendChild(link);
       link.click();
@@ -228,6 +272,7 @@ export function ExportCurriculumDialog({
                 <SelectValue placeholder="Select class..." />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="all">All Classes (Mixed)</SelectItem>
                 {classes.map((cls) => (
                   <SelectItem key={cls.id} value={cls.id}>
                     {cls.name}

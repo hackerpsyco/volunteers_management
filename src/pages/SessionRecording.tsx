@@ -401,7 +401,7 @@ export default function SessionRecording() {
         ...item,
         student_name: (item.student_name || '').trim(),
         performance_comment: (item.performance_comment === 'Present' || item.performance_comment === 'Absent') ? '' : (item.performance_comment || ''),
-        performance_rating: item.performance_rating === 5 ? 0 : (item.performance_rating ?? 0),
+        performance_rating: item.performance_rating ?? 0,
         questions_asked: item.questions_asked ?? 0,
         bad_behaviour_points: item.bad_behaviour_points ?? 0,
       }));
@@ -1037,6 +1037,14 @@ export default function SessionRecording() {
       // Create a snapshot of current form data to save
       const dataToSave = { ...studentFormData };
       const studentIdsToClear = Object.keys(dataToSave);
+  
+      // Fetch template task for homework syncing
+      const { data: sessionTasks } = await supabase
+        .from('student_task_feedback')
+        .select('*')
+        .eq('session_id', sessionId)
+        .limit(1);
+      const templateTask = sessionTasks?.[0];
 
       // Process all student form data in the snapshot
       for (const [studentId, data] of Object.entries(dataToSave)) {
@@ -1080,7 +1088,45 @@ export default function SessionRecording() {
           
           if (retryError) throw retryError;
         }
+
+        // Sync homework based on attendance
+        if (payload.attendance_status === 'Absent') {
+          const { data: tasksToDelete } = await supabase
+            .from('student_task_feedback')
+            .select('id')
+            .eq('session_id', sessionId)
+            .eq('student_id', student.id);
+          if (tasksToDelete && tasksToDelete.length > 0) {
+            const taskIds = tasksToDelete.map(t => t.id);
+            await supabase.from('student_earnings').delete().in('task_id', taskIds);
+            await supabase.from('student_task_feedback').delete().in('id', taskIds);
+          }
+        } else if (payload.attendance_status === 'Present' && templateTask) {
+          const { data: studentTask } = await supabase
+            .from('student_task_feedback')
+            .select('id')
+            .eq('session_id', sessionId)
+            .eq('student_id', student.id);
+          if (!studentTask || studentTask.length === 0) {
+            await supabase.from('student_task_feedback').insert([{
+              session_id: sessionId,
+              student_id: student.id,
+              student_name: student.name,
+              feedback_type: templateTask.feedback_type,
+              task_name: templateTask.task_name,
+              task_description: templateTask.task_description,
+              deadline: templateTask.deadline,
+              status: 'pending',
+              earning_amount: templateTask.earning_amount,
+              academic_year: templateTask.academic_year || selectedYear
+            }]);
+          }
+        }
       }
+
+      // First fetch the latest data from DB to ensure UI doesn't flash stale data
+      await fetchStudentPerformance();
+      await fetchHomeworkRecords();
 
       // Only clear the records that were actually saved
       // This prevents wiping data that was changed while the save was in progress
@@ -1094,8 +1140,6 @@ export default function SessionRecording() {
         });
         return newState;
       });
-
-      fetchStudentPerformance();
     } catch (error: any) {
       console.error('Error saving student performance:', error);
       toast.error(`Database Error: ${error.message || 'Unknown error'}`);
@@ -2205,14 +2249,6 @@ export default function SessionRecording() {
                                   }`}>
                                   {homework.status}
                                 </span>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleDeleteHomework(homework.id)}
-                                  className="h-8 w-8 text-destructive hover:text-destructive"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
                               </div>
                             </div>
 

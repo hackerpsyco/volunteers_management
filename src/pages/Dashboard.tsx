@@ -6,6 +6,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { VolunteerSessionStats } from '@/components/dashboard/VolunteerSessionStats';
+import { VolunteerReachOutStats } from '@/components/dashboard/VolunteerReachOutStats';
 import { useAcademicYear } from '@/contexts/AcademicYearContext';
 import {
   Select,
@@ -296,26 +297,10 @@ export default function Dashboard() {
           })}
         </div>
 
-        {/* Session Status, Volunteer Stats, and Curriculum Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-          {/* Session Status */}
-          <div className="bg-card border border-border rounded-lg p-3 md:p-4">
-            <h2 className="text-base md:text-lg font-bold text-foreground mb-3">Session</h2>
-            <div className="space-y-2">
-              {sessionStatusItems.map((item, index) => (
-                <div key={index} className={`${item.color} rounded-lg p-2 md:p-3 flex justify-between items-center`}>
-                  <span className={`font-medium text-xs md:text-sm ${item.textColor}`}>{item.label}</span>
-                  <span className={`font-bold text-base md:text-lg ${item.textColor}`}>{item.value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Volunteer Session Stats - Middle */}
-          {userRole !== 4 && <VolunteerSessionStats />}
-
+        {/* Status, Volunteer Stats, and Curriculum Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
           {/* Curriculum Categories */}
-          <div className="bg-card border border-border rounded-lg p-3 md:p-4">
+          <div className="bg-card border border-border rounded-lg p-3 md:p-4 flex flex-col">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2">
               <h2 className="text-base md:text-lg font-bold text-foreground">Curriculum</h2>
               <div className="w-full sm:w-32">
@@ -334,7 +319,7 @@ export default function Dashboard() {
                 </Select>
               </div>
             </div>
-            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+            <div className="space-y-2 flex-grow overflow-y-auto pr-1">
               {curriculumCategories.length > 0 ? (
                 curriculumCategories.map((category, index) => (
                   <div key={index} className={`${category.color} rounded-lg p-2 md:p-3 flex justify-between items-center`}>
@@ -345,11 +330,30 @@ export default function Dashboard() {
               ) : (
                 <div className="flex flex-col items-center justify-center py-8 text-center">
                   <BookOpen className="h-8 w-8 text-muted-foreground/30 mb-2" />
-                  <p className="text-muted-foreground text-[10px] md:text-xs">No curriculum data for this subject</p>
+                  <p className="text-muted-foreground text-[10px] md:text-xs">No curriculum data</p>
                 </div>
               )}
             </div>
           </div>
+
+          {/* Session Status */}
+          <div className="bg-card border border-border rounded-lg p-3 md:p-4">
+            <h2 className="text-base md:text-lg font-bold text-foreground mb-3">Session</h2>
+            <div className="space-y-2">
+              {sessionStatusItems.map((item, index) => (
+                <div key={index} className={`${item.color} rounded-lg p-2 md:p-3 flex justify-between items-center`}>
+                  <span className={`font-medium text-xs md:text-sm ${item.textColor}`}>{item.label}</span>
+                  <span className={`font-bold text-base md:text-lg ${item.textColor}`}>{item.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Volunteer Session Stats */}
+          {userRole !== 4 && <VolunteerSessionStats />}
+
+          {/* Volunteer Reach Out */}
+          {userRole !== 4 && <VolunteerReachOutStats />}
         </div>
 
         {/* Quick Action Buttons */}

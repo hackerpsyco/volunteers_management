@@ -14,6 +14,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAcademicYear } from '@/contexts/AcademicYearContext';
@@ -48,7 +54,6 @@ export default function AddTask() {
     description: string;
     class_id: string;
     session_id: string;
-    student_id: string;
     due_date: string;
     submission_link: string;
     academic_year: string;
@@ -60,7 +65,6 @@ export default function AddTask() {
     description: '',
     class_id: '',
     session_id: '',
-    student_id: '',
     due_date: '',
     submission_link: '',
     academic_year: selectedYear,
@@ -68,6 +72,7 @@ export default function AddTask() {
     earning_amount: 5,
     task_type: '',
   });
+  const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
 
   useEffect(() => {
     fetchClasses();
@@ -90,6 +95,7 @@ export default function AddTask() {
     } else {
       setSessions([]);
       setStudents([]);
+      setSelectedStudents([]);
     }
   }, [formData.class_id, formData.academic_year]);
 
@@ -127,7 +133,10 @@ export default function AddTask() {
       .eq('class_id', classId)
       .eq('academic_year', academicYear)
       .order('name');
-    if (!error && data) setStudents(data);
+    if (!error && data) {
+        setStudents(data);
+        setSelectedStudents(data.map(s => s.id));
+    }
   };
 
   const handleCreate = async () => {
@@ -138,25 +147,13 @@ export default function AddTask() {
 
     try {
       setLoading(true);
-      let studentsToAssign: { id: string }[] = [];
-
-      if (formData.student_id && formData.student_id !== 'all') {
-        studentsToAssign = [{ id: formData.student_id }];
-      } else {
-        const { data: classStudents, error: studentsError } = await supabase
-          .from('students')
-          .select('id')
-          .eq('class_id', formData.class_id)
-          .eq('academic_year', formData.academic_year);
-        
-        if (studentsError) throw studentsError;
-        studentsToAssign = classStudents || [];
-      }
-
-      if (studentsToAssign.length === 0) {
-        toast.error('No students found in this class');
+      if (selectedStudents.length === 0) {
+        toast.error('Please select at least one student to assign the task');
+        setLoading(false);
         return;
       }
+
+      const studentsToAssign = selectedStudents.map(id => ({ id }));
 
       const taskRecords = studentsToAssign.map(student => ({
         session_id: formData.session_id || null,
@@ -268,7 +265,7 @@ export default function AddTask() {
                 <Label htmlFor="class">Assign to Class *</Label>
                 <Select
                   value={formData.class_id}
-                  onValueChange={(value) => setFormData({ ...formData, class_id: value, student_id: 'all' })}
+                  onValueChange={(value) => setFormData({ ...formData, class_id: value })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select Class" />
@@ -281,24 +278,75 @@ export default function AddTask() {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="student">Specific Student (Optional)</Label>
-                <Select
-                  value={formData.student_id}
-                  onValueChange={(value) => setFormData({ ...formData, student_id: value })}
-                  disabled={!formData.class_id}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="All Students" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Students</SelectItem>
-                    {students.map((student) => (
-                      <SelectItem key={student.id} value={student.id}>{student.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {formData.class_id && students.length > 0 && (
+                  <div className="space-y-2">
+                      <Label>Assign to Students *</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className="w-full justify-start text-left font-normal border-border">
+                            {selectedStudents.length === students.length 
+                              ? "All Students Selected" 
+                              : selectedStudents.length > 0 
+                                ? `${selectedStudents.length} Student(s) Selected` 
+                                : "Select Students..."}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[300px] sm:w-[400px] p-0" align="start">
+                          <div className="p-3 border-b flex justify-between items-center bg-muted/20">
+                            <span className="text-sm font-medium">Select Students</span>
+                            <Button 
+                              type="button" 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-8 text-xs px-2"
+                              onClick={() => {
+                                  if (selectedStudents.length === students.length) {
+                                      setSelectedStudents([]);
+                                  } else {
+                                      setSelectedStudents(students.map(s => s.id));
+                                  }
+                              }}
+                            >
+                                {selectedStudents.length === students.length ? 'Deselect All' : 'Select All'}
+                            </Button>
+                          </div>
+                          <div className="max-h-[250px] overflow-y-auto p-2 space-y-1">
+                            {students.map(student => (
+                              <div key={student.id} className="flex items-center space-x-3 hover:bg-accent hover:text-accent-foreground p-2 rounded-sm cursor-pointer"
+                                onClick={() => {
+                                  if (selectedStudents.includes(student.id)) {
+                                    setSelectedStudents(selectedStudents.filter(id => id !== student.id));
+                                  } else {
+                                    setSelectedStudents([...selectedStudents, student.id]);
+                                  }
+                                }}
+                              >
+                                <Checkbox 
+                                  id={`student-${student.id}`}
+                                  checked={selectedStudents.includes(student.id)}
+                                  onCheckedChange={(checked) => {
+                                      if (checked) {
+                                          setSelectedStudents([...selectedStudents, student.id]);
+                                      } else {
+                                          setSelectedStudents(selectedStudents.filter(id => id !== student.id));
+                                      }
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                                <label 
+                                  htmlFor={`student-${student.id}`}
+                                  className="text-sm font-medium leading-none cursor-pointer flex-1"
+                                  onClick={(e) => e.preventDefault()}
+                                >
+                                  {student.name}
+                                </label>
+                              </div>
+                            ))}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                  </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="session">Linked Session (Optional)</Label>
