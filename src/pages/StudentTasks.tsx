@@ -44,21 +44,27 @@ export default function StudentTasks() {
     try {
       setLoading(true);
 
-      // Get student record first
-      const { data: student, error: studentError } = await supabase
+      // Get all student records for this user (they might have multiple if mapped to different classes)
+      const { data: students, error: studentError } = await supabase
         .from('students')
         .select('id')
-        .ilike('email', user?.email)
-        .single();
+        .ilike('email', user?.email);
 
       if (studentError) throw studentError;
 
+      if (!students || students.length === 0) {
+        setTasks([]);
+        setLoading(false);
+        return;
+      }
+
+      const studentIds = students.map(s => s.id);
       const { startDate, endDate } = getDateRange();
 
       const { data, error } = await supabase
         .from('student_task_feedback')
         .select('*')
-        .eq('student_id', student.id)
+        .in('student_id', studentIds)
         .or(`academic_year.eq."${selectedYear}",and(academic_year.is.null,created_at.gte."${startDate.toISOString()}",created_at.lte."${endDate.toISOString()}")`)
         .order('deadline', { ascending: true });
 

@@ -86,6 +86,7 @@ export default function ClassTaskReview() {
         .from('students')
         .select('id, class_id, classes(name)')
         .ilike('email', user?.email || '')
+        .limit(1)
         .maybeSingle();
 
       if (studentError || !student) {
@@ -181,7 +182,7 @@ export default function ClassTaskReview() {
 
       const { data, error: updateError } = await supabase
         .from('student_task_feedback')
-        .update({ status: 'completed', updated_at: new Date().toISOString() })
+        .update({ status: 'completed', earning_amount: amount, updated_at: new Date().toISOString() })
         .eq('id', taskId)
         .select();
 
@@ -212,6 +213,7 @@ export default function ClassTaskReview() {
           .from('students')
           .select('id, name')
           .ilike('email', user.email)
+          .limit(1)
           .maybeSingle();
 
         if (reviewerStudent) {

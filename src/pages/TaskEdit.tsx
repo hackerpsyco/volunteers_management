@@ -194,7 +194,6 @@ export default function TaskEdit() {
           deadline: formData.dueDate ? new Date(formData.dueDate).toISOString() : null,
           academic_year: formData.academicYear,
           earning_amount: formData.reward,
-          class_id: formData.classId || null,
         })
         .eq('task_name', decodeURIComponent(taskTitle || ''));
 
@@ -224,8 +223,7 @@ export default function TaskEdit() {
             created_at: new Date().toISOString(),
             academic_year: formData.academicYear,
             subject_id: taskData.subject_id || null,
-            earning_amount: formData.reward,
-            class_id: formData.classId || null
+            earning_amount: formData.reward
         }));
         await supabase.from('student_task_feedback').insert(newRecords);
       }

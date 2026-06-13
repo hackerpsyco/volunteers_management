@@ -66,6 +66,23 @@ export function AddStudentDialog({
 
     try {
       setSaving(true);
+
+      // Check if email already exists globally
+      if (newStudent.email.trim()) {
+        const { data: existingStudents, error: checkError } = await (supabase as any)
+          .from('students')
+          .select('id')
+          .ilike('email', newStudent.email.trim());
+          
+        if (checkError) throw checkError;
+        
+        if (existingStudents && existingStudents.length > 0) {
+          toast.error('A student with this email address already exists in the system.');
+          setSaving(false);
+          return;
+        }
+      }
+
       const { error } = await (supabase as any).from('students').insert([
         {
           class_id: classId,

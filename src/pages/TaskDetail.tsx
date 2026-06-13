@@ -202,6 +202,7 @@ export default function TaskDetail() {
           .from('students')
           .select('id, name')
           .ilike('email', user.email)
+          .limit(1)
           .maybeSingle();
 
         if (reviewerStudent) {

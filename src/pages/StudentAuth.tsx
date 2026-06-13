@@ -24,7 +24,8 @@ export function StudentAuth() {
         .ilike('email', studentEmail)
         .eq('role_id', 5) // Student role
         .not('class_id', 'is', null) // Must have a class assigned
-        .single();
+        .limit(1)
+        .maybeSingle();
 
       if (error) {
         console.error('Student validation error:', error.message);

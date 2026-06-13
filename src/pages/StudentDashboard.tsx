@@ -105,22 +105,23 @@ export default function StudentDashboard() {
 
       // Fetch tasks for THIS STUDENT ONLY
       // First, get the student record from students table
-      const { data: studentRecord, error: studentError } = await supabase
+      const { data: studentRecords, error: studentError } = await supabase
         .from('students')
         .select('id')
-        .ilike('email', user?.email)
-        .single();
+        .ilike('email', user?.email);
 
       if (studentError) {
         console.warn('Student record not found for email:', user?.email, studentError);
         setTasks([]);
-      } else if (studentRecord) {
+      } else if (studentRecords && studentRecords.length > 0) {
+        const studentIds = studentRecords.map(s => s.id);
+        
         // Fetch tasks for THIS STUDENT ONLY filtered by academic year
         const { startDate, endDate } = getDateRange();
         const { data: tasksData, error: tasksError } = await supabase
           .from('student_task_feedback')
           .select('*')
-          .eq('student_id', studentRecord.id)
+          .in('student_id', studentIds)
           .or(`academic_year.eq."${selectedYear}",and(academic_year.is.null,created_at.gte."${startDate.toISOString()}",created_at.lte."${endDate.toISOString()}")`)
           .order('deadline', { ascending: true });
 
@@ -136,7 +137,7 @@ export default function StudentDashboard() {
         const { data: earningsData } = await supabase
           .from('student_earnings')
           .select('amount')
-          .eq('student_id', studentRecord.id)
+          .in('student_id', studentIds)
           .gte('earned_at', earningStart.toISOString())
           .lte('earned_at', earningEnd.toISOString());
         

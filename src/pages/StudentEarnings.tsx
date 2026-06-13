@@ -101,14 +101,21 @@ export default function StudentEarnings() {
     try {
       setLoading(true);
       
-      // Get student record first
-      const { data: student, error: studentError } = await supabase
+      // Get all student records first
+      const { data: students, error: studentError } = await supabase
         .from('students')
         .select('id')
-        .ilike('email', user?.email)
-        .single();
+        .ilike('email', user?.email);
 
       if (studentError) throw studentError;
+
+      if (!students || students.length === 0) {
+        setEarnings([]);
+        setLoading(false);
+        return;
+      }
+
+      const studentIds = students.map(s => s.id);
 
       // Fetch from student_earnings table filtered by academic year
       const { startDate, endDate } = getDateRange();
@@ -127,7 +134,7 @@ export default function StudentEarnings() {
             session:sessions(title)
           )
         `)
-        .eq('student_id', student.id)
+        .in('student_id', studentIds)
         .gte('earned_at', startDate.toISOString())
         .lte('earned_at', endDate.toISOString())
         .order('earned_at', { ascending: false });

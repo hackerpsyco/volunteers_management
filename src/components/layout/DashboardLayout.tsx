@@ -1,5 +1,6 @@
 import { ReactNode, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { AppSidebar } from './AppSidebar';
 import { StudentSidebar } from './StudentSidebar';
@@ -63,29 +64,27 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         .from('user_profiles')
         .select('role_id')
         .eq('id', user?.id)
-        .single();
+        .maybeSingle();
 
-      if (error) {
-        // If RLS blocks it (406 error), try querying by email instead
+      if (!data) {
+        // If data is null, try querying by email instead
         // This handles the case where profile ID doesn't match auth user ID
-        if (error.code === 'PGRST116') {
-          console.warn('Profile ID mismatch detected, querying by email...');
-          const { data: emailData, error: emailError } = await supabase
-            .from('user_profiles')
-            .select('role_id')
-            .ilike('email', user?.email)
-            .single();
+        const { data: emailData, error: emailError } = await supabase
+          .from('user_profiles')
+          .select('role_id')
+          .ilike('email', user?.email)
+          .limit(1)
+          .maybeSingle();
 
-          if (emailError) {
-            console.error('Error loading user role by email:', emailError);
-            setUserRole(null);
-          } else if (emailData?.role_id) {
-            setUserRole(emailData.role_id);
-          }
-        } else {
-          console.error('Error loading user role:', error);
+        if (emailError) {
+          console.error('Error loading user role by email:', emailError);
           setUserRole(null);
+        } else if (emailData?.role_id) {
+          setUserRole(emailData.role_id);
         }
+      } else if (error) {
+        console.error('Error loading user role:', error);
+        setUserRole(null);
       } else if (data?.role_id) {
         setUserRole(data.role_id);
       }
@@ -103,23 +102,21 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         .from('user_profiles')
         .select('profile_image_url')
         .eq('id', user?.id)
-        .single();
+        .maybeSingle();
 
-      if (error) {
-        // If RLS blocks it (406 error), try querying by email instead
-        if (error.code === 'PGRST116') {
-          const { data: emailData } = await supabase
-            .from('user_profiles')
-            .select('profile_image_url')
-            .ilike('email', user?.email)
-            .single();
+      if (!data) {
+        const { data: emailData } = await supabase
+          .from('user_profiles')
+          .select('profile_image_url')
+          .ilike('email', user?.email)
+          .limit(1)
+          .maybeSingle();
 
-          if (emailData?.profile_image_url) {
-            setProfileImage(emailData.profile_image_url);
-          }
-        } else if (error.code !== 'PGRST116') {
-          console.error('Error loading profile image:', error);
+        if (emailData?.profile_image_url) {
+          setProfileImage(emailData.profile_image_url);
         }
+      } else if (error) {
+        console.error('Error loading profile image:', error);
       }
 
       if (data?.profile_image_url) {
@@ -130,12 +127,51 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     }
   };
 
+  const location = useLocation();
+
   useEffect(() => {
     // Only redirect if we've finished loading and there's no user
     if (!loading && !user) {
       navigate('/auth', { replace: true });
+      return;
     }
-  }, [user, loading, navigate]);
+
+    if (roleLoaded && user) {
+      const isStudent = userRole === 5;
+      const path = location.pathname;
+
+      // Define allowed paths for students
+      const isStudentPath = 
+        path.startsWith('/student-') || 
+        path === '/class-task-review' || 
+        path === '/profile/edit' ||
+        path === '/auth';
+
+      // Define allowed paths for staff (admin, coordinator, teacher, etc.)
+      const isStaffPath = 
+        !path.startsWith('/student-') && 
+        path !== '/class-task-review' ||
+        path === '/profile/edit' ||
+        path === '/auth';
+        
+      // Special check: student-performance is actually a staff page for grading students
+      const isStudentPerformance = path.startsWith('/student-performance');
+
+      if (isStudent) {
+        // Prevent student from accessing staff pages
+        if (!isStudentPath || isStudentPerformance) {
+          toast.error('You do not have permission to access this page');
+          navigate('/student-dashboard', { replace: true });
+        }
+      } else {
+        // Prevent staff from accessing student pages (except auth and profile)
+        if (isStudentPath && path !== '/profile/edit' && path !== '/auth' && path !== '/student-auth') {
+          toast.error('You do not have permission to access the student portal');
+          navigate('/dashboard', { replace: true });
+        }
+      }
+    }
+  }, [user, loading, navigate, roleLoaded, userRole, location.pathname]);
 
   const handleSignOut = async () => {
     try {

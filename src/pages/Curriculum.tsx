@@ -422,7 +422,8 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
           .from('students')
           .select('class_id')
           .ilike('email', user.email)
-          .single();
+          .limit(1)
+          .maybeSingle();
         if (student?.class_id) {
           setSelectedClass(student.class_id);
           return;

@@ -33,7 +33,8 @@ export function StudentSidebar({ collapsed = false }: { collapsed?: boolean }) {
           .from('students')
           .select('designation')
           .ilike('email', user.email)
-          .single();
+          .limit(1)
+          .maybeSingle();
         
         if (data) {
           setDesignation(data.designation);

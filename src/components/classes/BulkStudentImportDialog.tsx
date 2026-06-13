@@ -188,8 +188,7 @@ export function BulkStudentImportDialog({ open, onOpenChange, onSuccess }: BulkS
       const existingEmails = new Set<string>();
       const { data: existingStudents, error: fetchError } = await (supabase
         .from('students' as any)
-        .select('email')
-        .eq('class_id', selectedClass) as any);
+        .select('email') as any);
 
       if (fetchError) {
         console.error('Error fetching existing students:', fetchError);
