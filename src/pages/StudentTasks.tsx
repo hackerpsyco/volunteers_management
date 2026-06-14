@@ -66,7 +66,7 @@ export default function StudentTasks() {
         .select('*')
         .in('student_id', studentIds)
         .or(`academic_year.eq."${selectedYear}",and(academic_year.is.null,created_at.gte."${startDate.toISOString()}",created_at.lte."${endDate.toISOString()}")`)
-        .order('deadline', { ascending: true });
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
       setTasks(data || []);

@@ -60,6 +60,7 @@ export default function AddTask() {
     subject_id: string;
     earning_amount: number | '';
     task_type: string;
+    submission_types: string[];
   }>({
     title: '',
     description: '',
@@ -71,6 +72,7 @@ export default function AddTask() {
     subject_id: '',
     earning_amount: 5,
     task_type: '',
+    submission_types: ['code'],
   });
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
 
@@ -168,6 +170,7 @@ export default function AddTask() {
         academic_year: formData.academic_year,
         subject_id: formData.subject_id || null,
         earning_amount: formData.earning_amount === '' ? 0 : formData.earning_amount,
+        submission_types: formData.submission_types.length > 0 ? formData.submission_types : ['code'],
       }));
 
       const { error } = await supabase.from('student_task_feedback').insert(taskRecords);
@@ -245,23 +248,44 @@ export default function AddTask() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="subject">Subject</Label>
-                <Select
-                  value={formData.subject_id}
-                  onValueChange={(value) => setFormData({ ...formData, subject_id: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select Subject" />
-                  </SelectTrigger>
+                <Label>Subject (Optional)</Label>
+                <Select value={formData.subject_id} onValueChange={v => setFormData({ ...formData, subject_id: v })}>
+                  <SelectTrigger><SelectValue placeholder="Select Subject" /></SelectTrigger>
                   <SelectContent>
-                    {subjects.map((sub) => (
-                      <SelectItem key={sub.id} value={sub.id}>{sub.name}</SelectItem>
-                    ))}
+                    {subjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
+                <Label>Allowed Submission Formats</Label>
+                <div className="flex flex-wrap gap-4 pt-2">
+                  {['video', 'pdf', 'doc', 'code', 'link'].map(type => {
+                    const isSelected = formData.submission_types.includes(type);
+                    return (
+                      <label key={type} className="flex items-center space-x-2 cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          className="rounded border-gray-300"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            const newTypes = e.target.checked 
+                              ? [...formData.submission_types, type]
+                              : formData.submission_types.filter(t => t !== type);
+                            setFormData({ ...formData, submission_types: newTypes });
+                          }}
+                        />
+                        <span className="text-sm font-medium capitalize">
+                          {type}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground">Select which formats students can upload.</p>
+              </div>
+
+              <div className="col-span-1 md:col-span-2 space-y-2">
                 <Label htmlFor="class">Assign to Class *</Label>
                 <Select
                   value={formData.class_id}

@@ -54,6 +54,7 @@ export default function TaskEdit() {
     academicYear: '',
     reward: 0,
     classId: '',
+    submission_types: ['code'],
   });
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
   const [students, setStudents] = useState<{id: string, name: string}[]>([]);
@@ -169,6 +170,7 @@ export default function TaskEdit() {
           academicYear: firstRow.academic_year || '',
           reward: firstRow.earning_amount || 0,
           classId: resolvedClassId || '',
+          submission_types: firstRow.submission_types || ['code'],
         });
       }
     } catch (error) {
@@ -194,6 +196,7 @@ export default function TaskEdit() {
           deadline: formData.dueDate ? new Date(formData.dueDate).toISOString() : null,
           academic_year: formData.academicYear,
           earning_amount: formData.reward,
+          submission_types: formData.submission_types.length > 0 ? formData.submission_types : ['code'],
         })
         .eq('task_name', decodeURIComponent(taskTitle || ''));
 
@@ -223,7 +226,8 @@ export default function TaskEdit() {
             created_at: new Date().toISOString(),
             academic_year: formData.academicYear,
             subject_id: taskData.subject_id || null,
-            earning_amount: formData.reward
+            earning_amount: formData.reward,
+            submission_types: formData.submission_types.length > 0 ? formData.submission_types : ['code'],
         }));
         await supabase.from('student_task_feedback').insert(newRecords);
       }
@@ -412,12 +416,41 @@ export default function TaskEdit() {
               <label className="block text-sm font-medium text-foreground mb-2">
                 Reward Points
               </label>
-              <input
+              <Input
+                id="reward"
                 type="number"
+                min="0"
                 value={formData.reward}
-                onChange={(e) => setFormData({ ...formData, reward: parseInt(e.target.value) || 0 })}
-                className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                onChange={(e) => setFormData({ ...formData, reward: Number(e.target.value) })}
               />
+
+              <div className="space-y-2 mt-6">
+                <Label>Allowed Submission Formats</Label>
+                <div className="flex flex-wrap gap-4 pt-2">
+                  {['video', 'pdf', 'doc', 'code', 'link'].map(type => {
+                    const isSelected = formData.submission_types.includes(type);
+                    return (
+                      <label key={type} className="flex items-center space-x-2 cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          className="rounded border-gray-300"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            const newTypes = e.target.checked 
+                              ? [...formData.submission_types, type]
+                              : formData.submission_types.filter(t => t !== type);
+                            setFormData({ ...formData, submission_types: newTypes });
+                          }}
+                        />
+                        <span className="text-sm font-medium capitalize">
+                          {type}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground">Select which formats students can upload.</p>
+              </div>
             </div>
 
 

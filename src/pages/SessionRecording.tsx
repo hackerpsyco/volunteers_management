@@ -146,6 +146,7 @@ export default function SessionRecording() {
     submission_link: '',
     feedback_notes: '',
     earning_amount: '5',
+    submission_types: ['code'],
   });
 
   const [isListening, setIsListening] = useState(false);
@@ -1156,6 +1157,7 @@ export default function SessionRecording() {
         submission_link: '',
         feedback_notes: '',
         earning_amount: currentHw.earning_amount?.toString() || '5',
+        submission_types: currentHw.submission_types || ['code'],
       });
       setIsEditingHomework(true);
     }
@@ -1198,6 +1200,7 @@ export default function SessionRecording() {
             task_description: newHomework.task_description || null,
             deadline: newHomework.deadline ? new Date(newHomework.deadline).toISOString() : null,
             earning_amount: Number(newHomework.earning_amount) || 5,
+            submission_types: newHomework.submission_types && newHomework.submission_types.length > 0 ? newHomework.submission_types : ['code'],
             updated_at: new Date().toISOString(),
           })
           .eq('session_id', sessionId);
@@ -1224,6 +1227,7 @@ export default function SessionRecording() {
           submission_link: newHomework.submission_link || null,
           feedback_notes: newHomework.feedback_notes || null,
           earning_amount: Number(newHomework.earning_amount) || 5,
+          submission_types: newHomework.submission_types && newHomework.submission_types.length > 0 ? newHomework.submission_types : ['code'],
           academic_year: selectedYear,
           status: 'pending',
           created_at: new Date().toISOString(),
@@ -1247,6 +1251,7 @@ export default function SessionRecording() {
         submission_link: '',
         feedback_notes: '',
         earning_amount: '5',
+        submission_types: ['code'],
       });
       fetchHomeworkRecords();
     } catch (error) {
@@ -2101,7 +2106,35 @@ export default function SessionRecording() {
                           />
                         </div>
                       </div>
-                      <div>
+                      <div className="space-y-2 mt-4">
+                        <Label>Allowed Submission Formats</Label>
+                        <div className="flex flex-wrap gap-4 pt-2">
+                          {['video', 'pdf', 'doc', 'code', 'link'].map(type => {
+                            const isSelected = newHomework.submission_types?.includes(type) ?? (type === 'code');
+                            return (
+                              <label key={type} className="flex items-center space-x-2 cursor-pointer">
+                                <input 
+                                  type="checkbox" 
+                                  className="rounded border-gray-300"
+                                  checked={isSelected}
+                                  onChange={(e) => {
+                                    const currentTypes = newHomework.submission_types || ['code'];
+                                    const newTypes = e.target.checked 
+                                      ? [...currentTypes, type]
+                                      : currentTypes.filter(t => t !== type);
+                                    setNewHomework({ ...newHomework, submission_types: newTypes });
+                                  }}
+                                />
+                                <span className="text-sm font-medium capitalize">
+                                  {type}
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                        <p className="text-xs text-muted-foreground">Select which formats students can upload.</p>
+                      </div>
+                      <div className="mt-4">
                         <div className="flex items-center justify-between mb-1">
                           <Label htmlFor="hw_description" className="text-sm">Task Description</Label>
                           <Button

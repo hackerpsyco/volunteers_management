@@ -32,6 +32,7 @@ interface StudentTask {
   earning_amount?: number;
   academic_year?: string;
   rejection_comment?: string | null;
+  submission_types?: string[];
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType }> = {
@@ -54,6 +55,7 @@ export default function StudentTaskDetail() {
   const [submissionLink, setSubmissionLink] = useState('');
   const [saving, setSaving] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [uploadingFile, setUploadingFile] = useState(false);
 
   useEffect(() => {
     if (taskId) fetchTask();
@@ -64,12 +66,16 @@ export default function StudentTaskDetail() {
       setLoading(true);
       const { data, error } = await supabase
         .from('student_task_feedback')
-        .select('*')
+        .select(`
+          *,
+          profiles!student_task_feedback_student_id_fkey (first_name, last_name),
+          sessions!student_task_feedback_session_id_fkey (class_batch)
+        `)
         .eq('id', taskId)
         .single();
 
       if (error) throw error;
-      setTask(data as StudentTask);
+      setTask(data as any);
       setSubmissionLink((data as StudentTask).submission_link || '');
     } catch (err) {
       console.error(err);
@@ -122,6 +128,65 @@ export default function StudentTaskDetail() {
       toast.error('Failed to submit task');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !task) return;
+    
+    const allowedTypes = task.submission_types || ['code'];
+    const isPdf = file.type === 'application/pdf';
+    const isDoc = file.type.includes('word') || file.name.endsWith('.doc') || file.name.endsWith('.docx');
+    const isVideo = file.type.includes('video');
+    const isCode = ['.js', '.ts', '.jsx', '.tsx', '.html', '.css', '.py', '.java', '.cpp', '.c', '.txt', '.json', '.zip'].some(ext => file.name.toLowerCase().endsWith(ext));
+    
+    let valid = false;
+    if (allowedTypes.includes('pdf') && isPdf) valid = true;
+    if (allowedTypes.includes('doc') && isDoc) valid = true;
+    if (allowedTypes.includes('video') && isVideo) valid = true;
+    if (allowedTypes.includes('code') && isCode) valid = true;
+    
+    if (!valid && file) {
+      toast.error('Invalid file format. Please upload an allowed format.');
+      return;
+    }
+
+    try {
+      setUploadingFile(true);
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const year = task.academic_year || 'Unknown Year';
+      const className = (task as any).sessions?.class_batch || 'Unassigned';
+      const studentName = (task as any).profiles ? `${(task as any).profiles.first_name || ''} ${(task as any).profiles.last_name || ''}`.trim() : 'Unknown Student';
+      const studentFolder = `${studentName} - ${task.student_id}`;
+      const taskFolder = task.task_name;
+      
+      const folderPath = ["wesfellow", year, className, studentFolder, taskFolder];
+      formData.append('folderPath', JSON.stringify(folderPath));
+      
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-to-gdrive`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`
+        },
+        body: formData
+      });
+      
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Upload failed');
+      
+      setSubmissionLink(result.webViewLink);
+      toast.success('File uploaded successfully! You can now save your submission.');
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Failed to upload file: ' + err.message);
+    } finally {
+      setUploadingFile(false);
+      event.target.value = ''; 
     }
   };
 
@@ -307,19 +372,52 @@ export default function StudentTaskDetail() {
                 </div>
               )}
 
-              <div className="space-y-1.5">
-                <Label htmlFor="submission_link">Link to your work (Google Drive, GitHub, etc.)</Label>
-                <Input
-                  id="submission_link"
-                  placeholder="https://drive.google.com/your-work"
-                  value={submissionLink}
-                  onChange={(e) => setSubmissionLink(e.target.value)}
-                  className="text-sm disabled:opacity-60 disabled:cursor-not-allowed"
-                  disabled={isSubmissionClosed || (!canSubmit && task.status !== 'submitted')}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Paste a shareable link to your completed work (allowed until: {cutoffDate && cutoffDate.toLocaleDateString()})
-                </p>
+              <div className="space-y-4">
+                
+                {task.submission_types?.some(t => ['video', 'pdf', 'doc', 'code'].includes(t)) && (
+                  <div className="space-y-1.5 p-4 border rounded-md bg-muted/20">
+                    <Label htmlFor="file_upload">Upload File ({task.submission_types.filter(t => t !== 'link').join(', ')})</Label>
+                    <Input
+                      id="file_upload"
+                      type="file"
+                      onChange={handleFileUpload}
+                      disabled={isSubmissionClosed || (!canSubmit && task.status !== 'submitted') || uploadingFile}
+                      accept={task.submission_types.map(t => {
+                        if (t === 'pdf') return '.pdf';
+                        if (t === 'doc') return '.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+                        if (t === 'video') return 'video/*';
+                        if (t === 'code') return '.js,.ts,.jsx,.tsx,.html,.css,.py,.java,.cpp,.c,.txt,.json,.zip';
+                        return '';
+                      }).filter(Boolean).join(',')}
+                    />
+                    {uploadingFile && <p className="text-sm text-primary animate-pulse">Uploading file to Google Drive...</p>}
+                    <p className="text-xs text-muted-foreground">Uploading a file will automatically fill the link below.</p>
+                  </div>
+                )}
+
+                {(!task.submission_types || task.submission_types.includes('link') || task.submission_types.includes('code')) && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="submission_link">Link to your work</Label>
+                    <Input
+                      id="submission_link"
+                      placeholder="https://github.com/... or https://drive.google.com/..."
+                      value={submissionLink}
+                      onChange={(e) => setSubmissionLink(e.target.value)}
+                      className="text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                      disabled={isSubmissionClosed || (!canSubmit && task.status !== 'submitted')}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Paste a shareable link to your completed work (allowed until: {cutoffDate && cutoffDate.toLocaleDateString()})
+                    </p>
+                  </div>
+                )}
+                
+                {task.submission_types && !task.submission_types.includes('link') && !task.submission_types.includes('code') && submissionLink && (
+                  <div className="space-y-1.5">
+                     <Label>Uploaded File Link</Label>
+                     <Input value={submissionLink} readOnly className="text-sm bg-muted" />
+                  </div>
+                )}
               </div>
 
               {(canSubmit || isRejected || task.status === 'submitted') && (

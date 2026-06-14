@@ -274,12 +274,31 @@ export default function TaskDetail() {
     try {
       setUpdatingId(taskId);
       
+      const taskToReject = taskGroup?.tasks.find(t => t.id === taskId);
+      
+      if (taskToReject?.submission_link?.includes('drive.google.com')) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-to-gdrive`, {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${session?.access_token}`
+            },
+            body: JSON.stringify({ link: taskToReject.submission_link })
+          });
+        } catch (err) {
+          console.error("Failed to delete file from Google Drive", err);
+        }
+      }
+
       const { data, error } = await supabase
         .from('student_task_feedback')
         .update({ 
           status: 'rejected', 
           rejection_comment: rejectionComment.trim() || null,
           feedback_notes: null,
+          submission_link: null,
           updated_at: new Date().toISOString() 
         })
         .eq('id', taskId)
@@ -300,9 +319,9 @@ export default function TaskDetail() {
       if (taskGroup) {
         setTaskGroup({
           ...taskGroup,
-          tasks: taskGroup.tasks.map(t =>
-            t.id === taskId ? { ...t, status: 'rejected', rejection_comment: rejectionComment.trim() || null } : t
-          ),
+          tasks: taskGroup.tasks.map(t => 
+            t.id === taskId ? { ...t, status: 'rejected', rejection_comment: rejectionComment.trim() || null, submission_link: null, feedback_notes: null } : t
+          )
         });
       }
 
