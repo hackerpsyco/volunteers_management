@@ -143,10 +143,8 @@ export default function StudentTaskDetail() {
   const canSubmit = task.status === 'pending';
   const isRejected = task.status === 'rejected';
 
-  const deadlineDate = task.deadline ? new Date(task.deadline) : null;
-  const cutoffDate = deadlineDate ? (() => {
-    const d = new Date(deadlineDate);
-    d.setDate(d.getDate() + 3);
+  const cutoffDate = task?.deadline ? (() => {
+    const d = new Date(task.deadline);
     d.setHours(23, 59, 59, 999);
     return d;
   })() : null;
@@ -305,7 +303,7 @@ export default function StudentTaskDetail() {
               {isSubmissionClosed && (
                 <div className="bg-destructive/10 border border-destructive/20 text-destructive rounded-lg p-3 text-sm flex items-center gap-2 font-medium">
                   <AlertCircle className="h-4 w-4 shrink-0" />
-                  <span>Submission period closed. Submissions are only allowed up to 3 days after the deadline.</span>
+                  <span>Submission period closed. Submissions are no longer allowed after the deadline.</span>
                 </div>
               )}
 
@@ -320,7 +318,7 @@ export default function StudentTaskDetail() {
                   disabled={isSubmissionClosed || (!canSubmit && task.status !== 'submitted')}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Paste a shareable link to your completed work (allowed up to 3 days after the deadline: {cutoffDate && cutoffDate.toLocaleDateString()})
+                  Paste a shareable link to your completed work (allowed until: {cutoffDate && cutoffDate.toLocaleDateString()})
                 </p>
               </div>
 

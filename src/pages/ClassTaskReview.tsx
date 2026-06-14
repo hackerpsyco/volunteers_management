@@ -192,19 +192,37 @@ export default function ClassTaskReview() {
         throw new Error('No rows updated. You might not have permission or student mapping is incorrect.');
       }
 
-      // Add earning record
-      const { error: earningError } = await supabase.from('student_earnings').insert({
-        student_id: studentId,
-        task_id: taskId,
-        amount: amount,
-        description: `Completed task: ${taskName} (Verified by Class Monitor)`
-      });
+      // Add or update earning record
+      const earningDesc = `Completed task: ${taskName} (Verified by Class Monitor)`;
+      const { data: existingEarning } = await supabase
+        .from('student_earnings')
+        .select('id')
+        .eq('student_id', studentId)
+        .eq('task_id', taskId)
+        .maybeSingle();
+
+      let earningError = null;
+      if (existingEarning) {
+        const { error } = await supabase
+          .from('student_earnings')
+          .update({ amount: amount, description: earningDesc })
+          .eq('id', existingEarning.id);
+        earningError = error;
+      } else {
+        const { error } = await supabase.from('student_earnings').insert({
+          student_id: studentId,
+          task_id: taskId,
+          amount: amount,
+          description: earningDesc
+        });
+        earningError = error;
+      }
 
       if (earningError) {
         console.error('Error adding earnings:', earningError);
         toast.warning('Task completed, but failed to add earnings');
       } else {
-        toast.success('Task marked as completed and earnings added');
+        toast.success('Task marked as completed and earnings added/synced');
       }
 
       // Add reviewer earning if the verifying user is a student (class leader/monitor)
@@ -441,11 +459,10 @@ export default function ClassTaskReview() {
                                   <DropdownMenuContent align="end">
                                     <DropdownMenuItem 
                                       onClick={() => handleMarkCompleted(task.id, group.id, task.task_name)}
-                                      disabled={task.status === 'completed'}
                                       className="text-green-600 font-medium focus:text-green-600 focus:bg-green-50"
                                     >
                                       <CheckCircle2 className="h-4 w-4 mr-2" />
-                                      Verify Completion
+                                      {task.status === 'completed' ? 'Re-Verify / Sync Earnings' : 'Verify Completion'}
                                     </DropdownMenuItem>
                                     <DropdownMenuItem 
                                       onClick={() => handleResetToPending(task.id)}

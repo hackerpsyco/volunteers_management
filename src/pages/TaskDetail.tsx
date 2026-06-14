@@ -182,14 +182,32 @@ export default function TaskDetail() {
         throw new Error('No rows updated. You might not have permission or student mapping is incorrect.');
       }
 
-      // Add earning record
+      // Add or update earning record
       const earningDesc = `Completed task: ${task.title} (Verified)` + (comment ? `. Note: ${comment}` : '');
-      const { error: earningError } = await supabase.from('student_earnings').insert({
-        student_id: task.student_id,
-        task_id: taskId,
-        amount: amount,
-        description: earningDesc
-      });
+      
+      const { data: existingEarning } = await supabase
+        .from('student_earnings')
+        .select('id')
+        .eq('student_id', task.student_id)
+        .eq('task_id', taskId)
+        .maybeSingle();
+
+      let earningError = null;
+      if (existingEarning) {
+        const { error } = await supabase
+          .from('student_earnings')
+          .update({ amount: amount, description: earningDesc })
+          .eq('id', existingEarning.id);
+        earningError = error;
+      } else {
+        const { error } = await supabase.from('student_earnings').insert({
+          student_id: task.student_id,
+          task_id: taskId,
+          amount: amount,
+          description: earningDesc
+        });
+        earningError = error;
+      }
 
       if (earningError) {
         console.error('Error adding earnings:', earningError);
@@ -510,10 +528,10 @@ export default function TaskDetail() {
                         </a>
                       )}
                       <div className="flex gap-2">
-                        {task.status !== 'pending' && task.status !== 'completed' && task.status !== 'rejected' && (
+                        {task.status !== 'pending' && task.status !== 'rejected' && (
                           <Button
                             size="sm"
-                            className="bg-green-600 hover:bg-green-700"
+                            className={task.status === 'completed' ? "bg-blue-600 hover:bg-blue-700" : "bg-green-600 hover:bg-green-700"}
                             onClick={() => {
                               setVerifyingTaskId(task.id);
                               setVerifyingAmount(task.earning_amount || 5);
@@ -521,7 +539,7 @@ export default function TaskDetail() {
                             }}
                             disabled={updatingId === task.id}
                           >
-                            {updatingId === task.id ? 'Updating...' : 'Verify'}
+                            {updatingId === task.id ? 'Updating...' : (task.status === 'completed' ? 'Re-Verify' : 'Verify')}
                           </Button>
                         )}
                         {task.status !== 'pending' && task.status !== 'rejected' && (
