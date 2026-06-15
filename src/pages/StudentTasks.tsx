@@ -22,6 +22,7 @@ interface StudentTask {
   submission_link?: string;
   created_at: string;
   earning_amount?: number;
+  rejection_comment?: string;
 }
 
 export default function StudentTasks() {
@@ -184,6 +185,14 @@ export default function StudentTasks() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
+                  {(task.rejection_comment || task.feedback_notes) && (
+                    <div className={cn("text-xs p-3 rounded-md mb-4 border", task.status === 'rejected' ? "bg-red-50 text-red-700 border-red-200" : "bg-green-50 text-green-700 border-green-200")}>
+                      <span className="font-semibold block mb-1">
+                        {task.status === 'rejected' ? 'Rejection Reason:' : 'Teacher Note:'}
+                      </span>
+                      <span className="line-clamp-2">{task.status === 'rejected' ? task.rejection_comment : task.feedback_notes}</span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between pt-4 border-t border-border mt-2">
                     <div className="text-xs text-muted-foreground font-medium flex gap-3">
                       <span>TYPE: {task.feedback_type.toUpperCase()}</span>

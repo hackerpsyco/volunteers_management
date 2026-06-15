@@ -68,8 +68,8 @@ export default function StudentTaskDetail() {
         .from('student_task_feedback')
         .select(`
           *,
-          profiles!student_task_feedback_student_id_fkey (first_name, last_name),
-          sessions!student_task_feedback_session_id_fkey (class_batch)
+          students (name),
+          sessions (class_batch)
         `)
         .eq('id', taskId)
         .single();
@@ -159,7 +159,7 @@ export default function StudentTaskDetail() {
       
       const year = task.academic_year || 'Unknown Year';
       const className = (task as any).sessions?.class_batch || 'Unassigned';
-      const studentName = (task as any).profiles ? `${(task as any).profiles.first_name || ''} ${(task as any).profiles.last_name || ''}`.trim() : 'Unknown Student';
+      const studentName = (task as any).students?.name || 'Unknown Student';
       const studentFolder = `${studentName} - ${task.student_id}`;
       const taskFolder = task.task_name;
       

@@ -46,7 +46,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Textarea } from '@/components/ui/textarea';
+import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Plus, Users, MoreVertical, Pencil, Calendar, Trash2, UserCheck, UserX, Upload, BookOpen, Settings, Search } from 'lucide-react';
@@ -1048,21 +1048,7 @@ export default function VolunteerList() {
               />
             </div>
 
-            {/* Remarks */}
-            <div>
-              <Label htmlFor="remarks" className="text-sm font-medium mb-2 block">
-                Any Remark
-              </Label>
-              <Textarea
-                id="remarks"
-                value={preferencesData.remarks}
-                onChange={(e) =>
-                  setPreferencesData({ ...preferencesData, remarks: e.target.value })
-                }
-                placeholder="Add any remarks or notes"
-                className="min-h-[80px]"
-              />
-            </div>
+            {/* Remarks - Hidden from main edit since we have a dedicated dialog now */}
 
             {/* Status */}
             <div>
@@ -1107,22 +1093,19 @@ export default function VolunteerList() {
 
           <div className="flex-1 overflow-y-auto py-4 space-y-4">
             {/* Add Remark Section */}
-            <div className="space-y-2 pb-4 border-b">
+            <div className="space-y-3 pb-4 border-b">
               <Label htmlFor="new_remark" className="text-sm font-medium">Add New Remark</Label>
-              <div className="flex gap-2">
-                <Textarea
-                  id="new_remark"
+              <div className="flex flex-col gap-2">
+                <RichTextEditor
                   value={newRemark}
-                  onChange={(e) => setNewRemark(e.target.value)}
-                  placeholder="Type your note here..."
-                  className="flex-1 min-h-[60px]"
+                  onChange={(val) => setNewRemark(val)}
                 />
                 <Button
                   onClick={handleSaveRemark}
-                  disabled={isSavingRemark || !newRemark.trim()}
-                  className="self-end"
+                  disabled={isSavingRemark || !newRemark.trim() || newRemark === '<p><br></p>'}
+                  className="self-end mt-2"
                 >
-                  {isSavingRemark ? 'Adding...' : 'Add'}
+                  {isSavingRemark ? 'Adding...' : 'Add Remark'}
                 </Button>
               </div>
             </div>
@@ -1140,7 +1123,7 @@ export default function VolunteerList() {
                           {remark.createdAt === 'Legacy' ? 'Legacy' : new Date(remark.createdAt).toLocaleString()}
                         </span>
                       </div>
-                      <p className="text-muted-foreground whitespace-pre-wrap">{remark.text}</p>
+                      <div className="text-muted-foreground prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: remark.text }} />
                     </div>
                   ))}
                 </div>

@@ -104,6 +104,7 @@ export default function TaskDetail() {
           academic_year,
           feedback_type,
           rejection_comment,
+          feedback_notes,
           students:student_id(name),
           sessions:session_id(title, class_batch)
         `)
@@ -131,6 +132,7 @@ export default function TaskDetail() {
           earning_amount: task.earning_amount || 0,
           feedback_type: task.feedback_type || '',
           rejection_comment: task.rejection_comment || null,
+          feedback_notes: task.feedback_notes || null,
         }));
 
         setTaskGroup({
@@ -253,7 +255,7 @@ export default function TaskDetail() {
         setTaskGroup({
           ...taskGroup,
           tasks: taskGroup.tasks.map(t =>
-            t.id === taskId ? { ...t, status: 'completed', earning_amount: amount } : t
+            t.id === taskId ? { ...t, status: 'completed', earning_amount: amount, feedback_notes: comment || null, rejection_comment: null } : t
           ),
         });
       }
@@ -601,6 +603,16 @@ export default function TaskDetail() {
                       <div>
                         <p className="text-xs font-semibold text-red-600 mb-0.5">Rejection Reason:</p>
                         <p className="text-sm text-red-700">{task.rejection_comment}</p>
+                      </div>
+                    </div>
+                  )}
+                  {/* Verified comment display */}
+                  {task.status === 'completed' && task.feedback_notes && (
+                    <div className="flex items-start gap-2 mt-1 px-3 py-2 rounded-lg bg-green-50 border border-green-200">
+                      <MessageSquare className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-xs font-semibold text-green-600 mb-0.5">Verified Note:</p>
+                        <p className="text-sm text-green-700">{task.feedback_notes}</p>
                       </div>
                     </div>
                   )}
