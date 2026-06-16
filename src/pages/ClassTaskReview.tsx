@@ -182,7 +182,7 @@ export default function ClassTaskReview() {
 
       const { data, error: updateError } = await supabase
         .from('student_task_feedback')
-        .update({ status: 'completed', earning_amount: amount, updated_at: new Date().toISOString() })
+        .update({ status: 'completed', earning_amount: amount, verified_by: user?.id || null, updated_at: new Date().toISOString() })
         .eq('id', taskId)
         .select();
 

@@ -173,6 +173,7 @@ export default function TaskDetail() {
           status: 'completed', 
           earning_amount: amount, 
           feedback_notes: comment || null,
+          verified_by: user?.id || null,
           updated_at: new Date().toISOString() 
         })
         .eq('id', taskId)

@@ -7,6 +7,9 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { VolunteerSessionStats } from '@/components/dashboard/VolunteerSessionStats';
 import { VolunteerReachOutStats } from '@/components/dashboard/VolunteerReachOutStats';
+import { TopStudentsWidget } from '@/components/dashboard/TopStudentsWidget';
+import { TopFacilitatorsWidget } from '@/components/dashboard/TopFacilitatorsWidget';
+import { TodayClassAttendanceWidget } from '@/components/dashboard/TodayClassAttendanceWidget';
 import { useAcademicYear } from '@/contexts/AcademicYearContext';
 import {
   Select,
@@ -62,6 +65,8 @@ export default function Dashboard() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<string>('all');
   const [loading, setLoading] = useState(true);
+  const [customStartDate, setCustomStartDate] = useState<Date | null>(null);
+  const [customEndDate, setCustomEndDate] = useState<Date | null>(null);
   const [userRole, setUserRole] = useState<number | null>(null);
   const { getDateRange, selectedYear } = useAcademicYear();
 
@@ -275,11 +280,34 @@ export default function Dashboard() {
     <DashboardLayout>
       <div className="space-y-6 md:space-y-8">
         {/* Header */}
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-foreground">Dashboard</h1>
-          <p className="text-sm md:text-base text-muted-foreground mt-1">
-            Welcome to WesFellow Hub
-          </p>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-foreground">Dashboard</h1>
+            <p className="text-sm md:text-base text-muted-foreground mt-1">
+              Welcome to WesFellow Hub
+            </p>
+          </div>
+          <div className="flex items-center gap-2 bg-card border border-border p-2 rounded-lg">
+            <div className="flex flex-col">
+              <label className="text-[10px] text-muted-foreground font-semibold px-1">START DATE</label>
+              <input 
+                type="date" 
+                className="bg-transparent text-sm border-0 focus:ring-0 cursor-pointer"
+                value={customStartDate ? customStartDate.toISOString().split('T')[0] : ''}
+                onChange={e => setCustomStartDate(e.target.value ? new Date(e.target.value) : null)}
+              />
+            </div>
+            <div className="text-muted-foreground">-</div>
+            <div className="flex flex-col">
+              <label className="text-[10px] text-muted-foreground font-semibold px-1">END DATE</label>
+              <input 
+                type="date" 
+                className="bg-transparent text-sm border-0 focus:ring-0 cursor-pointer"
+                value={customEndDate ? customEndDate.toISOString().split('T')[0] : ''}
+                onChange={e => setCustomEndDate(e.target.value ? new Date(e.target.value) : null)}
+              />
+            </div>
+          </div>
         </div>
 
         {/* Stats Cards Grid */}
@@ -354,6 +382,13 @@ export default function Dashboard() {
 
           {/* Volunteer Reach Out */}
           {userRole !== 4 && <VolunteerReachOutStats />}
+        </div>
+
+        {/* Top Rankings & Attendance Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+          <TodayClassAttendanceWidget />
+          <TopStudentsWidget startDate={customStartDate} endDate={customEndDate} academicYear={selectedYear} />
+          <TopFacilitatorsWidget startDate={customStartDate} endDate={customEndDate} />
         </div>
 
         {/* Quick Action Buttons */}

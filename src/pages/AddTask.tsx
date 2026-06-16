@@ -21,6 +21,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { useAcademicYear } from '@/contexts/AcademicYearContext';
 
@@ -41,6 +42,7 @@ interface StudentOption {
 
 export default function AddTask() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { selectedYear } = useAcademicYear();
   const [loading, setLoading] = useState(false);
   const [classes, setClasses] = useState<ClassOption[]>([]);
@@ -171,6 +173,7 @@ export default function AddTask() {
         subject_id: formData.subject_id || null,
         earning_amount: formData.earning_amount === '' ? 0 : formData.earning_amount,
         submission_types: formData.submission_types.length > 0 ? formData.submission_types : ['code'],
+        created_by: user?.id || null,
       }));
 
       const { error } = await supabase.from('student_task_feedback').insert(taskRecords);

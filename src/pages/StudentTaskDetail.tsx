@@ -93,14 +93,11 @@ export default function StudentTaskDetail() {
       return;
     }
 
-    // Validate submission is not more than 3 days past the deadline
-    const deadlineDate = new Date(task.deadline);
-    const cutoffDate = new Date(deadlineDate);
-    cutoffDate.setDate(cutoffDate.getDate() + 3);
-    cutoffDate.setHours(23, 59, 59, 999);
+    // Validate submission is not past the exact deadline
+    const cutoffDate = new Date(task.deadline);
 
     if (new Date() > cutoffDate) {
-      toast.error('Submission closed. The deadline was more than 3 days ago.');
+      toast.error('Submission closed. The deadline has passed.');
       return;
     }
 
@@ -208,11 +205,7 @@ export default function StudentTaskDetail() {
   const canSubmit = task.status === 'pending';
   const isRejected = task.status === 'rejected';
 
-  const cutoffDate = task?.deadline ? (() => {
-    const d = new Date(task.deadline);
-    d.setHours(23, 59, 59, 999);
-    return d;
-  })() : null;
+  const cutoffDate = task?.deadline ? new Date(task.deadline) : null;
   const isSubmissionClosed = cutoffDate ? new Date() > cutoffDate : false;
 
   const rawDesc = task.task_description || '';
@@ -259,11 +252,14 @@ export default function StudentTaskDetail() {
           {/* Meta row */}
           <div className="mt-4 flex flex-wrap gap-4">
             {task.deadline && (
-              <div className="flex items-center gap-2 text-sm">
-                <CalendarDays className={cn('h-4 w-4', isDeadlinePast && task.status === 'pending' ? 'text-destructive' : 'text-muted-foreground')} />
-                <span className={cn('font-medium', isDeadlinePast && task.status === 'pending' && 'text-destructive')}>
-                  {isDeadlinePast && task.status === 'pending' ? 'Overdue · ' : 'Due '}
-                  {new Date(task.deadline).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+              <div className={cn(
+                "flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border font-semibold",
+                isDeadlinePast && task.status === 'pending' ? "bg-red-50 text-red-600 border-red-200" : "bg-blue-50 text-blue-700 border-blue-200"
+              )}>
+                <CalendarDays className="h-4 w-4" />
+                <span>
+                  {isDeadlinePast && task.status === 'pending' ? 'Overdue · ' : 'Due · '}
+                  {new Date(task.deadline).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
                 </span>
               </div>
             )}
@@ -407,7 +403,7 @@ export default function StudentTaskDetail() {
                       disabled={isSubmissionClosed || (!canSubmit && task.status !== 'submitted')}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Paste a shareable link to your completed work (allowed until: {cutoffDate && cutoffDate.toLocaleDateString()})
+                      Paste a shareable link to your completed work (allowed until: {cutoffDate && cutoffDate.toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })})
                     </p>
                   </div>
                 )}

@@ -170,11 +170,20 @@ export default function StudentTasks() {
                     <Badge variant={statusBadgeVariant(task.status)}>
                       {task.status}
                     </Badge>
-                    {task.deadline && (
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(task.deadline).toLocaleDateString()}
-                      </p>
-                    )}
+                    {task.deadline && (() => {
+                      const isPast = new Date(task.deadline) < new Date();
+                      const isPending = task.status === 'pending';
+                      return (
+                        <div className={cn(
+                          "text-[11px] font-semibold px-2 py-1 rounded-md border flex items-center gap-1",
+                          isPast && isPending ? "bg-red-50 text-red-600 border-red-200" : "bg-blue-50 text-blue-700 border-blue-200"
+                        )} title="Deadline">
+                          <Clock className="h-3 w-3" />
+                          {isPast && isPending ? "Overdue: " : "Due: "}
+                          {new Date(task.deadline).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                        </div>
+                      );
+                    })()}
                   </div>
                   <CardTitle className="text-xl mt-3 group-hover:text-primary transition-colors line-clamp-2">
                     {task.task_name}
