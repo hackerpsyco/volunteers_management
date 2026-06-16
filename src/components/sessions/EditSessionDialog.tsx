@@ -355,10 +355,12 @@ export function EditSessionDialog({
         const startDateTime = new Date(`${formData.session_date}T${sessionTime}`);
         const endDateTime = new Date(startDateTime.getTime() + 60 * 60 * 1000);
 
-        // Get volunteer and facilitator emails
+        // Get volunteer, facilitator, coordinator, class, and centre emails
         const volunteerData = volunteers.find(v => v.id === formData.volunteer_id);
         const facilitatorData = facilitators.find(f => f.name === formData.facilitator_name);
         const coordinatorData = coordinators.find(c => c.id === formData.coordinator_id);
+        const classData = classes.find(c => c.name === formData.class_batch);
+        const centreData = centres.find(c => c.id === formData.centre_id);
 
         await fetch(`${supabaseUrl}/functions/v1/sync-google-calendar`, {
           method: 'PATCH',
@@ -403,6 +405,8 @@ Session updated with new details.
             ].filter((email): email is string => !!(email && typeof email === 'string' && email.trim())),
             facilitatorEmail: facilitatorData?.email || '',
             coordinatorEmail: coordinatorData?.email || '',
+            classEmail: classData?.email,
+            centreEmail: centreData?.email,
           }),
         });
       } catch (calendarError) {

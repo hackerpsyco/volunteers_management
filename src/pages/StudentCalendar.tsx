@@ -466,6 +466,20 @@ export default function StudentCalendar() {
 
                 {/* Participants & Details */}
                 <div className="space-y-3">
+                  {selectedSession.meeting_link && (
+                    <div className="bg-indigo-50 border border-indigo-200 rounded p-3 mb-2">
+                      <h4 className="font-semibold text-sm text-indigo-900 mb-1">🔗 Google Meet Link</h4>
+                      <a 
+                        href={selectedSession.meeting_link} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-indigo-600 hover:text-indigo-800 hover:underline font-medium text-sm break-all"
+                      >
+                        {selectedSession.meeting_link}
+                      </a>
+                    </div>
+                  )}
+
                   <h4 className="font-semibold text-sm">Participants & Meeting Invites</h4>
                   
                   {selectedSession.facilitator_name && (

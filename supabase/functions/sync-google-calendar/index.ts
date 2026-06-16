@@ -88,7 +88,7 @@ async function createJWT(serviceAccountEmail: string, privateKey: string) {
   const payload = {
     iss: serviceAccountEmail,
     sub: ORGANIZER_EMAIL,
-    scope: "https://www.googleapis.com/auth/calendar",
+    scope: "https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/meetings.space.created",
     aud: "https://oauth2.googleapis.com/token",
     exp: now + 3600,
     iat: now,
@@ -178,7 +178,7 @@ async function createCalendarEvent(event: any, serviceAccountEmail: string, priv
   }
 
   const data = await res.json();
-  return data.id;
+  return { eventId: data.id, hangoutLink: data.hangoutLink };
 }
 
 /* -------------------- SERVER -------------------- */
@@ -313,15 +313,51 @@ serve(async (req) => {
       },
     };
 
-    const eventId = await createCalendarEvent(
+    const { eventId, hangoutLink } = await createCalendarEvent(
       event,
       serviceAccountEmail,
       privateKey
     );
 
-    console.log(`Successfully created calendar event: ${eventId}`);
+    console.log(`Successfully created calendar event: ${eventId}, meet link: ${hangoutLink}`);
 
-    // ✅ UPDATE SESSION WITH GOOGLE EVENT ID
+    // ✅ TRY TO ASSIGN COHOSTS
+    if (hangoutLink && (body.volunteerEmail || body.facilitatorEmail || body.volunteerEmails?.length)) {
+      try {
+        const spaceIdMatch = hangoutLink.match(/meet\.google\.com\/([^?]+)/);
+        if (spaceIdMatch) {
+          const spaceId = spaceIdMatch[1];
+          const token = await getAccessToken(serviceAccountEmail, privateKey);
+          
+          // Emails to make cohost
+          const cohostEmails = [
+            ...(body.volunteerEmails || []),
+            body.volunteerEmail,
+            body.facilitatorEmail,
+            body.coordinatorEmail,
+            body.classEmail,
+            body.centreEmail
+          ].filter(e => !!e);
+          
+          for (const email of new Set(cohostEmails)) {
+            const res = await fetch(`https://meet.googleapis.com/v2beta/spaces/${spaceId}/members`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ email: email, role: 'COHOST' })
+            });
+            if (!res.ok) console.warn(`COHOST assign failed for ${email}: ${await res.text()}`);
+            else console.log(`Successfully assigned COHOST to ${email}`);
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to assign cohosts:", err);
+      }
+    }
+
+    // ✅ UPDATE SESSION WITH GOOGLE EVENT ID AND MEET LINK
     if (body.sessionId) {
       const supabaseUrl = Deno.env.get("SUPABASE_URL");
       const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -341,7 +377,7 @@ serve(async (req) => {
 
       const { error: updateError } = await supabase
         .from("sessions")
-        .update({ google_event_id: eventId })
+        .update({ google_event_id: eventId, meeting_link: hangoutLink })
         .eq("id", body.sessionId);
 
       if (updateError) {
@@ -360,7 +396,7 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ success: true, eventId }),
+      JSON.stringify({ success: true, eventId, hangoutLink }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
