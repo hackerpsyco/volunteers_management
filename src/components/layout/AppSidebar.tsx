@@ -28,6 +28,7 @@ const navGroups: NavGroup[] = [
     items: [
       { title: 'Dashboard', url: '/dashboard', icon: Home, requiredRole: null, studentVisible: false },
       { title: 'Calendar', url: '/calendar', icon: CalendarDays, requiredRole: null, studentVisible: false },
+      { title: 'Resource Hub', url: '/resources', icon: BookOpen, requiredRole: null, studentVisible: false },
     ],
   },
   {

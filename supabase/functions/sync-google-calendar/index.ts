@@ -81,14 +81,14 @@ function pemToDer(pem: string): ArrayBuffer {
 }
 
 // JWT
-async function createJWT(serviceAccountEmail: string, privateKey: string) {
+async function createJWT(serviceAccountEmail: string, privateKey: string, scope: string) {
   const header = { alg: "RS256", typ: "JWT" };
   const now = Math.floor(Date.now() / 1000);
 
   const payload = {
     iss: serviceAccountEmail,
     sub: ORGANIZER_EMAIL,
-    scope: "https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/meetings.space.created",
+    scope: scope,
     aud: "https://oauth2.googleapis.com/token",
     exp: now + 3600,
     iat: now,
@@ -124,8 +124,8 @@ async function createJWT(serviceAccountEmail: string, privateKey: string) {
   return `${data}.${sig}`;
 }
 
-async function getAccessToken(serviceAccountEmail: string, privateKey: string) {
-  const jwt = await createJWT(serviceAccountEmail, privateKey);
+async function getAccessToken(serviceAccountEmail: string, privateKey: string, scope = "https://www.googleapis.com/auth/calendar") {
+  const jwt = await createJWT(serviceAccountEmail, privateKey, scope);
 
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -327,7 +327,11 @@ serve(async (req) => {
         const spaceIdMatch = hangoutLink.match(/meet\.google\.com\/([^?]+)/);
         if (spaceIdMatch) {
           const spaceId = spaceIdMatch[1];
-          const token = await getAccessToken(serviceAccountEmail, privateKey);
+          const meetToken = await getAccessToken(
+            serviceAccountEmail, 
+            privateKey,
+            "https://www.googleapis.com/auth/meetings.space.created"
+          );
           
           // Emails to make cohost
           const cohostEmails = [
@@ -343,7 +347,7 @@ serve(async (req) => {
             const res = await fetch(`https://meet.googleapis.com/v2beta/spaces/${spaceId}/members`, {
               method: 'POST',
               headers: {
-                'Authorization': `Bearer ${token}`,
+                'Authorization': `Bearer ${meetToken}`,
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify({ email: email, role: 'COHOST' })

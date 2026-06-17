@@ -13,6 +13,7 @@ const studentNavItems = [
   { title: 'My Tasks', url: '/student-tasks', icon: CheckSquare },
   { title: 'My Earnings', url: '/student-earnings', icon: Wallet },
   { title: 'My Curriculum', url: '/student-curriculum', icon: BookOpen },
+  { title: 'Resource Hub', url: '/student-resources', icon: BookOpen },
 ];
 
 const monitorNavItems = [

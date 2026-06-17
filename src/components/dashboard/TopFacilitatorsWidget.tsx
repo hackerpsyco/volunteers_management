@@ -5,8 +5,9 @@ import { Medal, Loader2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface TopFacilitatorsWidgetProps {
-  startDate: Date | null;
-  endDate: Date | null;
+  startDate?: Date | null;
+  endDate?: Date | null;
+  academicYear?: string;
 }
 
 interface FacilitatorStat {
@@ -17,7 +18,7 @@ interface FacilitatorStat {
   feedbackDone: number;
 }
 
-export function TopFacilitatorsWidget({ startDate, endDate }: TopFacilitatorsWidgetProps) {
+export function TopFacilitatorsWidget({ startDate, endDate, academicYear }: TopFacilitatorsWidgetProps) {
   const [facilitators, setFacilitators] = useState<FacilitatorStat[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -27,14 +28,29 @@ export function TopFacilitatorsWidget({ startDate, endDate }: TopFacilitatorsWid
       try {
         const statsMap = new Map<string, FacilitatorStat>();
 
+        // Fetch Facilitators to map id -> email & name
+        const { data: facilitatorsData } = await supabase
+          .from('facilitators')
+          .select('id, name, email');
+
+        const facIdToEmail = new Map<string, string>();
+        facilitatorsData?.forEach(f => {
+          if (f.email) {
+            facIdToEmail.set(f.id, f.email.toLowerCase());
+            // Pre-initialize stats map just in case
+            if (!statsMap.has(f.email.toLowerCase())) {
+              statsMap.set(f.email.toLowerCase(), { id: f.id, name: f.name, sessionsDone: 0, tasksCreated: 0, feedbackDone: 0 });
+            }
+          }
+        });
+
         // Query 1: Sessions Done
         let sessionsQuery = supabase
           .from('sessions')
           .select(`
             id,
-            volunteer_id,
-            session_date,
-            volunteers(name)
+            facilitator_name,
+            session_date
           `)
           .in('status', ['completed', 'Completed']);
           
@@ -47,85 +63,121 @@ export function TopFacilitatorsWidget({ startDate, endDate }: TopFacilitatorsWid
 
         const { data: sessionsData, error: sessionsError } = await sessionsQuery;
         
+        const facNameToEmail = new Map<string, string>();
+        facilitatorsData?.forEach(f => {
+          if (f.name && f.email) facNameToEmail.set(f.name, f.email.toLowerCase());
+        });
+
         if (sessionsError) {
           console.error('Error fetching sessions:', sessionsError);
         } else {
           sessionsData?.forEach((record: any) => {
-            if (!record.volunteer_id || !record.volunteers) return;
-            const vId = record.volunteer_id;
-            if (!statsMap.has(vId)) {
-              statsMap.set(vId, { id: vId, name: record.volunteers.name, sessionsDone: 0, tasksCreated: 0, feedbackDone: 0 });
+            if (!record.facilitator_name) return;
+            const email = facNameToEmail.get(record.facilitator_name);
+            if (!email) return;
+
+            if (!statsMap.has(email)) {
+              statsMap.set(email, { id: record.facilitator_name, name: record.facilitator_name, sessionsDone: 0, tasksCreated: 0, feedbackDone: 0 });
             }
-            statsMap.get(vId)!.sessionsDone += 1;
+            statsMap.get(email)!.sessionsDone += 1;
           });
         }
 
-        // Fetch Facilitator Profiles mapping (to map user.id to volunteer.id)
-        // because created_by and verified_by use auth.users(id)
+        // Fetch User Profiles to map user.id -> email
         const { data: profilesData } = await supabase
           .from('user_profiles')
           .select('id, full_name, email');
           
-        // Map of auth.user.id -> user_profile data
+        const userIdToEmail = new Map<string, string>();
         const profileMap = new Map();
-        profilesData?.forEach(p => profileMap.set(p.id, p));
-
-        // Attempt Query 2 & 3: Tasks Created and Feedback Done
-        // We wrap in try-catch in case the DB columns aren't added yet
-        try {
-          let tasksQuery = supabase
-            .from('student_task_feedback')
-            .select(`
-              created_by,
-              verified_by,
-              created_at,
-              updated_at
-            `);
-
-          // Start Date filter
-          if (startDate) {
-            tasksQuery = tasksQuery.gte('updated_at', startDate.toISOString());
+        
+        profilesData?.forEach(p => {
+          profileMap.set(p.id, p);
+          let identifier = p.id;
+          if (p.email) {
+            identifier = p.email.toLowerCase();
+          } else if (p.full_name) {
+            const facEmail = facNameToEmail.get(p.full_name);
+            identifier = facEmail || p.full_name;
           }
-          // End Date filter
+          userIdToEmail.set(p.id, identifier);
+        });
+
+        // Query 2: Tasks Created
+        try {
+          let createdQuery = supabase
+            .from('student_task_feedback')
+            .select('created_by, created_at');
+
+          if (academicYear) {
+            createdQuery = createdQuery.eq('academic_year', academicYear);
+          }
+          if (startDate) {
+            createdQuery = createdQuery.gte('created_at', startDate.toISOString());
+          }
           if (endDate) {
             const end = new Date(endDate);
             end.setDate(end.getDate() + 1);
-            tasksQuery = tasksQuery.lt('updated_at', end.toISOString());
+            createdQuery = createdQuery.lt('created_at', end.toISOString());
           }
 
-          const { data: tasksData, error: tasksError } = await tasksQuery;
+          const { data: createdData, error: createdError } = await createdQuery;
 
-          if (!tasksError && tasksData) {
-            tasksData.forEach((record: any) => {
-              // Tasks Created
+          if (!createdError && createdData) {
+            createdData.forEach((record: any) => {
               if (record.created_by) {
-                const p = profileMap.get(record.created_by);
-                if (p) {
-                  // We use email or name to match with volunteer... or just treat profiles as their own id
-                  // For simplicity, we just use the user profile ID as the identifier
-                  const vId = record.created_by;
-                  if (!statsMap.has(vId)) {
-                    statsMap.set(vId, { id: vId, name: p.full_name || 'Unknown User', sessionsDone: 0, tasksCreated: 0, feedbackDone: 0 });
+                const email = userIdToEmail.get(record.created_by);
+                if (email) {
+                  if (!statsMap.has(email)) {
+                    const p = profileMap.get(record.created_by);
+                    statsMap.set(email, { id: record.created_by, name: p?.full_name || 'Unknown', sessionsDone: 0, tasksCreated: 0, feedbackDone: 0 });
                   }
-                  statsMap.get(vId)!.tasksCreated += 1;
-                }
-              }
-
-              // Feedback Done
-              if (record.verified_by) {
-                const p = profileMap.get(record.verified_by);
-                if (p) {
-                  const vId = record.verified_by;
-                  if (!statsMap.has(vId)) {
-                    statsMap.set(vId, { id: vId, name: p.full_name || 'Unknown User', sessionsDone: 0, tasksCreated: 0, feedbackDone: 0 });
-                  }
-                  statsMap.get(vId)!.feedbackDone += 1;
+                  statsMap.get(email)!.tasksCreated += 1;
                 }
               }
             });
           }
         } catch (colError) {
-          console.log('created_by or verified_by columns might not exist yet:', colError);
+          console.log('created_by column might not exist yet:', colError);
+        }
+
+        // Query 3: Feedback Done
+        try {
+          let reviewedQuery = supabase
+            .from('student_task_feedback')
+            .select('verified_by, updated_at')
+            .not('verified_by', 'is', null);
+
+          if (academicYear) {
+            reviewedQuery = reviewedQuery.eq('academic_year', academicYear);
+          }
+          if (startDate) {
+            reviewedQuery = reviewedQuery.gte('updated_at', startDate.toISOString());
+          }
+          if (endDate) {
+            const end = new Date(endDate);
+            end.setDate(end.getDate() + 1);
+            reviewedQuery = reviewedQuery.lt('updated_at', end.toISOString());
+          }
+
+          const { data: reviewedData, error: reviewedError } = await reviewedQuery;
+
+          if (!reviewedError && reviewedData) {
+            reviewedData.forEach((record: any) => {
+              if (record.verified_by) {
+                const email = userIdToEmail.get(record.verified_by);
+                if (email) {
+                  if (!statsMap.has(email)) {
+                    const p = profileMap.get(record.verified_by);
+                    statsMap.set(email, { id: record.verified_by, name: p?.full_name || 'Unknown', sessionsDone: 0, tasksCreated: 0, feedbackDone: 0 });
+                  }
+                  statsMap.get(email)!.feedbackDone += 1;
+                }
+              }
+            });
+          }
+        } catch (colError) {
+          console.log('verified_by column might not exist yet:', colError);
         }
 
         setFacilitators(Array.from(statsMap.values()));
@@ -195,7 +247,7 @@ export function TopFacilitatorsWidget({ startDate, endDate }: TopFacilitatorsWid
                     <span>{fac.tasksCreated}</span>
                   </div>
                 </div>
-              )) : <p className="text-sm text-muted-foreground text-center py-4">Wait for DB updates.</p>}
+              )) : <p className="text-sm text-muted-foreground text-center py-4">No tasks created found.</p>}
             </TabsContent>
 
             <TabsContent value="reviewed" className="space-y-4">
@@ -211,7 +263,7 @@ export function TopFacilitatorsWidget({ startDate, endDate }: TopFacilitatorsWid
                     <span>{fac.feedbackDone}</span>
                   </div>
                 </div>
-              )) : <p className="text-sm text-muted-foreground text-center py-4">Wait for DB updates.</p>}
+              )) : <p className="text-sm text-muted-foreground text-center py-4">No reviews found.</p>}
             </TabsContent>
           </Tabs>
         )}

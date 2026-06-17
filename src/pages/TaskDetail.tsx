@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ExternalLink, Edit2, Trash2, XCircle, MessageSquare, Pencil } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Edit2, Trash2, XCircle, MessageSquare, Pencil, Calendar } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -78,6 +78,8 @@ export default function TaskDetail() {
   const [rejectionComment, setRejectionComment] = useState('');
   const [editingCommentTaskId, setEditingCommentTaskId] = useState<string | null>(null);
   const [editCommentValue, setEditCommentValue] = useState('');
+  const [editingDeadlineTaskId, setEditingDeadlineTaskId] = useState<string | null>(null);
+  const [editDeadlineValue, setEditDeadlineValue] = useState('');
 
   const { selectedYear } = useAcademicYear();
   const { user } = useAuth();
@@ -369,6 +371,29 @@ export default function TaskDetail() {
     }
   };
 
+  const handleEditDeadline = async () => {
+    if (!editingDeadlineTaskId) return;
+    try {
+      setUpdatingId(editingDeadlineTaskId);
+      const { error } = await supabase
+        .from('student_task_feedback')
+        .update({
+          deadline: editDeadlineValue ? editDeadlineValue : null
+        })
+        .eq('id', editingDeadlineTaskId);
+
+      if (error) throw error;
+      toast.success('Deadline updated successfully!');
+      fetchTaskDetail();
+      setEditingDeadlineTaskId(null);
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Failed to update deadline: ' + err.message);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   const handleDeleteTask = async () => {
     try {
       const { error } = await supabase
@@ -594,6 +619,22 @@ export default function TaskDetail() {
                             Edit Comment
                           </Button>
                         )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setEditingDeadlineTaskId(task.id);
+                            // Convert Date to YYYY-MM-DDThh:mm format for datetime-local input
+                            const d = task.due_date ? new Date(task.due_date) : null;
+                            const formattedDate = d ? new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '';
+                            setEditDeadlineValue(formattedDate);
+                          }}
+                          disabled={updatingId === task.id}
+                          className="text-xs text-orange-600 border-orange-200 hover:bg-orange-50"
+                        >
+                          <Pencil className="h-3 w-3 mr-1" />
+                          Edit Deadline
+                        </Button>
                       </div>
                     </div>
                   </div>
@@ -722,6 +763,43 @@ export default function TaskDetail() {
               disabled={updatingId === editingCommentTaskId}
             >
               {updatingId === editingCommentTaskId ? 'Saving...' : 'Save Comment'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Deadline Dialog */}
+      <Dialog open={!!editingDeadlineTaskId} onOpenChange={(open) => { if (!open) { setEditingDeadlineTaskId(null); setEditDeadlineValue(''); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Edit Task Deadline
+            </DialogTitle>
+            <DialogDescription>
+              Update the deadline for this specific student.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-deadline">New Deadline</Label>
+              <Input
+                id="edit-deadline"
+                type="datetime-local"
+                value={editDeadlineValue}
+                onChange={(e) => setEditDeadlineValue(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setEditingDeadlineTaskId(null); setEditDeadlineValue(''); }}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleEditDeadline}
+              disabled={updatingId === editingDeadlineTaskId}
+            >
+              {updatingId === editingDeadlineTaskId ? 'Saving...' : 'Save Deadline'}
             </Button>
           </DialogFooter>
         </DialogContent>

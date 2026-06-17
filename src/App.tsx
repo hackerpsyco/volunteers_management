@@ -38,6 +38,7 @@ import AdminStudentEarnings from "./pages/AdminStudentEarnings";
 import ClassTaskReview from "@/pages/ClassTaskReview";
 import ClassLeaders from "./pages/ClassLeaders";
 import AddTask from "./pages/AddTask";
+import ResourceHub from "./pages/ResourceHub";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -65,6 +66,7 @@ const App = () => (
               <Route path="/student-performance/:sessionId" element={<StudentPerformance />} />
               <Route path="/curriculum" element={<Curriculum />} />
               <Route path="/student-curriculum" element={<Curriculum isStudent={true} />} />
+              <Route path="/student-resources" element={<ResourceHub isStudent={true} />} />
               <Route path="/facilitators" element={<Facilitators />} />
               <Route path="/coordinators" element={<Coordinators />} />
               <Route path="/centres" element={<Centres />} />
@@ -85,6 +87,7 @@ const App = () => (
               <Route path="/class-task-review" element={<ClassTaskReview />} />
               <Route path="/class-leaders" element={<ClassLeaders />} />
               <Route path="/tasks/add" element={<AddTask />} />
+              <Route path="/resources" element={<ResourceHub />} />
               <Route path="/admin" element={<AdminPanel />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

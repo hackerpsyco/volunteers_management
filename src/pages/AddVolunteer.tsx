@@ -50,6 +50,10 @@ export default function AddVolunteer() {
   const [name, setName] = useState('');
   const [personalEmail, setPersonalEmail] = useState('');
   const [workEmail, setWorkEmail] = useState('');
+  const [frequency, setFrequency] = useState('');
+  const [linkedin, setLinkedin] = useState('');
+  const [preference, setPreference] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [country, setCountry] = useState('India');
   const [city, setCity] = useState('');
   const [isOtherCity, setIsOtherCity] = useState(false);
@@ -180,6 +184,17 @@ export default function AddVolunteer() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="preference">Preference (Role / Session)</Label>
+                <Input
+                  id="preference"
+                  type="text"
+                  placeholder="e.g. Speaker, Guest Teacher, or Session Name"
+                  value={preference}
+                  onChange={(e) => setPreference(e.target.value)}
                 />
               </div>
 

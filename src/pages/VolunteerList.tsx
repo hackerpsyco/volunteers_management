@@ -558,6 +558,7 @@ export default function VolunteerList() {
                             </span>
                           </div>
                         </TableHead>
+                        <TableHead className="px-3 py-3 text-xs w-[120px]">Preference</TableHead>
                         <TableHead className="px-3 py-3 text-xs w-[80px]">Type</TableHead>
                         <TableHead className="px-3 py-3 text-xs">Organization</TableHead>
                         <TableHead className="px-3 py-3 text-xs">Work Email</TableHead>
@@ -575,6 +576,9 @@ export default function VolunteerList() {
                         <TableRow key={volunteer.id}>
                           <TableCell className="px-3 py-2 font-medium text-sm truncate max-w-[150px]" title={volunteer.name}>
                             {volunteer.name}
+                          </TableCell>
+                          <TableCell className="px-3 py-2 text-sm truncate max-w-[120px]" title={volunteer.preference || '-'}>
+                            {volunteer.preference || '-'}
                           </TableCell>
                           <TableCell className="px-3 py-2">
                             <Badge variant="outline" className="capitalize text-xs">
@@ -710,6 +714,10 @@ export default function VolunteerList() {
                           <Badge variant="outline" className="capitalize mt-1">
                             {volunteer.organization_type}
                           </Badge>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground block">Preference</span>
+                          <span className="font-medium text-sm break-words">{volunteer.preference || '-'}</span>
                         </div>
                         <div>
                           <span className="text-muted-foreground block">Organization</span>

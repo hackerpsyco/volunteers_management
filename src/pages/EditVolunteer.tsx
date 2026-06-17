@@ -58,6 +58,7 @@ export default function EditVolunteer() {
   const [volunteerStatus, setVolunteerStatus] = useState('active');
   const [regularVolunteering, setRegularVolunteering] = useState(false);
   const [frequencyPerMonth, setFrequencyPerMonth] = useState(0);
+  const [preference, setPreference] = useState('');
   const [interestedArea, setInterestedArea] = useState('');
   const [interestedTopic, setInterestedTopic] = useState('');
   const [preferredDay, setPreferredDay] = useState('none');
@@ -96,7 +97,8 @@ export default function EditVolunteer() {
         setPhoneNumber(data.phone_number || '');
         setLinkedinProfile(data.linkedin_profile || '');
         setRegularVolunteering(data.regular_volunteering || false);
-        setFrequencyPerMonth(data.frequency_per_month || 0);
+        if (data.frequency_per_month) setFrequencyPerMonth(data.frequency_per_month);
+        if (data.preference) setPreference(data.preference);
         setInterestedArea(data.interested_area || '');
         setInterestedTopic(data.interested_topic || '');
         setPreferredDay(data.preferred_day || 'none');
@@ -165,6 +167,7 @@ export default function EditVolunteer() {
           linkedin_profile: validation.data.linkedin_profile || null,
           regular_volunteering: validation.data.regular_volunteering,
           frequency_per_month: validation.data.frequency_per_month,
+          preference: preference || null,
           interested_area: validation.data.interested_area || null,
           interested_topic: validation.data.interested_topic || null,
           preferred_day: validation.data.preferred_day === 'none' ? null : validation.data.preferred_day || null,
@@ -237,6 +240,17 @@ export default function EditVolunteer() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="preference">Preference (Role / Session)</Label>
+                <Input
+                  id="preference"
+                  type="text"
+                  placeholder="e.g. Speaker, Guest Teacher, or Session Name"
+                  value={preference}
+                  onChange={(e) => setPreference(e.target.value)}
                 />
               </div>
 

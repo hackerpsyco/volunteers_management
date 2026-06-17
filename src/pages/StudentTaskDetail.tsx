@@ -202,7 +202,7 @@ export default function StudentTaskDetail() {
   const statusCfg = STATUS_CONFIG[task.status] || STATUS_CONFIG['pending'];
   const StatusIcon = statusCfg.icon;
   const isDeadlinePast = task.deadline && new Date(task.deadline) < new Date();
-  const canSubmit = task.status === 'pending';
+  const canSubmit = task.status === 'pending' || task.status === 'rejected';
   const isRejected = task.status === 'rejected';
 
   const cutoffDate = task?.deadline ? new Date(task.deadline) : null;
@@ -377,7 +377,7 @@ export default function StudentTaskDetail() {
                       id="file_upload"
                       type="file"
                       onChange={handleFileUpload}
-                      disabled={isSubmissionClosed || (!canSubmit && task.status !== 'submitted') || uploadingFile}
+                      disabled={isSubmissionClosed || !canSubmit || uploadingFile}
                       accept={task.submission_types.map(t => {
                         if (t === 'pdf') return '.pdf';
                         if (t === 'doc') return '.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
@@ -400,7 +400,7 @@ export default function StudentTaskDetail() {
                       value={submissionLink}
                       onChange={(e) => setSubmissionLink(e.target.value)}
                       className="text-sm disabled:opacity-60 disabled:cursor-not-allowed"
-                      disabled={isSubmissionClosed || (!canSubmit && task.status !== 'submitted')}
+                      disabled={isSubmissionClosed || !canSubmit}
                     />
                     <p className="text-xs text-muted-foreground">
                       Paste a shareable link to your completed work (allowed until: {cutoffDate && cutoffDate.toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })})
@@ -416,7 +416,7 @@ export default function StudentTaskDetail() {
                 )}
               </div>
 
-              {(canSubmit || isRejected || task.status === 'submitted') && (
+              {(canSubmit || isRejected) && (
                 <Button
                   onClick={handleSubmit}
                   disabled={saving || !submissionLink.trim() || isSubmissionClosed}

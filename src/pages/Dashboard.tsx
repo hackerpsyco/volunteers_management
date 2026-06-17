@@ -387,8 +387,8 @@ export default function Dashboard() {
         {/* Top Rankings & Attendance Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
           <TodayClassAttendanceWidget />
-          <TopStudentsWidget startDate={customStartDate} endDate={customEndDate} academicYear={selectedYear} />
-          <TopFacilitatorsWidget startDate={customStartDate} endDate={customEndDate} />
+          <TopStudentsWidget startDate={customStartDate || getDateRange().startDate} endDate={customEndDate || getDateRange().endDate} academicYear={selectedYear} />
+          <TopFacilitatorsWidget startDate={customStartDate || getDateRange().startDate} endDate={customEndDate || getDateRange().endDate} academicYear={selectedYear} />
         </div>
 
         {/* Quick Action Buttons */}
