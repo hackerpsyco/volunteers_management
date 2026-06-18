@@ -39,6 +39,7 @@ const volunteerSchema = z.object({
   preferred_class: z.string().trim().optional(),
   remarks: z.string().trim().optional(),
   volunteer_status: z.string().trim().optional(),
+  preference: z.string().trim().optional(),
 }).refine((data) => data.personal_email || data.work_email, {
   message: 'At least one email (personal or work) is required',
   path: ['work_email'],
@@ -69,7 +70,27 @@ export default function AddVolunteer() {
   const [preferredClass, setPreferredClass] = useState('');
   const [remarks, setRemarks] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [countryList, setCountryList] = useState<{name: string, code: string, dialCode: string}[]>([]);
   const navigate = useNavigate();
+
+  // Fetch countries
+  import('react').then(React => {
+    React.useEffect(() => {
+      fetch('https://restcountries.com/v3.1/all')
+        .then(r => r.json())
+        .then(d => {
+          if (Array.isArray(d)) {
+            const list = d.filter((c: any) => c.idd && c.idd.root).map((c: any) => ({
+              name: c.name.common,
+              code: c.cca2,
+              dialCode: c.idd.root + (c.idd.suffixes?.length === 1 ? c.idd.suffixes[0] : '')
+            })).sort((a: any, b: any) => a.name.localeCompare(b.name));
+            setCountryList(list);
+          }
+        })
+        .catch(console.error);
+    }, []);
+  });
 
   // Country code data
   const handleSubmit = async (e: React.FormEvent) => {
@@ -95,7 +116,8 @@ export default function AddVolunteer() {
       interested_topic: interestedTopic || undefined,
       preferred_day: preferredDay || undefined,
       preferred_class: preferredClass || undefined,
-      remarks: remarks || undefined
+      remarks: remarks || undefined,
+      preference: preference || undefined
     });
 
     if (!validation.success) {
@@ -124,6 +146,7 @@ export default function AddVolunteer() {
         preferred_day: validation.data.preferred_day === 'none' ? null : validation.data.preferred_day || null,
         preferred_class: validation.data.preferred_class || null,
         remarks: validation.data.remarks || null,
+        preference: validation.data.preference || null,
         is_active: validation.data.volunteer_status === 'active',
       });
 
@@ -188,14 +211,16 @@ export default function AddVolunteer() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="preference">Preference (Role / Session)</Label>
-                <Input
-                  id="preference"
-                  type="text"
-                  placeholder="e.g. Speaker, Guest Teacher, or Session Name"
-                  value={preference}
-                  onChange={(e) => setPreference(e.target.value)}
-                />
+                <Label htmlFor="preference">Role / Session</Label>
+                <Select value={preference} onValueChange={setPreference}>
+                  <SelectTrigger id="preference">
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Guest Teacher">Guest Teacher</SelectItem>
+                    <SelectItem value="Speaker">Speaker</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* Organization Type */}
@@ -279,6 +304,13 @@ export default function AddVolunteer() {
                 <Label htmlFor="country">Country</Label>
                 <Select value={country} onValueChange={(value) => {
                   setCountry(value);
+                  const selectedCountryInfo = countryList.length > 0 
+                    ? countryList.find(c => c.name === value)
+                    : countryCodes.find(c => c.name === value);
+                    
+                  if (selectedCountryInfo) {
+                    setCountryCode(selectedCountryInfo.code);
+                  }
                   if (value !== 'India') {
                     setIsOtherCity(true);
                   } else {
@@ -290,7 +322,9 @@ export default function AddVolunteer() {
                     <SelectValue placeholder="Select country" />
                   </SelectTrigger>
                   <SelectContent>
-                    {countries.map((c) => (
+                    {countryList.length > 0 ? countryList.map((c) => (
+                      <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>
+                    )) : countries.map((c) => (
                       <SelectItem key={c} value={c}>{c}</SelectItem>
                     ))}
                   </SelectContent>
@@ -354,7 +388,11 @@ export default function AddVolunteer() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {countryCodes.map((country) => (
+                        {countryList.length > 0 ? countryList.map((country) => (
+                          <SelectItem key={country.code} value={country.code}>
+                            {country.code} ({country.dialCode})
+                          </SelectItem>
+                        )) : countryCodes.map((country) => (
                           <SelectItem key={country.code} value={country.code}>
                             {country.code} ({country.dialCode})
                           </SelectItem>

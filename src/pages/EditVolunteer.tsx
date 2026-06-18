@@ -37,7 +37,9 @@ const volunteerSchema = z.object({
   interested_topic: z.string().trim().optional(),
   preferred_day: z.string().trim().optional(),
   preferred_class: z.string().trim().optional(),
+  remarks: z.string().trim().optional(),
   volunteer_status: z.string().trim().optional(),
+  preference: z.string().trim().optional(),
 }).refine((data) => data.personal_email || data.work_email, {
   message: 'At least one email (personal or work) is required',
   path: ['work_email'],
@@ -63,11 +65,28 @@ export default function EditVolunteer() {
   const [interestedTopic, setInterestedTopic] = useState('');
   const [preferredDay, setPreferredDay] = useState('none');
   const [preferredClass, setPreferredClass] = useState('');
+  const [remarks, setRemarks] = useState('');
   const [isOtherCity, setIsOtherCity] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(true);
+  const [countryList, setCountryList] = useState<{name: string, code: string, dialCode: string}[]>([]);
   const navigate = useNavigate();
 
+  useEffect(() => {
+    fetch('https://restcountries.com/v3.1/all')
+      .then(r => r.json())
+      .then(d => {
+        if (Array.isArray(d)) {
+          const list = d.filter((c: any) => c.idd && c.idd.root).map((c: any) => ({
+            name: c.name.common,
+            code: c.cca2,
+            dialCode: c.idd.root + (c.idd.suffixes?.length === 1 ? c.idd.suffixes[0] : '')
+          })).sort((a: any, b: any) => a.name.localeCompare(b.name));
+          setCountryList(list);
+        }
+      })
+      .catch(console.error);
+  }, []);
 
   useEffect(() => {
     if (id) {
@@ -103,6 +122,7 @@ export default function EditVolunteer() {
         setInterestedTopic(data.interested_topic || '');
         setPreferredDay(data.preferred_day || 'none');
         setPreferredClass(data.preferred_class || '');
+        setRemarks(data.remarks || '');
         setVolunteerStatus(data.volunteer_status || (data.is_active ? 'active' : 'inactive'));
 
         // Set isOtherCity based on fetched data
@@ -142,7 +162,9 @@ export default function EditVolunteer() {
       interested_topic: interestedTopic || undefined,
       preferred_day: preferredDay || undefined,
       preferred_class: preferredClass || undefined,
+      remarks: remarks || undefined,
       volunteer_status: volunteerStatus,
+      preference: preference || undefined,
     });
 
     if (!validation.success) {
@@ -167,11 +189,12 @@ export default function EditVolunteer() {
           linkedin_profile: validation.data.linkedin_profile || null,
           regular_volunteering: validation.data.regular_volunteering,
           frequency_per_month: validation.data.frequency_per_month,
-          preference: preference || null,
+          preference: validation.data.preference || null,
           interested_area: validation.data.interested_area || null,
           interested_topic: validation.data.interested_topic || null,
           preferred_day: validation.data.preferred_day === 'none' ? null : validation.data.preferred_day || null,
           preferred_class: validation.data.preferred_class || null,
+          remarks: validation.data.remarks || null,
           volunteer_status: validation.data.volunteer_status,
           is_active: validation.data.volunteer_status === 'active',
         })
@@ -244,14 +267,16 @@ export default function EditVolunteer() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="preference">Preference (Role / Session)</Label>
-                <Input
-                  id="preference"
-                  type="text"
-                  placeholder="e.g. Speaker, Guest Teacher, or Session Name"
-                  value={preference}
-                  onChange={(e) => setPreference(e.target.value)}
-                />
+                <Label htmlFor="preference">Role / Session</Label>
+                <Select value={preference} onValueChange={setPreference}>
+                  <SelectTrigger id="preference">
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Guest Teacher">Guest Teacher</SelectItem>
+                    <SelectItem value="Speaker">Speaker</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* Organization Type */}
@@ -335,18 +360,27 @@ export default function EditVolunteer() {
                 <Label htmlFor="country">Country</Label>
                 <Select value={country} onValueChange={(value) => {
                   setCountry(value);
+                  const selectedCountryInfo = countryList.length > 0 
+                    ? countryList.find(c => c.name === value)
+                    : countryCodes.find(c => c.name === value);
+                    
+                  if (selectedCountryInfo) {
+                    setCountryCode(selectedCountryInfo.code);
+                  }
                   if (value !== 'India') {
                     setIsOtherCity(true);
                   } else {
-                    const isInList = commonIndianCities.includes(city);
-                    setIsOtherCity(!isInList && city !== '');
+                    setIsOtherCity(false);
+                    setCity('');
                   }
                 }}>
                   <SelectTrigger id="country">
                     <SelectValue placeholder="Select country" />
                   </SelectTrigger>
                   <SelectContent>
-                    {countries.map((c) => (
+                    {countryList.length > 0 ? countryList.map((c) => (
+                      <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>
+                    )) : countries.map((c) => (
                       <SelectItem key={c} value={c}>{c}</SelectItem>
                     ))}
                   </SelectContent>
@@ -411,7 +445,11 @@ export default function EditVolunteer() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {countryCodes.map((country) => (
+                        {countryList.length > 0 ? countryList.map((country) => (
+                          <SelectItem key={country.code} value={country.code}>
+                            {country.code} ({country.dialCode})
+                          </SelectItem>
+                        )) : countryCodes.map((country) => (
                           <SelectItem key={country.code} value={country.code}>
                             {country.code} ({country.dialCode})
                           </SelectItem>

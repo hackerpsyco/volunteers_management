@@ -131,12 +131,14 @@ export default function AddTask() {
   };
 
   const fetchStudentsByClass = async (classId: string, academicYear: string) => {
-    const { data, error } = await supabase
+    let query = supabase
       .from('students')
       .select('id, name')
       .eq('class_id', classId)
-      .eq('academic_year', academicYear)
       .order('name');
+
+    // academicYear filter removed so all students in the class load
+    const { data, error } = await query;
     if (!error && data) {
         setStudents(data);
         setSelectedStudents(data.map(s => s.id));
@@ -159,11 +161,41 @@ export default function AddTask() {
 
       const studentsToAssign = selectedStudents.map(id => ({ id }));
 
+      const d = new Date();
+      const yearStr = d.getFullYear();
+      const monthStr = String(d.getMonth() + 1).padStart(2, '0');
+      const selectedClass = classes.find(c => c.id === formData.class_id);
+      const classNameStr = selectedClass ? selectedClass.name.replace(/\s+/g, '') : 'Class';
+      const prefix = `${yearStr}/${monthStr}/${classNameStr}/`;
+      
+      const { data: existingTasks } = await supabase
+        .from('student_task_feedback')
+        .select('task_id')
+        .like('task_id', `${prefix}%`)
+        .order('task_id', { ascending: false })
+        .limit(1);
+      
+      let nextSeq = 1;
+      if (existingTasks && existingTasks.length > 0 && existingTasks[0].task_id) {
+        const lastId = existingTasks[0].task_id;
+        const lastSeqStr = lastId.split('/').pop();
+        if (lastSeqStr) {
+          const lastSeqNum = parseInt(lastSeqStr, 10);
+          if (!isNaN(lastSeqNum)) {
+            nextSeq = lastSeqNum + 1;
+          }
+        }
+      }
+      
+      const seqStr = String(nextSeq).padStart(3, '0');
+      const generatedTaskId = `${prefix}${seqStr}`;
+
       const taskRecords = studentsToAssign.map(student => ({
         session_id: formData.session_id || null,
         student_id: student.id,
         feedback_type: formData.task_type,
         task_name: formData.title,
+        task_id: generatedTaskId,
         task_description: formData.description || null,
         deadline: formData.due_date ? new Date(formData.due_date).toISOString() : null,
         submission_link: formData.submission_link || null,

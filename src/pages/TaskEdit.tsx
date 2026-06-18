@@ -115,12 +115,7 @@ export default function TaskEdit() {
       .eq('class_id', classId)
       .order('name');
       
-    // Optionally filter by academic year if it's strictly needed, 
-    // but loosening it helps prevent missing students.
-    // if (academicYear) {
-    //   query = query.eq('academic_year', academicYear);
-    // }
-    
+    // academicYear filter removed so all students in the class load
     const { data, error } = await query;
     if (!error && data) setStudents(data);
   };

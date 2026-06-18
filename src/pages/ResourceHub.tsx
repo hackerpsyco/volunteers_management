@@ -24,6 +24,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAcademicYear } from '@/contexts/AcademicYearContext';
 
 interface Resource {
   id: string;
@@ -46,6 +47,8 @@ export default function ResourceHub({ isStudent = false }: { isStudent?: boolean
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
+  
+  const { selectedYear } = useAcademicYear();
   
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -111,7 +114,7 @@ export default function ResourceHub({ isStudent = false }: { isStudent?: boolean
       const data = new FormData();
       data.append('file', file);
       
-      const folderPath = ["Resource Hub", formData.category];
+      const folderPath = ["FELLOW", selectedYear || "Unknown Year", "resourcehub"];
       data.append('folderPath', JSON.stringify(folderPath));
       
       const { data: { session } } = await supabase.auth.getSession();

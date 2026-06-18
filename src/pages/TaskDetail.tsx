@@ -378,7 +378,7 @@ export default function TaskDetail() {
       const { error } = await supabase
         .from('student_task_feedback')
         .update({
-          deadline: editDeadlineValue ? editDeadlineValue : null
+          deadline: editDeadlineValue ? new Date(editDeadlineValue).toISOString() : null
         })
         .eq('id', editingDeadlineTaskId);
 

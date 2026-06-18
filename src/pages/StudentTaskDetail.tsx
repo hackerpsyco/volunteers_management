@@ -22,6 +22,7 @@ import {
 interface StudentTask {
   id: string;
   task_name: string;
+  task_id?: string;
   task_description: string;
   deadline: string;
   feedback_type: string;
@@ -68,7 +69,8 @@ export default function StudentTaskDetail() {
         .from('student_task_feedback')
         .select(`
           *,
-          students (name),
+          task_id,
+          students (name, roll_number),
           sessions (class_batch)
         `)
         .eq('id', taskId)
@@ -157,10 +159,11 @@ export default function StudentTaskDetail() {
       const year = task.academic_year || 'Unknown Year';
       const className = (task as any).sessions?.class_batch || 'Unassigned';
       const studentName = (task as any).students?.name || 'Unknown Student';
-      const studentFolder = `${studentName} - ${task.student_id}`;
-      const taskFolder = task.task_name;
+      const rollNum = (task as any).students?.roll_number || 'No Roll';
+      const studentFolder = `${studentName} - ${rollNum}`;
+      const taskFolder = task.task_id || task.task_name;
       
-      const folderPath = ["wesfellow", year, className, studentFolder, taskFolder];
+      const folderPath = ["FELLOW", year, className, taskFolder, studentFolder];
       formData.append('folderPath', JSON.stringify(folderPath));
       
       const { data: { session } } = await supabase.auth.getSession();
@@ -399,8 +402,9 @@ export default function StudentTaskDetail() {
                       placeholder="https://github.com/... or https://drive.google.com/..."
                       value={submissionLink}
                       onChange={(e) => setSubmissionLink(e.target.value)}
-                      className="text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                      className={cn("text-sm", submissionLink.includes('drive.google.com/file') ? "bg-muted cursor-not-allowed" : "disabled:opacity-60 disabled:cursor-not-allowed")}
                       disabled={isSubmissionClosed || !canSubmit}
+                      readOnly={submissionLink.includes('drive.google.com/file')}
                     />
                     <p className="text-xs text-muted-foreground">
                       Paste a shareable link to your completed work (allowed until: {cutoffDate && cutoffDate.toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })})
