@@ -424,7 +424,7 @@ export default function TaskEdit() {
               <div className="space-y-2 mt-6">
                 <Label>Allowed Submission Formats</Label>
                 <div className="flex flex-wrap gap-4 pt-2">
-                  {['video', 'pdf', 'doc', 'code', 'link'].map(type => {
+                  {['video', 'pdf', 'doc', 'ppt', 'excel', 'image', 'code', 'link'].map(type => {
                     const isSelected = formData.submission_types.includes(type);
                     return (
                       <label key={type} className="flex items-center space-x-2 cursor-pointer">

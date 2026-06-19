@@ -166,7 +166,7 @@ export default function AddTask() {
       const monthStr = String(d.getMonth() + 1).padStart(2, '0');
       const selectedClass = classes.find(c => c.id === formData.class_id);
       const classNameStr = selectedClass ? selectedClass.name.replace(/\s+/g, '') : 'Class';
-      const prefix = `${yearStr}/${monthStr}/${classNameStr}/`;
+      const prefix = `${yearStr}-${monthStr}-${classNameStr}-`;
       
       const { data: existingTasks } = await supabase
         .from('student_task_feedback')
@@ -178,7 +178,7 @@ export default function AddTask() {
       let nextSeq = 1;
       if (existingTasks && existingTasks.length > 0 && existingTasks[0].task_id) {
         const lastId = existingTasks[0].task_id;
-        const lastSeqStr = lastId.split('/').pop();
+        const lastSeqStr = lastId.split('-').pop();
         if (lastSeqStr) {
           const lastSeqNum = parseInt(lastSeqStr, 10);
           if (!isNaN(lastSeqNum)) {
@@ -295,7 +295,7 @@ export default function AddTask() {
               <div className="space-y-2">
                 <Label>Allowed Submission Formats</Label>
                 <div className="flex flex-wrap gap-4 pt-2">
-                  {['video', 'pdf', 'doc', 'code', 'link'].map(type => {
+                  {['video', 'pdf', 'doc', 'ppt', 'excel', 'image', 'code', 'link'].map(type => {
                     const isSelected = formData.submission_types.includes(type);
                     return (
                       <label key={type} className="flex items-center space-x-2 cursor-pointer">

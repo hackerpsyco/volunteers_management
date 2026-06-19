@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Search, Plus, ExternalLink, ClipboardList, ChevronRight, MoreHorizontal, Eye, Trash2, BookOpen, Calendar, ArrowUpDown } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -599,7 +599,12 @@ export default function Tasks() {
                     {sortedGroups.map((group) => (
                       <TableRow key={group.title} className="hover:bg-muted/50 transition-colors">
                         <TableCell className="font-medium">
-                          <span className="text-foreground">{group.title}</span>
+                          <Link 
+                            to={`/tasks/${encodeURIComponent(group.title)}`}
+                            className="text-primary hover:text-primary/80 hover:underline transition-colors cursor-pointer"
+                          >
+                            {group.title}
+                          </Link>
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                           {new Date(group.created_at || new Date()).toLocaleDateString()}

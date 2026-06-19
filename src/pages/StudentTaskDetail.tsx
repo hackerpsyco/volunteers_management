@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, CheckCircle2, Clock, CalendarDays,
-  BookOpen, Link2, Trophy, AlertCircle, ExternalLink, Loader2
+  BookOpen, Link2, Trophy, AlertCircle, ExternalLink, Loader2, X
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
@@ -131,30 +131,41 @@ export default function StudentTaskDetail() {
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file || !task) return;
+    const files = event.target.files;
+    if (!files || files.length === 0 || !task) return;
     
     const allowedTypes = task.submission_types || ['code'];
-    const isPdf = file.type === 'application/pdf';
-    const isDoc = file.type.includes('word') || file.name.endsWith('.doc') || file.name.endsWith('.docx');
-    const isVideo = file.type.includes('video');
-    const isCode = ['.js', '.ts', '.jsx', '.tsx', '.html', '.css', '.py', '.java', '.cpp', '.c', '.txt', '.json', '.zip'].some(ext => file.name.toLowerCase().endsWith(ext));
     
-    let valid = false;
-    if (allowedTypes.includes('pdf') && isPdf) valid = true;
-    if (allowedTypes.includes('doc') && isDoc) valid = true;
-    if (allowedTypes.includes('video') && isVideo) valid = true;
-    if (allowedTypes.includes('code') && isCode) valid = true;
-    
-    if (!valid && file) {
-      toast.error('Invalid file format. Please upload an allowed format.');
-      return;
+    // Validate all files
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const isPdf = file.type === 'application/pdf';
+      const isDoc = file.type.includes('word') || file.name.endsWith('.doc') || file.name.endsWith('.docx');
+      const isPpt = file.type.includes('presentation') || file.name.endsWith('.ppt') || file.name.endsWith('.pptx');
+      const isExcel = file.type.includes('spreadsheet') || file.type.includes('excel') || file.name.endsWith('.xls') || file.name.endsWith('.xlsx');
+      const isImage = file.type.includes('image');
+      const isVideo = file.type.includes('video');
+      const isCode = ['.js', '.ts', '.jsx', '.tsx', '.html', '.css', '.py', '.java', '.cpp', '.c', '.txt', '.json', '.zip'].some(ext => file.name.toLowerCase().endsWith(ext));
+      
+      let valid = false;
+      if (allowedTypes.includes('pdf') && isPdf) valid = true;
+      if (allowedTypes.includes('doc') && isDoc) valid = true;
+      if (allowedTypes.includes('ppt') && isPpt) valid = true;
+      if (allowedTypes.includes('excel') && isExcel) valid = true;
+      if (allowedTypes.includes('image') && isImage) valid = true;
+      if (allowedTypes.includes('video') && isVideo) valid = true;
+      if (allowedTypes.includes('code') && isCode) valid = true;
+      
+      if (!valid) {
+        toast.error(`Invalid file format for "${file.name}". Please upload an allowed format.`);
+        return;
+      }
     }
 
     try {
       setUploadingFile(true);
-      const formData = new FormData();
-      formData.append('file', file);
+      const newLinks: string[] = [];
+      const { data: { session } } = await supabase.auth.getSession();
       
       const year = task.academic_year || 'Unknown Year';
       const className = (task as any).sessions?.class_batch || 'Unassigned';
@@ -162,31 +173,69 @@ export default function StudentTaskDetail() {
       const rollNum = (task as any).students?.roll_number || 'No Roll';
       const studentFolder = `${studentName} - ${rollNum}`;
       const taskFolder = task.task_id || task.task_name;
-      
       const folderPath = ["FELLOW", year, className, taskFolder, studentFolder];
-      formData.append('folderPath', JSON.stringify(folderPath));
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('folderPath', JSON.stringify(folderPath));
+        
+        const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-to-gdrive`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${session?.access_token}`
+          },
+          body: formData
+        });
+        
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error || `Upload failed for ${file.name}`);
+        newLinks.push(result.webViewLink);
+      }
       
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-to-gdrive`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${session?.access_token}`
-        },
-        body: formData
-      });
-      
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || 'Upload failed');
-      
-      setSubmissionLink(result.webViewLink);
-      toast.success('File uploaded successfully! You can now save your submission.');
+      setSubmissionLink(prev => prev ? `${prev},${newLinks.join(',')}` : newLinks.join(','));
+      toast.success(files.length > 1 ? 'Files uploaded successfully!' : 'File uploaded successfully!');
     } catch (err: any) {
       console.error(err);
       toast.error('Failed to upload file: ' + err.message);
     } finally {
       setUploadingFile(false);
       event.target.value = ''; 
+    }
+  };
+
+  const handleDeleteFile = async (linkToDelete: string) => {
+    try {
+      setUploadingFile(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      // Delete from Google Drive
+      if (linkToDelete.includes('drive.google.com')) {
+        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-to-gdrive`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session?.access_token}`
+          },
+          body: JSON.stringify({ link: linkToDelete.trim() })
+        });
+      }
+      
+      // Remove from UI state
+      setSubmissionLink(prev => {
+        if (!prev) return '';
+        const links = prev.split(',').filter(Boolean);
+        const filteredLinks = links.filter(l => l.trim() !== linkToDelete.trim());
+        return filteredLinks.join(',');
+      });
+      
+      toast.success('File removed successfully');
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Failed to remove file: ' + err.message);
+    } finally {
+      setUploadingFile(false);
     }
   };
 
@@ -359,8 +408,19 @@ export default function StudentTaskDetail() {
           </h2>
 
           {!canSubmit && !isRejected && task.status !== 'submitted' ? (
-            <div className="rounded-xl bg-muted/60 border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
-              This task has been <strong className="text-foreground capitalize">{task.status}</strong> — no further submissions needed.
+            <div className="rounded-xl bg-muted/60 border border-dashed border-border p-4 text-center space-y-4">
+              <div className="text-sm text-muted-foreground">
+                This task has been <strong className="text-foreground capitalize">{task.status}</strong> — no further submissions needed.
+              </div>
+              {submissionLink && (
+                <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
+                  {submissionLink.split(',').map((link, idx) => (
+                    <Button key={idx} variant="outline" size="sm" onClick={() => window.open(link.trim().startsWith('http') ? link.trim() : `https://${link.trim()}`, '_blank')}>
+                      View My Submission {submissionLink.split(',').length > 1 ? idx + 1 : ''}
+                    </Button>
+                  ))}
+                </div>
+              )}
             </div>
           ) : (
             <div className="space-y-3">
@@ -373,49 +433,141 @@ export default function StudentTaskDetail() {
 
               <div className="space-y-4">
                 
-                {task.submission_types?.some(t => ['video', 'pdf', 'doc', 'code'].includes(t)) && (
+                {task.submission_types?.some(t => ['video', 'pdf', 'doc', 'ppt', 'excel', 'image', 'code'].includes(t)) && (
                   <div className="space-y-1.5 p-4 border rounded-md bg-muted/20">
                     <Label htmlFor="file_upload">Upload File ({task.submission_types.filter(t => t !== 'link').join(', ')})</Label>
                     <Input
                       id="file_upload"
                       type="file"
+                      multiple
                       onChange={handleFileUpload}
                       disabled={isSubmissionClosed || !canSubmit || uploadingFile}
                       accept={task.submission_types.map(t => {
                         if (t === 'pdf') return '.pdf';
                         if (t === 'doc') return '.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+                        if (t === 'ppt') return '.ppt,.pptx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation';
+                        if (t === 'excel') return '.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+                        if (t === 'image') return 'image/*';
                         if (t === 'video') return 'video/*';
                         if (t === 'code') return '.js,.ts,.jsx,.tsx,.html,.css,.py,.java,.cpp,.c,.txt,.json,.zip';
                         return '';
                       }).filter(Boolean).join(',')}
                     />
                     {uploadingFile && <p className="text-sm text-primary animate-pulse">Uploading file to Google Drive...</p>}
-                    <p className="text-xs text-muted-foreground">Uploading a file will automatically fill the link below.</p>
+                    {!uploadingFile && submissionLink?.includes('drive.google.com/file') && (
+                      <div className="mt-2 flex flex-col gap-2 bg-green-50/50 p-2 rounded-md border border-green-200">
+                        <span className="text-xs text-green-700 flex items-center gap-1.5">
+                          <CheckCircle2 className="h-3.5 w-3.5" /> File(s) uploaded successfully
+                        </span>
+                        <div className="flex flex-wrap gap-2">
+                          {submissionLink.split(',').filter(link => link.includes('drive.google.com')).map((link, idx) => (
+                            <div key={idx} className="flex items-center gap-1">
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="h-7 text-xs bg-white" 
+                                type="button" 
+                                onClick={() => window.open(link.trim(), '_blank')}
+                              >
+                                View File {idx + 1}
+                              </Button>
+                              {(canSubmit && !isSubmissionClosed) && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 w-7 p-0 text-destructive bg-white hover:bg-red-50 hover:text-red-600"
+                                  type="button"
+                                  onClick={() => handleDeleteFile(link.trim())}
+                                  title="Remove file"
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {task.submission_types.includes('link') ? (
+                      <p className="text-xs text-muted-foreground mt-1">Uploading a file will automatically fill the link below.</p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground mt-1">Uploading a file will securely save your work.</p>
+                    )}
                   </div>
                 )}
 
-                {(!task.submission_types || task.submission_types.includes('link') || task.submission_types.includes('code')) && (
+                {(!task.submission_types || task.submission_types.includes('link')) && (
                   <div className="space-y-1.5">
                     <Label htmlFor="submission_link">Link to your work</Label>
-                    <Input
-                      id="submission_link"
-                      placeholder="https://github.com/... or https://drive.google.com/..."
-                      value={submissionLink}
-                      onChange={(e) => setSubmissionLink(e.target.value)}
-                      className={cn("text-sm", submissionLink.includes('drive.google.com/file') ? "bg-muted cursor-not-allowed" : "disabled:opacity-60 disabled:cursor-not-allowed")}
-                      disabled={isSubmissionClosed || !canSubmit}
-                      readOnly={submissionLink.includes('drive.google.com/file')}
-                    />
+                    <div className="flex flex-col gap-2">
+                      <Input
+                        id="submission_link"
+                        placeholder="https://github.com/... or https://drive.google.com/..."
+                        value={submissionLink}
+                        onChange={(e) => setSubmissionLink(e.target.value)}
+                        className={cn("text-sm", submissionLink.includes('drive.google.com/file') ? "bg-muted cursor-not-allowed" : "disabled:opacity-60 disabled:cursor-not-allowed")}
+                        disabled={isSubmissionClosed || !canSubmit}
+                        readOnly={submissionLink.includes('drive.google.com/file')}
+                      />
+                      {submissionLink && (
+                        <div className="flex flex-wrap gap-2">
+                          {submissionLink.split(',').filter(Boolean).map((link, idx) => (
+                            <div key={idx} className="flex items-center gap-1">
+                              <Button 
+                                variant="outline" 
+                                type="button" 
+                                size="sm"
+                                onClick={() => window.open(link.trim().startsWith('http') ? link.trim() : `https://${link.trim()}`, '_blank')}
+                              >
+                                View {submissionLink.split(',').length > 1 ? `Link ${idx + 1}` : ''}
+                              </Button>
+                              {(canSubmit && !isSubmissionClosed && link.includes('drive.google.com')) && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 w-8 p-0 text-destructive hover:bg-red-50 hover:text-red-600"
+                                  type="button"
+                                  onClick={() => handleDeleteFile(link.trim())}
+                                  title="Remove file"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                     <p className="text-xs text-muted-foreground">
                       Paste a shareable link to your completed work (allowed until: {cutoffDate && cutoffDate.toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })})
                     </p>
                   </div>
                 )}
                 
-                {task.submission_types && !task.submission_types.includes('link') && !task.submission_types.includes('code') && submissionLink && (
+                {task.submission_types && !task.submission_types.includes('link') && submissionLink && (
                   <div className="space-y-1.5">
-                     <Label>Uploaded File Link</Label>
-                     <Input value={submissionLink} readOnly className="text-sm bg-muted" />
+                     <Label>Uploaded File(s)</Label>
+                     <div className="flex flex-col gap-2">
+                       {submissionLink.split(',').map((link, idx) => (
+                         <div key={idx} className="flex gap-2">
+                           <Input value={link.trim()} readOnly className="text-sm bg-muted flex-1" />
+                           <Button variant="outline" type="button" onClick={() => window.open(link.trim(), '_blank')}>
+                             View File {idx + 1}
+                           </Button>
+                           {(canSubmit && !isSubmissionClosed && link.includes('drive.google.com')) && (
+                             <Button 
+                               variant="outline" 
+                               type="button" 
+                               className="text-destructive px-3 hover:bg-red-50 hover:text-red-600" 
+                               onClick={() => handleDeleteFile(link.trim())} 
+                               title="Remove file"
+                             >
+                               <X className="h-4 w-4" />
+                             </Button>
+                           )}
+                         </div>
+                       ))}
+                     </div>
                   </div>
                 )}
               </div>

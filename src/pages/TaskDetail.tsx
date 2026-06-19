@@ -281,19 +281,24 @@ export default function TaskDetail() {
       
       const taskToReject = taskGroup?.tasks.find(t => t.id === taskId);
       
-      if (taskToReject?.submission_link?.includes('drive.google.com')) {
+      if (taskToReject?.submission_link) {
         try {
           const { data: { session } } = await supabase.auth.getSession();
-          await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-to-gdrive`, {
-            method: 'DELETE',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${session?.access_token}`
-            },
-            body: JSON.stringify({ link: taskToReject.submission_link })
-          });
+          const links = taskToReject.submission_link.split(',');
+          for (const link of links) {
+            if (link.includes('drive.google.com')) {
+              await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-to-gdrive`, {
+                method: 'DELETE',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${session?.access_token}`
+                },
+                body: JSON.stringify({ link: link.trim() })
+              });
+            }
+          }
         } catch (err) {
-          console.error("Failed to delete file from Google Drive", err);
+          console.error("Failed to delete files from Google Drive", err);
         }
       }
 
@@ -512,7 +517,7 @@ export default function TaskDetail() {
               <div className="mt-4 pt-4 border-t border-border">
                 <span className="text-sm text-muted-foreground">Description</span>
                 <div 
-                  className="font-medium mt-1 prose prose-sm max-w-none task-description-content"
+                  className="prose prose-sm max-w-none text-muted-foreground task-description-content"
                   dangerouslySetInnerHTML={{ __html: taskGroup.description }}
                   onClick={(e) => {
                     const target = e.target as HTMLElement;
@@ -565,14 +570,20 @@ export default function TaskDetail() {
                         {task.status}
                       </Badge>
                       {task.submission_link && (
-                        <a
-                          href={task.submission_link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-primary hover:underline"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </a>
+                        <div className="flex gap-1.5">
+                          {task.submission_link.split(',').filter(Boolean).map((link, idx) => (
+                            <a
+                              key={idx}
+                              href={link.trim()}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-primary hover:underline bg-primary/10 p-1.5 rounded-md"
+                              title={`View File ${idx + 1}`}
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </a>
+                          ))}
+                        </div>
                       )}
                       <div className="flex gap-2">
                         {task.status !== 'pending' && task.status !== 'rejected' && (

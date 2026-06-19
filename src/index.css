@@ -157,3 +157,45 @@
   color: hsl(var(--primary) / 0.8) !important;
 }
 
+/* Compact spacing for task descriptions to match the rich text editor */
+.task-description-content p {
+  margin-top: 0 !important;
+  margin-bottom: 0.2em !important;
+  line-height: 1.4 !important;
+}
+
+.task-description-content h1,
+.task-description-content h2,
+.task-description-content h3,
+.task-description-content h4,
+.task-description-content h5,
+.task-description-content h6 {
+  margin-top: 0.5em !important;
+  margin-bottom: 0.2em !important;
+  line-height: 1.2 !important;
+  font-weight: 600 !important;
+}
+
+.task-description-content hr {
+  margin-top: 0.5em !important;
+  margin-bottom: 0.5em !important;
+  border-top-color: hsl(var(--border)) !important;
+}
+
+.task-description-content ul,
+.task-description-content ol {
+  margin-top: 0 !important;
+  margin-bottom: 0.2em !important;
+  padding-left: 1.2em !important;
+}
+
+.task-description-content li {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  line-height: 1.4 !important;
+}
+
+.task-description-content li > p {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}

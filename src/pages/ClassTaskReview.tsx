@@ -436,17 +436,22 @@ export default function ClassTaskReview() {
                               </TableCell>
                               <TableCell>
                                 {task.submission_link ? (
-                                  <a
-                                    href={task.submission_link.startsWith('http') ? task.submission_link : `https://${task.submission_link}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 text-primary hover:text-primary/80 text-xs font-semibold"
-                                  >
-                                    <ExternalLink className="h-3 w-3" />
-                                    Review
-                                  </a>
+                                  <div className="flex flex-wrap gap-1">
+                                    {task.submission_link.split(',').filter(Boolean).map((link, idx) => (
+                                      <a
+                                        key={idx}
+                                        href={link.trim().startsWith('http') ? link.trim() : `https://${link.trim()}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-full transition-colors"
+                                      >
+                                        <ExternalLink className="h-3 w-3" />
+                                        View {task.submission_link!.split(',').length > 1 ? idx + 1 : ''}
+                                      </a>
+                                    ))}
+                                  </div>
                                 ) : (
-                                  <span className="text-muted-foreground text-xs italic">Pending</span>
+                                  <span className="text-xs text-muted-foreground italic">No submission</span>
                                 )}
                               </TableCell>
                               <TableCell className="text-right">

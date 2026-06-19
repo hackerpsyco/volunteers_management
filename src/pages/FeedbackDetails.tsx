@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Download } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -42,6 +42,7 @@ interface FeedbackData {
   coordinator_session_strength: number | null;
   record_sheet_link?: string | null;
   recording_url?: string | null;
+  coordinator_name?: string | null;
 }
 
 interface StudentPerformance {
@@ -250,23 +251,153 @@ export default function FeedbackDetails() {
 
   return (
     <DashboardLayout>
-      <div className="max-w-6xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate('/feedback')}
-            className="h-10 w-10"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Feedback Details</h1>
-            <p className="text-sm text-muted-foreground">
-              {feedback.title} - {new Date(feedback.session_date).toLocaleDateString()}
-            </p>
+      {/* PRINT VIEW - Only visible when printing */}
+      <div className="hidden print:block w-full max-w-none bg-white text-black p-4 space-y-6">
+        <div className="text-[10px] text-gray-500 mb-4 border-b pb-2 break-all">
+          Feedback URL: {window.location.href}
+        </div>
+        
+        {/* Header Info */}
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold mb-4">{feedback.title}</h1>
+          <div className="grid grid-cols-2 gap-y-2 gap-x-8 text-sm">
+             <p><strong>Date:</strong> {new Date(feedback.session_date).toLocaleDateString()}</p>
+             <p><strong>Time:</strong> {feedback.session_time}</p>
+             <p><strong>Facilitator:</strong> {feedback.facilitator_name || '-'}</p>
+             <p><strong>Volunteer:</strong> {feedback.volunteer_name || '-'}</p>
+             <p><strong>Class:</strong> {feedback.class_batch || '-'}</p>
+             <p><strong>Coordinator:</strong> {feedback.coordinator_name || '-'}</p>
           </div>
+        </div>
+
+        <hr className="border-gray-300" />
+
+        {/* Facilitator Feedback */}
+        <div className="space-y-4">
+          <h2 className="text-lg font-bold">Facilitator Feedback</h2>
+          <div className="grid grid-cols-1 gap-4 text-sm">
+            {feedback.session_objective && (
+              <div><h3 className="font-semibold text-gray-700">Session Objective</h3>
+              <div dangerouslySetInnerHTML={{ __html: feedback.session_objective }} className="prose prose-sm text-black" /></div>
+            )}
+            {feedback.practical_activities && (
+              <div><h3 className="font-semibold text-gray-700">Practical Activities</h3>
+              <div dangerouslySetInnerHTML={{ __html: feedback.practical_activities }} className="prose prose-sm text-black" /></div>
+            )}
+            {feedback.session_highlights && (
+              <div><h3 className="font-semibold text-gray-700">Session Highlights</h3>
+              <div dangerouslySetInnerHTML={{ __html: feedback.session_highlights }} className="prose prose-sm text-black" /></div>
+            )}
+            {feedback.learning_outcomes && (
+              <div><h3 className="font-semibold text-gray-700">Learning Outcomes</h3>
+              <div dangerouslySetInnerHTML={{ __html: feedback.learning_outcomes }} className="prose prose-sm text-black" /></div>
+            )}
+            {feedback.facilitator_reflection && (
+              <div><h3 className="font-semibold text-gray-700">Facilitator Reflection</h3>
+              <div dangerouslySetInnerHTML={{ __html: feedback.facilitator_reflection }} className="prose prose-sm text-black" /></div>
+            )}
+            <div className="flex gap-8 mt-2">
+               {feedback.mic_sound_rating && <p><strong>Mic/Sound:</strong> {feedback.mic_sound_rating}/10</p>}
+               {feedback.seating_view_rating && <p><strong>Seating/View:</strong> {feedback.seating_view_rating}/10</p>}
+               {feedback.session_strength && <p><strong>Strength:</strong> {feedback.session_strength}/10</p>}
+            </div>
+          </div>
+        </div>
+
+        <hr className="border-gray-300" />
+
+        {/* Coordinator Feedback */}
+        <div className="space-y-4">
+          <h2 className="text-lg font-bold">Coordinator Feedback</h2>
+          <div className="grid grid-cols-1 gap-4 text-sm">
+            {feedback.guest_teacher_feedback && (
+              <div><h3 className="font-semibold text-gray-700">Guest Teacher Feedback</h3>
+              <div dangerouslySetInnerHTML={{ __html: feedback.guest_teacher_feedback }} className="prose prose-sm text-black" /></div>
+            )}
+            {feedback.incharge_reviewer_feedback && (
+              <div><h3 className="font-semibold text-gray-700">Incharge/Reviewer Feedback</h3>
+              <div dangerouslySetInnerHTML={{ __html: feedback.incharge_reviewer_feedback }} className="prose prose-sm text-black" /></div>
+            )}
+            <div className="flex gap-8 mt-2">
+               {feedback.coordinator_mic_sound_rating && <p><strong>Mic/Sound:</strong> {feedback.coordinator_mic_sound_rating}/10</p>}
+               {feedback.coordinator_seating_view_rating && <p><strong>Seating/View:</strong> {feedback.coordinator_seating_view_rating}/10</p>}
+               {feedback.coordinator_session_strength && <p><strong>Strength:</strong> {feedback.coordinator_session_strength}/10</p>}
+            </div>
+          </div>
+        </div>
+
+        <hr className="border-gray-300" />
+
+        {/* Present Students Simple List */}
+        <div className="space-y-4 print:break-before-page">
+          <h2 className="text-lg font-bold">Present Students Performance</h2>
+          <table className="w-full text-sm border-collapse border border-gray-300">
+            <thead>
+              <tr className="bg-gray-100">
+                <th className="border border-gray-300 text-left px-2 py-1">Student Name</th>
+                <th className="border border-gray-300 text-center px-2 py-1">Q's Asked</th>
+                <th className="border border-gray-300 text-center px-2 py-1">Rating/10</th>
+                <th className="border border-gray-300 text-left px-2 py-1">Comment</th>
+              </tr>
+            </thead>
+            <tbody>
+              {allStudents.length > 0 ? (
+                allStudents.map((student) => {
+                  const perfData = studentPerformance.find(sp => (sp.student_name || '').trim() === student.name.trim());
+                  if (!perfData || perfData.attendance_status === 'Absent') return null;
+
+                  const finalRating = Math.max(0, (perfData.performance_rating ?? 0) - (perfData.bad_behaviour_points ?? 0));
+                  
+                  return (
+                    <tr key={student.id}>
+                      <td className="border border-gray-300 px-2 py-1">{student.name}</td>
+                      <td className="border border-gray-300 px-2 py-1 text-center">{perfData.questions_asked || 0}</td>
+                      <td className="border border-gray-300 px-2 py-1 text-center">{finalRating}</td>
+                      <td className="border border-gray-300 px-2 py-1">{perfData.performance_comment || '-'}</td>
+                    </tr>
+                  );
+                })
+              ) : (
+                studentPerformance.filter(s => s.attendance_status !== 'Absent').map((student) => {
+                  const finalRating = Math.max(0, (student.performance_rating ?? 0) - (student.bad_behaviour_points ?? 0));
+                  return (
+                    <tr key={student.id}>
+                      <td className="border border-gray-300 px-2 py-1">{student.student_name}</td>
+                      <td className="border border-gray-300 px-2 py-1 text-center">{student.questions_asked || 0}</td>
+                      <td className="border border-gray-300 px-2 py-1 text-center">{finalRating}</td>
+                      <td className="border border-gray-300 px-2 py-1">{student.performance_comment || '-'}</td>
+                    </tr>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="max-w-6xl mx-auto space-y-6 print:hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate('/feedback')}
+              className="h-10 w-10"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">Feedback Details</h1>
+              <p className="text-sm text-muted-foreground">
+                {feedback.title} - {new Date(feedback.session_date).toLocaleDateString()}
+              </p>
+            </div>
+          </div>
+          <Button onClick={() => window.print()} className="gap-2">
+            <Download className="h-4 w-4" />
+            Download PDF
+          </Button>
         </div>
 
         {/* Session Info */}

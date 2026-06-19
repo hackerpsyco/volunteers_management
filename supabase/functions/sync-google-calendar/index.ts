@@ -181,6 +181,42 @@ async function createCalendarEvent(event: any, serviceAccountEmail: string, priv
   return { eventId: data.id, hangoutLink: data.hangoutLink };
 }
 
+async function updateCalendarEvent(eventId: string, event: any, serviceAccountEmail: string, privateKey: string) {
+  const token = await getAccessToken(serviceAccountEmail, privateKey);
+
+  // Validate attendees before sending
+  if (event.attendees && Array.isArray(event.attendees)) {
+    event.attendees = event.attendees.filter((attendee: any) => {
+      const isValid = attendee.email && typeof attendee.email === 'string' && attendee.email.includes('@');
+      if (!isValid) {
+        console.warn(`Skipping invalid attendee email: ${attendee.email}`);
+      }
+      return isValid;
+    });
+  }
+
+  const res = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}?sendNotifications=true`,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(event),
+    }
+  );
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.error(`Calendar API error (${res.status}):`, errorText);
+    throw new Error(`Calendar API error: ${res.status} - ${errorText}`);
+  }
+
+  const data = await res.json();
+  return { eventId: data.id, hangoutLink: data.hangoutLink };
+}
+
 /* -------------------- SERVER -------------------- */
 
 serve(async (req) => {
@@ -285,7 +321,7 @@ serve(async (req) => {
       );
     }
 
-    // ✅ HANDLE POST REQUEST (CREATE)
+    // ✅ HANDLE POST & PATCH REQUESTS (CREATE/UPDATE)
     // Validate required fields
     if (!body.title || !body.startDateTime || !body.endDateTime) {
       console.error("Missing required fields:", { title: body.title, startDateTime: body.startDateTime, endDateTime: body.endDateTime });
@@ -295,31 +331,64 @@ serve(async (req) => {
       );
     }
 
-    const attendees = buildAttendees(body);   // ✅ NEW LOGIC
+    const attendees = buildAttendees(body);   // ✅ SAFE LOGIC
 
-    const event = {
+    const event: any = {
       summary: body.title,
       description: body.description,
       start: { dateTime: body.startDateTime, timeZone: "UTC" },
       end: { dateTime: body.endDateTime, timeZone: "UTC" },
+      attendees,
+    };
 
-      attendees,   // ✅ SAFE
+    let eventId = null;
+    let hangoutLink = null;
+    let isUpdate = false;
 
-      conferenceData: {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+    if (!supabaseUrl || !supabaseServiceRoleKey) {
+      console.error("Missing Supabase environment variables");
+      return new Response(
+        JSON.stringify({ error: "Server configuration error" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+
+    if (req.method === "PATCH" && body.sessionId) {
+      // Lookup existing event ID
+      const { data: sessionData } = await supabase
+        .from("sessions")
+        .select("google_event_id, meeting_link")
+        .eq("id", body.sessionId)
+        .single();
+        
+      if (sessionData?.google_event_id) {
+        isUpdate = true;
+        const result = await updateCalendarEvent(sessionData.google_event_id, event, serviceAccountEmail, privateKey);
+        eventId = result.eventId;
+        // Keep the existing meeting link or use the one returned by the API
+        hangoutLink = result.hangoutLink || sessionData.meeting_link;
+        console.log(`Successfully updated calendar event: ${eventId}`);
+      }
+    }
+
+    if (!isUpdate) {
+      // Add conference data to create a NEW meet link
+      event.conferenceData = {
         createRequest: {
           requestId: crypto.randomUUID(),
           conferenceSolutionKey: { type: "hangoutsMeet" },
         },
-      },
-    };
-
-    const { eventId, hangoutLink } = await createCalendarEvent(
-      event,
-      serviceAccountEmail,
-      privateKey
-    );
-
-    console.log(`Successfully created calendar event: ${eventId}, meet link: ${hangoutLink}`);
+      };
+      const result = await createCalendarEvent(event, serviceAccountEmail, privateKey);
+      eventId = result.eventId;
+      hangoutLink = result.hangoutLink;
+      console.log(`Successfully created calendar event: ${eventId}, meet link: ${hangoutLink}`);
+    }
 
     // ✅ TRY TO ASSIGN COHOSTS
     if (hangoutLink && (body.volunteerEmail || body.facilitatorEmail || body.volunteerEmails?.length)) {

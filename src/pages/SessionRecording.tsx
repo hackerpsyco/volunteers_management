@@ -1217,11 +1217,41 @@ export default function SessionRecording() {
           return;
         }
 
+        // Generate task ID
+        const d = new Date();
+        const yearStr = d.getFullYear();
+        const monthStr = String(d.getMonth() + 1).padStart(2, '0');
+        const selectedClass = classes.find(c => c.id === currentSession?.class_id);
+        const classNameStr = selectedClass ? selectedClass.name.replace(/\s+/g, '') : 'Class';
+        const prefix = `${yearStr}-${monthStr}-${classNameStr}-`;
+        
+        const { data: existingTasks } = await supabase
+          .from('student_task_feedback')
+          .select('task_id')
+          .like('task_id', `${prefix}%`)
+          .order('task_id', { ascending: false })
+          .limit(1);
+        
+        let nextSeq = 1;
+        if (existingTasks && existingTasks.length > 0 && existingTasks[0].task_id) {
+          const lastId = existingTasks[0].task_id;
+          const lastSeqStr = lastId.split('-').pop();
+          if (lastSeqStr) {
+            const lastSeqNum = parseInt(lastSeqStr, 10);
+            if (!isNaN(lastSeqNum)) {
+              nextSeq = lastSeqNum + 1;
+            }
+          }
+        }
+        const seqStr = String(nextSeq).padStart(3, '0');
+        const generatedTaskId = `${prefix}${seqStr}`;
+
         const homeworkRecords = presentStudents.map(student => ({
           session_id: sessionId,
           student_id: student.id,
           feedback_type: finalTaskType || 'homework',
           task_name: newHomework.task_name,
+          task_id: generatedTaskId,
           task_description: newHomework.task_description || null,
           deadline: newHomework.deadline ? new Date(newHomework.deadline).toISOString() : null,
           submission_link: newHomework.submission_link || null,
@@ -2017,7 +2047,7 @@ export default function SessionRecording() {
                         <div>
                           <span className="text-xs text-muted-foreground block mb-1">Task Description</span>
                           <div 
-                            className="bg-muted/20 p-4 rounded-lg text-sm prose prose-sm max-w-none dark:prose-invert"
+                            className="prose prose-sm max-w-none text-muted-foreground mt-2 task-description-content"
                             dangerouslySetInnerHTML={{ __html: homeworkRecords[0].task_description }}
                           />
                         </div>
@@ -2255,15 +2285,18 @@ export default function SessionRecording() {
                             )}
 
                             {homework.submission_link && (
-                              <div className="pt-2 border-t border-border">
-                                <a
-                                  href={homework.submission_link}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-primary hover:underline text-sm flex items-center gap-1"
-                                >
-                                  View Submission <ExternalLink className="h-3 w-3" />
-                                </a>
+                              <div className="pt-2 border-t border-border flex flex-wrap gap-2">
+                                {homework.submission_link.split(',').filter(Boolean).map((link, idx) => (
+                                  <a
+                                    key={idx}
+                                    href={link.trim().startsWith('http') ? link.trim() : `https://${link.trim()}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-primary hover:underline text-sm flex items-center gap-1 bg-primary/5 px-2 py-1 rounded"
+                                  >
+                                    View Submission {homework.submission_link!.split(',').length > 1 ? idx + 1 : ''} <ExternalLink className="h-3 w-3" />
+                                  </a>
+                                ))}
                               </div>
                             )}
                           </div>

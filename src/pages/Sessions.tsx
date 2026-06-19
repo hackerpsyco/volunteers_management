@@ -818,7 +818,15 @@ export default function Sessions() {
 
                         return (
                         <TableRow key={session.id} className={rowBgClass}>
-                          <TableCell className="text-xs px-2 py-1 max-w-[70px]"><TruncatedText text={session.subject_name} maxLength={20} /></TableCell>
+                          <TableCell className="text-xs px-2 py-1 max-w-[70px]">
+                            <div 
+                              onClick={() => navigate(`/sessions/${session.id}/recording`)}
+                              className="cursor-pointer hover:underline text-foreground"
+                              title="Go to Recording & Feedback"
+                            >
+                              <TruncatedText text={session.subject_name} maxLength={20} />
+                            </div>
+                          </TableCell>
                           <TableCell className="text-xs px-2 py-1 max-w-[70px]"><TruncatedText text={session.content_category} maxLength={20} /></TableCell>
                           <TableCell className="text-xs px-2 py-1 max-w-[70px]"><TruncatedText text={session.module_name} maxLength={20} /></TableCell>
                           <TableCell className="text-xs px-2 py-1 max-w-[70px]"><TruncatedText text={session.topics_covered} maxLength={20} /></TableCell>

@@ -595,17 +595,22 @@ export default function StudentDashboard() {
 
                     {selectedTask.submission_link && (
                       <div className="bg-blue-50 border border-blue-200 rounded p-3">
-                        <p className="text-sm text-blue-800">
-                          <strong>Current Submission:</strong>{' '}
-                          <a
-                            href={selectedTask.submission_link.startsWith('http') ? selectedTask.submission_link : `https://${selectedTask.submission_link}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="underline hover:text-blue-900"
-                          >
-                            {selectedTask.submission_link}
-                          </a>
+                        <p className="text-sm text-blue-800 font-medium mb-1">
+                          Current Submission(s):
                         </p>
+                        <div className="flex flex-col gap-1">
+                          {selectedTask.submission_link.split(',').filter(Boolean).map((link, idx) => (
+                            <a
+                              key={idx}
+                              href={link.trim().startsWith('http') ? link.trim() : `https://${link.trim()}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="underline hover:text-blue-900 text-sm truncate"
+                            >
+                              {link.trim()}
+                            </a>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>

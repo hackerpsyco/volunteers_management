@@ -225,14 +225,16 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   // User is authenticated and role is loaded, render the dashboard
   return (
     <div className="min-h-screen bg-muted/30 flex w-full">
-      {userRole === 5 ? (
-        <StudentSidebar collapsed={isSidebarCollapsed} />
-      ) : (
-        <AppSidebar collapsed={isSidebarCollapsed} />
-      )}
-      <main className="flex-1 flex flex-col">
+      <div className="print:hidden h-full flex">
+        {userRole === 5 ? (
+          <StudentSidebar collapsed={isSidebarCollapsed} />
+        ) : (
+          <AppSidebar collapsed={isSidebarCollapsed} />
+        )}
+      </div>
+      <main className="flex-1 flex flex-col min-w-0">
         {/* Top Header with Profile */}
-        <div className="bg-card border-b border-border px-4 md:px-8 h-[72px] flex items-center justify-between">
+        <div className="bg-card border-b border-border px-4 md:px-8 h-[72px] flex items-center justify-between print:hidden">
           <div className="flex-1 flex items-center gap-2">
             <Button
               variant="ghost"
