@@ -277,23 +277,23 @@ export default function FeedbackDetails() {
           <h2 className="text-lg font-bold">Facilitator Feedback</h2>
           <div className="grid grid-cols-1 gap-4 text-sm">
             {feedback.session_objective && (
-              <div><h3 className="font-semibold text-gray-700">Session Objective</h3>
+              <div><h3 className="font-bold text-black text-base mb-1">Session Objective</h3>
               <div dangerouslySetInnerHTML={{ __html: feedback.session_objective }} className="prose prose-sm text-black" /></div>
             )}
             {feedback.practical_activities && (
-              <div><h3 className="font-semibold text-gray-700">Practical Activities</h3>
+              <div><h3 className="font-bold text-black text-base mb-1">Practical Activities</h3>
               <div dangerouslySetInnerHTML={{ __html: feedback.practical_activities }} className="prose prose-sm text-black" /></div>
             )}
             {feedback.session_highlights && (
-              <div><h3 className="font-semibold text-gray-700">Session Highlights</h3>
+              <div><h3 className="font-bold text-black text-base mb-1">Session Highlights</h3>
               <div dangerouslySetInnerHTML={{ __html: feedback.session_highlights }} className="prose prose-sm text-black" /></div>
             )}
             {feedback.learning_outcomes && (
-              <div><h3 className="font-semibold text-gray-700">Learning Outcomes</h3>
+              <div><h3 className="font-bold text-black text-base mb-1">Learning Outcomes</h3>
               <div dangerouslySetInnerHTML={{ __html: feedback.learning_outcomes }} className="prose prose-sm text-black" /></div>
             )}
             {feedback.facilitator_reflection && (
-              <div><h3 className="font-semibold text-gray-700">Facilitator Reflection</h3>
+              <div><h3 className="font-bold text-black text-base mb-1">Facilitator Reflection</h3>
               <div dangerouslySetInnerHTML={{ __html: feedback.facilitator_reflection }} className="prose prose-sm text-black" /></div>
             )}
             <div className="flex gap-8 mt-2">
@@ -311,11 +311,11 @@ export default function FeedbackDetails() {
           <h2 className="text-lg font-bold">Coordinator Feedback</h2>
           <div className="grid grid-cols-1 gap-4 text-sm">
             {feedback.guest_teacher_feedback && (
-              <div><h3 className="font-semibold text-gray-700">Guest Teacher Feedback</h3>
+              <div><h3 className="font-bold text-black text-base mb-1">Guest Teacher Feedback</h3>
               <div dangerouslySetInnerHTML={{ __html: feedback.guest_teacher_feedback }} className="prose prose-sm text-black" /></div>
             )}
             {feedback.incharge_reviewer_feedback && (
-              <div><h3 className="font-semibold text-gray-700">Incharge/Reviewer Feedback</h3>
+              <div><h3 className="font-bold text-black text-base mb-1">Incharge/Reviewer Feedback</h3>
               <div dangerouslySetInnerHTML={{ __html: feedback.incharge_reviewer_feedback }} className="prose prose-sm text-black" /></div>
             )}
             <div className="flex gap-8 mt-2">
@@ -335,7 +335,6 @@ export default function FeedbackDetails() {
             <thead>
               <tr className="bg-gray-100">
                 <th className="border border-gray-300 text-left px-2 py-1">Student Name</th>
-                <th className="border border-gray-300 text-center px-2 py-1">Q's Asked</th>
                 <th className="border border-gray-300 text-center px-2 py-1">Rating/10</th>
                 <th className="border border-gray-300 text-left px-2 py-1">Comment</th>
               </tr>
@@ -351,7 +350,6 @@ export default function FeedbackDetails() {
                   return (
                     <tr key={student.id}>
                       <td className="border border-gray-300 px-2 py-1">{student.name}</td>
-                      <td className="border border-gray-300 px-2 py-1 text-center">{perfData.questions_asked || 0}</td>
                       <td className="border border-gray-300 px-2 py-1 text-center">{finalRating}</td>
                       <td className="border border-gray-300 px-2 py-1">{perfData.performance_comment || '-'}</td>
                     </tr>
@@ -363,7 +361,6 @@ export default function FeedbackDetails() {
                   return (
                     <tr key={student.id}>
                       <td className="border border-gray-300 px-2 py-1">{student.student_name}</td>
-                      <td className="border border-gray-300 px-2 py-1 text-center">{student.questions_asked || 0}</td>
                       <td className="border border-gray-300 px-2 py-1 text-center">{finalRating}</td>
                       <td className="border border-gray-300 px-2 py-1">{student.performance_comment || '-'}</td>
                     </tr>
@@ -372,6 +369,16 @@ export default function FeedbackDetails() {
               )}
             </tbody>
           </table>
+          <div className="text-right font-bold mt-2">
+            Total Present Students: {
+              allStudents.length > 0 
+                ? allStudents.filter(s => {
+                    const pd = studentPerformance.find(sp => (sp.student_name || '').trim() === s.name.trim());
+                    return pd && pd.attendance_status !== 'Absent';
+                  }).length 
+                : studentPerformance.filter(s => s.attendance_status !== 'Absent').length
+            }
+          </div>
         </div>
       </div>
 

@@ -60,7 +60,7 @@ export default function EditVolunteer() {
   const [volunteerStatus, setVolunteerStatus] = useState('active');
   const [regularVolunteering, setRegularVolunteering] = useState(false);
   const [frequencyPerMonth, setFrequencyPerMonth] = useState(0);
-  const [preference, setPreference] = useState('');
+  const [preferences, setPreferences] = useState<string[]>([]);
   const [interestedArea, setInterestedArea] = useState('');
   const [interestedTopic, setInterestedTopic] = useState('');
   const [preferredDay, setPreferredDay] = useState('none');
@@ -117,7 +117,7 @@ export default function EditVolunteer() {
         setLinkedinProfile(data.linkedin_profile || '');
         setRegularVolunteering(data.regular_volunteering || false);
         if (data.frequency_per_month) setFrequencyPerMonth(data.frequency_per_month);
-        if (data.preference) setPreference(data.preference);
+        if (data.preference) setPreferences(data.preference.split(',').map((p: string) => p.trim()));
         setInterestedArea(data.interested_area || '');
         setInterestedTopic(data.interested_topic || '');
         setPreferredDay(data.preferred_day || 'none');
@@ -164,7 +164,7 @@ export default function EditVolunteer() {
       preferred_class: preferredClass || undefined,
       remarks: remarks || undefined,
       volunteer_status: volunteerStatus,
-      preference: preference || undefined,
+      preference: preferences.length > 0 ? preferences.join(', ') : undefined,
     });
 
     if (!validation.success) {
@@ -266,17 +266,28 @@ export default function EditVolunteer() {
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="preference">Role / Session</Label>
-                <Select value={preference} onValueChange={setPreference}>
-                  <SelectTrigger id="preference">
-                    <SelectValue placeholder="Select role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Guest Teacher">Guest Teacher</SelectItem>
-                    <SelectItem value="Speaker">Speaker</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="space-y-3">
+                <Label>Role / Session</Label>
+                <div className="flex flex-wrap gap-4">
+                  {['Guest Teacher', 'Guest Speaker', 'Mentor', 'Other'].map((role) => (
+                    <div key={role} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`role-${role}`}
+                        checked={preferences.includes(role)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setPreferences([...preferences, role]);
+                          } else {
+                            setPreferences(preferences.filter(p => p !== role));
+                          }
+                        }}
+                      />
+                      <label htmlFor={`role-${role}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                        {role}
+                      </label>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               {/* Organization Type */}

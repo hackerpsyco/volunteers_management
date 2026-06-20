@@ -46,6 +46,11 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -558,7 +563,7 @@ export default function VolunteerList() {
                             </span>
                           </div>
                         </TableHead>
-                        <TableHead className="px-3 py-3 text-xs w-[120px]">Preference</TableHead>
+                        <TableHead className="px-3 py-3 text-xs w-[120px]">Role / Session</TableHead>
                         <TableHead className="px-3 py-3 text-xs w-[80px]">Type</TableHead>
                         <TableHead className="px-3 py-3 text-xs">Organization</TableHead>
                         <TableHead className="px-3 py-3 text-xs">Work Email</TableHead>
@@ -577,8 +582,32 @@ export default function VolunteerList() {
                           <TableCell className="px-3 py-2 font-medium text-sm truncate max-w-[150px]" title={volunteer.name}>
                             {volunteer.name}
                           </TableCell>
-                          <TableCell className="px-3 py-2 text-sm truncate max-w-[120px]" title={volunteer.preference || '-'}>
-                            {volunteer.preference || '-'}
+                          <TableCell className="px-3 py-2">
+                            {(() => {
+                              const prefString = volunteer.preference;
+                              if (!prefString) return <span className="text-sm">-</span>;
+                              const prefs = prefString.split(',').map(p => p.trim() === 'Speaker' ? 'Guest Speaker' : p.trim()).filter(Boolean);
+                              if (prefs.length === 0) return <span className="text-sm">-</span>;
+                              if (prefs.length === 1) return <Badge variant="secondary" className="text-[10px] px-2 py-0 font-normal">{prefs[0]}</Badge>;
+                              
+                              return (
+                                <div className="flex flex-wrap items-center gap-1">
+                                  <Badge variant="secondary" className="text-[10px] px-2 py-0 font-normal">{prefs[0]}</Badge>
+                                  <Popover>
+                                    <PopoverTrigger className="inline-flex items-center rounded-full border px-1.5 py-0 text-[10px] font-medium bg-muted/30 hover:bg-muted transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-border text-foreground cursor-pointer">
+                                        +{prefs.length - 1} more
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-2" side="top">
+                                      <div className="flex flex-col gap-1.5">
+                                        {prefs.map(p => (
+                                           <Badge key={p} variant="secondary" className="text-xs justify-center font-normal">{p}</Badge>
+                                        ))}
+                                      </div>
+                                    </PopoverContent>
+                                  </Popover>
+                                </div>
+                              );
+                            })()}
                           </TableCell>
                           <TableCell className="px-3 py-2">
                             <Badge variant="outline" className="capitalize text-xs">
@@ -716,8 +745,34 @@ export default function VolunteerList() {
                           </Badge>
                         </div>
                         <div>
-                          <span className="text-muted-foreground block">Preference</span>
-                          <span className="font-medium text-sm break-words">{volunteer.preference || '-'}</span>
+                          <span className="text-muted-foreground block">Role / Session</span>
+                          <div className="mt-1">
+                            {(() => {
+                              const prefString = volunteer.preference;
+                              if (!prefString) return <span className="font-medium text-sm">-</span>;
+                              const prefs = prefString.split(',').map(p => p.trim() === 'Speaker' ? 'Guest Speaker' : p.trim()).filter(Boolean);
+                              if (prefs.length === 0) return <span className="font-medium text-sm">-</span>;
+                              if (prefs.length === 1) return <Badge variant="secondary" className="text-[10px] px-2 py-0 font-normal">{prefs[0]}</Badge>;
+                              
+                              return (
+                                <div className="flex flex-wrap items-center gap-1">
+                                  <Badge variant="secondary" className="text-[10px] px-2 py-0 font-normal">{prefs[0]}</Badge>
+                                  <Popover>
+                                    <PopoverTrigger className="inline-flex items-center rounded-full border px-1.5 py-0 text-[10px] font-medium bg-muted/30 hover:bg-muted transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-border text-foreground cursor-pointer">
+                                        +{prefs.length - 1} more
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-2" side="top">
+                                      <div className="flex flex-col gap-1.5">
+                                        {prefs.map(p => (
+                                           <Badge key={p} variant="secondary" className="text-xs justify-center font-normal">{p}</Badge>
+                                        ))}
+                                      </div>
+                                    </PopoverContent>
+                                  </Popover>
+                                </div>
+                              );
+                            })()}
+                          </div>
                         </div>
                         <div>
                           <span className="text-muted-foreground block">Organization</span>
