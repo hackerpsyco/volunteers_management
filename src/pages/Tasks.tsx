@@ -238,14 +238,13 @@ export default function Tasks() {
 
   const fetchSubjects = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('subjects')
         .select('id, name')
         .order('name');
-      if (error) throw error;
-      setSubjects(data || []);
+      if (!error && data) setSubjects(data);
     } catch (e) {
-      console.error('Error fetching subjects:', e);
+      // subjects table may not exist — ignore silently
     }
   };
 
@@ -307,8 +306,7 @@ export default function Tasks() {
             title, 
             class_batch,
             subjects:subject_id(name)
-          ),
-          subjects:subject_id(name)
+          )
         `)
         .or(`academic_year.eq."${selectedYear}",and(academic_year.is.null,created_at.gte."${startDate.toISOString()}",created_at.lte."${endDate.toISOString()}")`)
         .order('created_at', { ascending: false });
@@ -334,9 +332,8 @@ export default function Tasks() {
         class_name: task.sessions?.class_batch || 
                    (task.students?.classes && !Array.isArray(task.students.classes) ? task.students.classes.name : 
                     Array.isArray(task.students?.classes) && task.students.classes.length > 0 ? task.students.classes[0].name : '-'),
-        subject_name: task.subjects?.name || 
-                     (task.sessions?.subjects && !Array.isArray(task.sessions.subjects) ? task.sessions.subjects.name : 
-                      Array.isArray(task.sessions?.subjects) && task.sessions.subjects.length > 0 ? task.sessions.subjects[0].name : '-'),
+        subject_name: (task.sessions?.subjects && !Array.isArray(task.sessions.subjects) ? task.sessions.subjects.name : 
+                       Array.isArray(task.sessions?.subjects) && task.sessions.subjects.length > 0 ? task.sessions.subjects[0].name : '-'),
       }));
 
       setTasks(enriched);

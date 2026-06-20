@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Download } from 'lucide-react';
+import { ArrowLeft, Download, Edit } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -401,10 +401,20 @@ export default function FeedbackDetails() {
               </p>
             </div>
           </div>
-          <Button onClick={() => window.print()} className="gap-2">
-            <Download className="h-4 w-4" />
-            Download PDF
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => navigate(`/sessions/${sessionId}/recording`)}
+              className="gap-2"
+            >
+              <Edit className="h-4 w-4" />
+              Edit Feedback
+            </Button>
+            <Button onClick={() => window.print()} className="gap-2">
+              <Download className="h-4 w-4" />
+              Download PDF
+            </Button>
+          </div>
         </div>
 
         {/* Session Info */}

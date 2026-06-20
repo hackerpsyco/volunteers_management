@@ -1221,8 +1221,7 @@ export default function SessionRecording() {
         const d = new Date();
         const yearStr = d.getFullYear();
         const monthStr = String(d.getMonth() + 1).padStart(2, '0');
-        const selectedClass = classes.find(c => c.id === currentSession?.class_id);
-        const classNameStr = selectedClass ? selectedClass.name.replace(/\s+/g, '') : 'Class';
+        const classNameStr = (session?.class_batch || 'Class').replace(/\s+/g, '');
         const prefix = `${yearStr}-${monthStr}-${classNameStr}-`;
         
         const { data: existingTasks } = await supabase
@@ -2139,7 +2138,16 @@ export default function SessionRecording() {
                       <div className="space-y-2 mt-4">
                         <Label>Allowed Submission Formats</Label>
                         <div className="flex flex-wrap gap-4 pt-2">
-                          {['video', 'pdf', 'doc', 'code', 'link'].map(type => {
+                          {[
+                            { value: 'video', label: 'Video' },
+                            { value: 'pdf', label: 'Pdf' },
+                            { value: 'doc', label: 'Doc' },
+                            { value: 'ppt', label: 'Ppt' },
+                            { value: 'excel', label: 'Excel' },
+                            { value: 'image', label: 'Image' },
+                            { value: 'code', label: 'Code' },
+                            { value: 'link', label: 'Link' },
+                          ].map(({ value: type, label }) => {
                             const isSelected = newHomework.submission_types?.includes(type) ?? (type === 'code');
                             return (
                               <label key={type} className="flex items-center space-x-2 cursor-pointer">
@@ -2155,8 +2163,8 @@ export default function SessionRecording() {
                                     setNewHomework({ ...newHomework, submission_types: newTypes });
                                   }}
                                 />
-                                <span className="text-sm font-medium capitalize">
-                                  {type}
+                                <span className="text-sm font-medium">
+                                  {label}
                                 </span>
                               </label>
                             );

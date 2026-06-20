@@ -601,7 +601,12 @@ export default function FeedbackSelection() {
                   <TableBody>
                     {filteredSessions.map((session) => (
                       <TableRow key={session.id} className="hover:bg-muted/50">
-                        <TableCell><TruncatedText text={session.subject_name} maxLength={20} /></TableCell>
+                        <TableCell 
+                          className="cursor-pointer font-medium text-primary hover:underline"
+                          onClick={() => handleViewDetails(session.id)}
+                        >
+                          <TruncatedText text={session.subject_name} maxLength={20} />
+                        </TableCell>
                         <TableCell><TruncatedText text={session.content_category} maxLength={20} /></TableCell>
                         <TableCell><TruncatedText text={session.module_name} maxLength={20} /></TableCell>
                         <TableCell><TruncatedText text={session.topics_covered} maxLength={30} /></TableCell>
