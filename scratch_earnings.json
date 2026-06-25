@@ -1,0 +1,102 @@
+[
+  {
+    "id": "4e077388-5daf-435f-b22f-e8af75ed1f7c",
+    "student_id": "7f26aa60-44eb-4f03-a58d-8dfe4b93b89d",
+    "task_id": "a71c033e-dcb0-4489-924d-fc051cf4fe0d",
+    "amount": 5,
+    "earned_at": "2026-06-15T13:16:19.457759+00:00",
+    "description": "Completed task: 1.1 Research and write a brief essay on the history of computers. (Verified). Note: did a good work, you need to cover points.",
+    "created_at": "2026-06-15T13:16:19.457759+00:00",
+    "updated_at": "2026-06-15T13:16:19.457759+00:00"
+  },
+  {
+    "id": "fea7e9f9-b456-4e59-a62d-384482aa061e",
+    "student_id": "5d301454-cfc7-4111-b1a0-fe1c0945cbc5",
+    "task_id": "61701ebb-4613-4cb4-83b2-4a936c9e9cb0",
+    "amount": 5,
+    "earned_at": "2026-05-03T06:30:03.340327+00:00",
+    "description": "Completed task: 📘 DAY TASK 13 – Emotional Intelligence in Teaching",
+    "created_at": "2026-05-03T06:30:03.340327+00:00",
+    "updated_at": "2026-05-03T06:30:03.340327+00:00"
+  },
+  {
+    "id": "e911c838-0c48-4d72-b9d6-7757a30242c0",
+    "student_id": "9e41b1ab-39cd-4815-a307-81aab95d3b0c",
+    "task_id": "faf94581-7454-49e2-b837-981599116936",
+    "amount": 5,
+    "earned_at": "2026-05-04T13:14:01.126725+00:00",
+    "description": "Completed task: 📘 DAY TASK 13 – Emotional Intelligence in Teaching",
+    "created_at": "2026-05-04T13:14:01.126725+00:00",
+    "updated_at": "2026-05-04T13:14:01.126725+00:00"
+  },
+  {
+    "id": "3ef5ff9d-b92b-496a-a4dd-dae67b1cb40c",
+    "student_id": "9e41b1ab-39cd-4815-a307-81aab95d3b0c",
+    "task_id": "992d49eb-8405-48be-a354-255af39c892c",
+    "amount": 5,
+    "earned_at": "2026-05-04T13:14:31.183853+00:00",
+    "description": "Completed task: 📘 DAY TASK 13 – Emotional Intelligence in Teaching",
+    "created_at": "2026-05-04T13:14:31.183853+00:00",
+    "updated_at": "2026-05-04T13:14:31.183853+00:00"
+  },
+  {
+    "id": "1618dcc6-6cb0-4e32-ba85-80ce90d6d0a0",
+    "student_id": "f60816df-5265-433a-9ffb-b1e4e6333ece",
+    "task_id": null,
+    "amount": 12,
+    "earned_at": "2026-04-29T05:19:53.755357+00:00",
+    "description": "Completed task: try",
+    "created_at": "2026-04-29T05:19:53.755357+00:00",
+    "updated_at": "2026-04-29T05:19:53.755357+00:00"
+  },
+  {
+    "id": "4e532b1f-d407-4453-aba6-ad195ae7808c",
+    "student_id": "5d301454-cfc7-4111-b1a0-fe1c0945cbc5",
+    "task_id": "5450e187-5b9e-4087-a399-a587ccf5bc46",
+    "amount": 20,
+    "earned_at": "2026-05-08T05:37:01.72504+00:00",
+    "description": "Completed task: Homework Task: Dictionary Code Practice (Verified by Admin/Monitor)",
+    "created_at": "2026-05-08T05:37:01.72504+00:00",
+    "updated_at": "2026-05-08T05:37:01.72504+00:00"
+  },
+  {
+    "id": "aa5b5f16-9ba2-4972-88fe-07de069b6fd8",
+    "student_id": "1c972c88-24f5-4691-b534-157be085496f",
+    "task_id": null,
+    "amount": 5,
+    "earned_at": "2026-05-08T03:54:13.821605+00:00",
+    "description": "Completed task: Test english tak (Verified by Admin/Monitor)",
+    "created_at": "2026-05-08T03:54:13.821605+00:00",
+    "updated_at": "2026-05-08T03:54:13.821605+00:00"
+  },
+  {
+    "id": "c87871c7-e034-4373-a474-dfa3c4e648fd",
+    "student_id": "9e776417-0592-48f9-ab76-95f903d006a6",
+    "task_id": "7155a88b-e5f2-4c51-836c-38325f22b1e5",
+    "amount": 5,
+    "earned_at": "2026-05-09T05:23:47.246404+00:00",
+    "description": "Completed task: App Walkthrough Explanation Video (Verified by Class Monitor)",
+    "created_at": "2026-05-09T05:23:47.246404+00:00",
+    "updated_at": "2026-05-09T05:23:47.246404+00:00"
+  },
+  {
+    "id": "47019249-cf2b-4245-bdc4-9c6f620c9ad8",
+    "student_id": "2fa2765d-2d7b-421e-b202-3a1549df6b45",
+    "task_id": "853cc3aa-7123-42af-9b56-79a57049af4f",
+    "amount": 9,
+    "earned_at": "2026-06-15T13:17:43.993807+00:00",
+    "description": "Completed task: 1.1 Research and write a brief essay on the history of computers. (Verified). Note: very nice work, fiormatting can be mnore better",
+    "created_at": "2026-06-15T13:17:43.993807+00:00",
+    "updated_at": "2026-06-15T13:17:43.993807+00:00"
+  },
+  {
+    "id": "a1904a97-ecc9-44d5-8a21-b55d8423e0f4",
+    "student_id": "d85a93bb-775a-4c2a-a2b4-ac1765761479",
+    "task_id": "d51badaf-eda4-4d28-99de-b3b04b696b1d",
+    "amount": 20,
+    "earned_at": "2026-06-08T10:23:23.802637+00:00",
+    "description": "Completed task: Python Strings Practice (Verified). Note: Excellent Job Manya\n\nThe outputs are good.",
+    "created_at": "2026-06-08T10:23:23.802637+00:00",
+    "updated_at": "2026-06-08T10:23:23.802637+00:00"
+  }
+]

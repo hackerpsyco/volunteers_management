@@ -17,6 +17,10 @@ import { cn } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
 } from '@/components/ui/dialog';
 
 interface StudentTask {
@@ -57,6 +61,7 @@ export default function StudentTaskDetail() {
   const [saving, setSaving] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [uploadingFile, setUploadingFile] = useState(false);
+  const [showConfirmOpen, setShowConfirmOpen] = useState(false);
 
   useEffect(() => {
     if (taskId) fetchTask();
@@ -102,6 +107,14 @@ export default function StudentTaskDetail() {
       toast.error('Submission closed. The deadline has passed.');
       return;
     }
+
+    // Open confirmation dialog
+    setShowConfirmOpen(true);
+  };
+
+  const executeSubmit = async () => {
+    setShowConfirmOpen(false);
+    if (!task) return;
 
     let link = submissionLink.trim();
     if (!link.startsWith('http://') && !link.startsWith('https://')) {
@@ -500,16 +513,46 @@ export default function StudentTaskDetail() {
                   <div className="space-y-1.5">
                     <Label htmlFor="submission_link">Link to your work</Label>
                     <div className="flex flex-col gap-2">
-                      <Input
-                        id="submission_link"
-                        placeholder="https://github.com/... or https://drive.google.com/..."
-                        value={submissionLink}
-                        onChange={(e) => setSubmissionLink(e.target.value)}
-                        className={cn("text-sm", submissionLink.includes('drive.google.com/file') ? "bg-muted cursor-not-allowed" : "disabled:opacity-60 disabled:cursor-not-allowed")}
-                        disabled={isSubmissionClosed || !canSubmit}
-                        readOnly={submissionLink.includes('drive.google.com/file')}
-                      />
-                      {submissionLink && (
+                      {!submissionLink.includes('drive.google.com') ? (
+                        <Input
+                          id="submission_link"
+                          placeholder="https://github.com/... or https://drive.google.com/..."
+                          value={submissionLink}
+                          onChange={(e) => setSubmissionLink(e.target.value)}
+                          className="text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                          disabled={isSubmissionClosed || !canSubmit}
+                        />
+                      ) : (
+                        <div className="flex flex-col gap-2">
+                          {submissionLink.split(',').map((link, idx) => (
+                            <div key={idx} className="flex items-center justify-between p-2.5 border rounded-lg bg-muted/30">
+                              <div className="flex items-center gap-2">
+                                <BookOpen className="h-4 w-4 text-primary" />
+                                <span className="text-sm font-medium">Uploaded File {idx + 1}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Button variant="outline" size="sm" type="button" onClick={() => window.open(link.trim(), '_blank')}>
+                                  View File {idx + 1}
+                                </Button>
+                                {(canSubmit && !isSubmissionClosed && link.includes('drive.google.com')) && (
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    type="button" 
+                                    className="text-destructive hover:bg-red-50 hover:text-red-600 h-8 w-8 p-0" 
+                                    onClick={() => handleDeleteFile(link.trim())} 
+                                    title="Remove file"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {submissionLink && !submissionLink.includes('drive.google.com') && (
                         <div className="flex flex-wrap gap-2">
                           {submissionLink.split(',').filter(Boolean).map((link, idx) => (
                             <div key={idx} className="flex items-center gap-1">
@@ -521,26 +564,16 @@ export default function StudentTaskDetail() {
                               >
                                 View {submissionLink.split(',').length > 1 ? `Link ${idx + 1}` : ''}
                               </Button>
-                              {(canSubmit && !isSubmissionClosed && link.includes('drive.google.com')) && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-8 w-8 p-0 text-destructive hover:bg-red-50 hover:text-red-600"
-                                  type="button"
-                                  onClick={() => handleDeleteFile(link.trim())}
-                                  title="Remove file"
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              )}
                             </div>
                           ))}
                         </div>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      Paste a shareable link to your completed work (allowed until: {cutoffDate && cutoffDate.toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })})
-                    </p>
+                    {!submissionLink.includes('drive.google.com') && (
+                      <p className="text-xs text-muted-foreground">
+                        Paste a shareable link to your completed work (allowed until: {cutoffDate && cutoffDate.toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })})
+                      </p>
+                    )}
                   </div>
                 )}
                 
@@ -549,22 +582,28 @@ export default function StudentTaskDetail() {
                      <Label>Uploaded File(s)</Label>
                      <div className="flex flex-col gap-2">
                        {submissionLink.split(',').map((link, idx) => (
-                         <div key={idx} className="flex gap-2">
-                           <Input value={link.trim()} readOnly className="text-sm bg-muted flex-1" />
-                           <Button variant="outline" type="button" onClick={() => window.open(link.trim(), '_blank')}>
-                             View File {idx + 1}
-                           </Button>
-                           {(canSubmit && !isSubmissionClosed && link.includes('drive.google.com')) && (
-                             <Button 
-                               variant="outline" 
-                               type="button" 
-                               className="text-destructive px-3 hover:bg-red-50 hover:text-red-600" 
-                               onClick={() => handleDeleteFile(link.trim())} 
-                               title="Remove file"
-                             >
-                               <X className="h-4 w-4" />
+                         <div key={idx} className="flex items-center justify-between p-2.5 border rounded-lg bg-muted/30">
+                           <div className="flex items-center gap-2">
+                             <BookOpen className="h-4 w-4 text-primary" />
+                             <span className="text-sm font-medium">Uploaded File {idx + 1}</span>
+                           </div>
+                           <div className="flex items-center gap-2">
+                             <Button variant="outline" size="sm" type="button" onClick={() => window.open(link.trim(), '_blank')}>
+                               View File {idx + 1}
                              </Button>
-                           )}
+                             {(canSubmit && !isSubmissionClosed && link.includes('drive.google.com')) && (
+                               <Button 
+                                 variant="outline" 
+                                 size="sm"
+                                 type="button" 
+                                 className="text-destructive hover:bg-red-50 hover:text-red-600 h-8 w-8 p-0" 
+                                 onClick={() => handleDeleteFile(link.trim())} 
+                                 title="Remove file"
+                               >
+                                 <X className="h-4 w-4" />
+                               </Button>
+                             )}
+                           </div>
                          </div>
                        ))}
                      </div>
@@ -613,6 +652,26 @@ export default function StudentTaskDetail() {
                 </svg>
               </button>
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Final Confirmation Dialog */}
+        <Dialog open={showConfirmOpen} onOpenChange={setShowConfirmOpen}>
+          <DialogContent className="max-w-md bg-card">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold text-foreground">Confirm Submission</DialogTitle>
+              <DialogDescription className="text-sm text-muted-foreground mt-2">
+                Are you sure you want to submit your homework? Once submitted, you won't be able to edit it unless a reviewer rejects it or requests changes.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="flex gap-2 justify-end mt-4">
+              <Button variant="outline" onClick={() => setShowConfirmOpen(false)} disabled={saving}>
+                Cancel
+              </Button>
+              <Button onClick={executeSubmit} disabled={saving} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                Submit Final
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>

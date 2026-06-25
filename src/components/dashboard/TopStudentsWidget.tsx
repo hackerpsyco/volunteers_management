@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { Trophy, CheckCircle, Loader2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from '@/components/ui/button';
 
 interface TopStudentsWidgetProps {
   startDate: Date | null;
@@ -21,6 +22,8 @@ export function TopStudentsWidget({ startDate, endDate, academicYear }: TopStude
   const [students, setStudents] = useState<StudentStat[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [earnersLimit, setEarnersLimit] = useState(5);
+  const [attendeesLimit, setAttendeesLimit] = useState(5);
 
   useEffect(() => {
     async function fetchTopStudents() {
@@ -138,8 +141,8 @@ export function TopStudentsWidget({ startDate, endDate, academicYear }: TopStude
     fetchTopStudents();
   }, [startDate, endDate, academicYear]);
 
-  const topEarners = [...students].sort((a, b) => b.earnings - a.earnings).slice(0, 5);
-  const topAttendees = [...students].sort((a, b) => b.attendance - a.attendance).slice(0, 5);
+  const topEarners = [...students].sort((a, b) => b.earnings - a.earnings).slice(0, earnersLimit);
+  const topAttendees = [...students].sort((a, b) => b.attendance - a.attendance).slice(0, attendeesLimit);
 
   return (
     <Card className="col-span-1 border-border/50 shadow-sm">
@@ -182,6 +185,30 @@ export function TopStudentsWidget({ startDate, endDate, academicYear }: TopStude
                   </div>
                 </div>
               )) : <p className="text-sm text-muted-foreground text-center py-4">No earnings found.</p>}
+              {(students.filter(s => s.earnings > 0).length > earnersLimit || earnersLimit > 5) && (
+                <div className="pt-2 flex justify-center gap-2 border-t border-dashed mt-2">
+                  {students.filter(s => s.earnings > 0).length > earnersLimit && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => setEarnersLimit(prev => prev + 5)}
+                      className="text-xs text-primary font-semibold hover:underline h-8 flex-1"
+                    >
+                      See More
+                    </Button>
+                  )}
+                  {earnersLimit > 5 && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => setEarnersLimit(5)}
+                      className="text-xs text-muted-foreground font-semibold hover:underline h-8 flex-1"
+                    >
+                      See Less
+                    </Button>
+                  )}
+                </div>
+              )}
             </TabsContent>
             
             <TabsContent value="attendance" className="space-y-4">
@@ -199,6 +226,30 @@ export function TopStudentsWidget({ startDate, endDate, academicYear }: TopStude
                   </div>
                 </div>
               )) : <p className="text-sm text-muted-foreground text-center py-4">No attendance records found.</p>}
+              {(students.filter(s => s.attendance > 0).length > attendeesLimit || attendeesLimit > 5) && (
+                <div className="pt-2 flex justify-center gap-2 border-t border-dashed mt-2">
+                  {students.filter(s => s.attendance > 0).length > attendeesLimit && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => setAttendeesLimit(prev => prev + 5)}
+                      className="text-xs text-primary font-semibold hover:underline h-8 flex-1"
+                    >
+                      See More
+                    </Button>
+                  )}
+                  {attendeesLimit > 5 && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => setAttendeesLimit(5)}
+                      className="text-xs text-muted-foreground font-semibold hover:underline h-8 flex-1"
+                    >
+                      See Less
+                    </Button>
+                  )}
+                </div>
+              )}
             </TabsContent>
           </Tabs>
         )}

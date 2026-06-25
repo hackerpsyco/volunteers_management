@@ -1,19 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Calendar, ListTodo, Clock, CheckCircle2, Wallet, ClipboardCheck, AlertCircle } from 'lucide-react';
+import { Clock, CheckCircle2, Wallet, ClipboardCheck, Trophy } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { supabase } from '@/integrations/supabase/client';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogClose,
-} from '@/components/ui/dialog';
-import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
 import { useAcademicYear } from '@/contexts/AcademicYearContext';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface StudentTask {
   id: string;
@@ -40,10 +33,12 @@ export default function StudentDashboard() {
   const [tasks, setTasks] = useState<StudentTask[]>([]);
   const [sessions, setSessions] = useState<SessionMeeting[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'calendar' | 'tasks'>('calendar');
-  const [selectedTask, setSelectedTask] = useState<StudentTask | null>(null);
-  const [submissionLink, setSubmissionLink] = useState('');
-  const [submissionDate, setSubmissionDate] = useState(new Date().toISOString().split('T')[0]);
+  const [topStudent, setTopStudent] = useState<{ name: string; earnings: number } | null>(null);
+  const [classStudentsList, setClassStudentsList] = useState<{ id: string; name: string; earnings: number; attendance: number }[]>([]);
+  const [classEarnersLimit, setClassEarnersLimit] = useState(5);
+  const [classAttendeesLimit, setClassAttendeesLimit] = useState(5);
+
+
   const [totalEarnings, setTotalEarnings] = useState(0);
   const [attendanceRate, setAttendanceRate] = useState('100%');
   const [attendanceDetails, setAttendanceDetails] = useState('No sessions');
@@ -91,24 +86,27 @@ export default function StudentDashboard() {
 
       if (profileError) {
         console.error('Profile error:', profileError);
-        // Profile doesn't exist or RLS blocked access - this is expected for some users
-        // Continue with empty data
-        setTasks([]);
-        setSessions([]);
-        setLoading(false);
-        return;
       }
 
-      if (profileData?.full_name) {
-        setStudentName(profileData.full_name);
-      }
-
-      // Fetch tasks for THIS STUDENT ONLY
-      // First, get the student record from students table
+      // Fetch student records from students table
       const { data: studentRecords, error: studentError } = await supabase
         .from('students')
-        .select('id')
+        .select('id, name')
         .ilike('email', user?.email);
+
+      let activeStudentName = profileData?.full_name || '';
+      if (!activeStudentName && studentRecords && studentRecords.length > 0) {
+        const { data: sRec } = await supabase
+          .from('students')
+          .select('name')
+          .ilike('email', user?.email)
+          .limit(1)
+          .maybeSingle();
+        if (sRec?.name) {
+          activeStudentName = sRec.name;
+        }
+      }
+      setStudentName(activeStudentName);
 
       if (studentError) {
         console.warn('Student record not found for email:', user?.email, studentError);
@@ -145,14 +143,27 @@ export default function StudentDashboard() {
         setTotalEarnings(total);
       }
 
-      // If student has a class_id, fetch class-specific session data
+      // Resolve class_id (profileData or fallback to students table)
+      let classId = profileData?.class_id;
+      if (!classId && studentRecords && studentRecords.length > 0) {
+        const { data: studentWithClass } = await supabase
+          .from('students')
+          .select('class_id')
+          .ilike('email', user?.email)
+          .limit(1)
+          .maybeSingle();
+        if (studentWithClass?.class_id) {
+          classId = studentWithClass.class_id;
+        }
+      }
+
       let sessionsDataList: SessionMeeting[] = [];
-      if (profileData?.class_id) {
+      if (classId) {
         // Get the class info
         const { data: classData } = await supabase
           .from('classes')
           .select('id, name, email')
-          .eq('id', profileData.class_id)
+          .eq('id', classId)
           .single();
 
         // Fetch sessions for this class filtered by academic year
@@ -176,8 +187,145 @@ export default function StudentDashboard() {
         setSessions([]);
       }
 
+      // Fetch all class or global students data (earnings and attendance)
+      try {
+        let studentsList: { id: string; name: string }[] = [];
+        let classDataName: string | null = null;
+        
+        if (classId) {
+          const { data: classData } = await supabase
+            .from('classes')
+            .select('id, name')
+            .eq('id', classId)
+            .single();
+          if (classData) {
+            classDataName = classData.name;
+          }
+
+          const { data: studentsInClass } = await supabase
+            .from('students')
+            .select('id, name')
+            .eq('class_id', classId);
+          
+          if (studentsInClass && studentsInClass.length > 0) {
+            studentsList = studentsInClass.map(s => ({ id: s.id, name: s.name || '' }));
+          }
+        }
+
+        // Fallback: If no classId or no students found in class, fetch all students (like admin panel)
+        if (studentsList.length === 0) {
+          const { data: allStudents } = await supabase
+            .from('students')
+            .select('id, name');
+          if (allStudents) {
+            studentsList = allStudents.map(s => ({ id: s.id, name: s.name || '' }));
+          }
+        }
+
+        if (studentsList.length > 0) {
+          const studentIds = studentsList.map(s => s.id);
+          const { startDate: earningStart, endDate: earningEnd } = getDateRange();
+          
+          // Query 1: Earnings for all selected students
+          const { data: earningsData, error: earningsError } = await supabase
+            .from('student_earnings')
+            .select('student_id, amount')
+            .in('student_id', studentIds)
+            .gte('earned_at', earningStart.toISOString())
+            .lte('earned_at', earningEnd.toISOString());
+
+          if (earningsError) {
+            console.error('Leaderboard earnings error:', earningsError);
+          }
+
+          // Query 2: Sessions for the class (or all classes if fallback)
+          let sessionsQuery = supabase
+            .from('sessions')
+            .select('id')
+            .gte('session_date', earningStart.toISOString().split('T')[0])
+            .lte('session_date', earningEnd.toISOString().split('T')[0]);
+          
+          if (classDataName) {
+            sessionsQuery = sessionsQuery.eq('class_batch', classDataName);
+          }
+          const { data: sessionsData, error: sessionsError } = await sessionsQuery;
+          if (sessionsError) {
+            console.error('Leaderboard sessions error:', sessionsError);
+          }
+
+          let attendanceData: any[] = [];
+          if (sessionsData && sessionsData.length > 0) {
+            const sessionIds = sessionsData.map(s => s.id);
+            const { data: perfData, error: perfError } = await supabase
+              .from('student_performance')
+              .select('attendance_status, student_name')
+              .in('session_id', sessionIds)
+              .eq('attendance_status', 'Present');
+            
+            if (perfError) {
+              console.error('Leaderboard student performance error:', perfError);
+            } else if (perfData) {
+              attendanceData = perfData;
+            }
+          }
+
+          // Aggregate stats
+          const statsMap: Record<string, { id: string; name: string; earnings: number; attendance: number }> = {};
+          const studentNameMap: Record<string, string> = {};
+          studentsList.forEach(s => {
+            statsMap[s.id] = { id: s.id, name: s.name, earnings: 0, attendance: 0 };
+            studentNameMap[s.name.toLowerCase().trim()] = s.id;
+          });
+
+          // Process Earnings
+          earningsData?.forEach(item => {
+            const amount = parseFloat(item.amount as any) || 0;
+            if (statsMap[item.student_id]) {
+              statsMap[item.student_id].earnings += amount;
+            }
+          });
+
+          // Process Attendance
+          attendanceData?.forEach(record => {
+            if (!record.student_name) return;
+            const nameKey = record.student_name.toLowerCase().trim();
+            const sId = studentNameMap[nameKey];
+            if (sId && statsMap[sId]) {
+              statsMap[sId].attendance += 1;
+            }
+          });
+
+          const aggregatedList = Object.values(statsMap);
+          setClassStudentsList(aggregatedList);
+
+          // Set top student metric (remains for state support if needed)
+          let bestStudentName = '';
+          let bestStudentEarnings = -1;
+
+          aggregatedList.forEach(s => {
+            if (s.earnings > bestStudentEarnings) {
+              bestStudentEarnings = s.earnings;
+              bestStudentName = s.name;
+            }
+          });
+
+          if (bestStudentEarnings > 0 && bestStudentName) {
+            setTopStudent({ name: bestStudentName, earnings: bestStudentEarnings });
+          } else {
+            setTopStudent(null);
+          }
+        } else {
+          setClassStudentsList([]);
+          setTopStudent(null);
+        }
+      } catch (err) {
+        console.error('Error fetching class students stats:', err);
+        setClassStudentsList([]);
+        setTopStudent(null);
+      }
+
       // Calculate attendance rate
-      if (profileData?.full_name && sessionsDataList.length > 0) {
+      if (activeStudentName && sessionsDataList.length > 0) {
         const { data: perfData } = await supabase
           .from('student_performance' as any)
           .select('session_id, attendance_status')
@@ -236,68 +384,7 @@ export default function StudentDashboard() {
     );
   }
 
-  const handleTaskClick = (task: StudentTask) => {
-    setSelectedTask(task);
-    setSubmissionLink(task.submission_link || '');
-    setSubmissionDate(new Date().toISOString().split('T')[0]);
-  };
 
-  const handleSubmitTask = async () => {
-    if (!selectedTask || !submissionLink.trim()) {
-      toast.error('Please enter a submission link');
-      return;
-    }
-
-    // Validate submission link is a valid URL
-    let validLink = submissionLink.trim();
-    if (!validLink.startsWith('http://') && !validLink.startsWith('https://')) {
-      validLink = `https://${validLink}`;
-    }
-
-    // Basic URL validation
-    try {
-      new URL(validLink);
-    } catch {
-      toast.error('Please enter a valid URL (e.g., https://example.com or example.com)');
-      return;
-    }
-
-    // Validate submission is not more than 3 days past the deadline
-    const deadlineDate = new Date(selectedTask.deadline);
-    const cutoffDate = new Date(deadlineDate);
-    cutoffDate.setDate(cutoffDate.getDate() + 3);
-    cutoffDate.setHours(23, 59, 59, 999);
-
-    if (new Date() > cutoffDate) {
-      toast.error('Submission closed. The deadline was more than 3 days ago.');
-      return;
-    }
-
-    if (new Date(submissionDate) > cutoffDate) {
-      toast.error('Submission date cannot be more than 3 days after the deadline');
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('student_task_feedback')
-        .update({
-          submission_link: validLink,
-          status: 'submitted',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', selectedTask.id);
-
-      if (error) throw error;
-
-      toast.success('Task submitted successfully!');
-      setSelectedTask(null);
-      loadStudentData();
-    } catch (error) {
-      console.error('Error submitting task:', error);
-      toast.error('Failed to submit task');
-    }
-  };
 
   return (
     <DashboardLayout>
@@ -365,277 +452,132 @@ export default function StudentDashboard() {
           </Card>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="flex gap-2">
-          <Button
-            variant={activeTab === 'calendar' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('calendar')}
-            className="gap-2"
-          >
-            <Calendar className="h-4 w-4" />
-            Calendar
-          </Button>
-          <Button
-            variant={activeTab === 'tasks' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('tasks')}
-            className="gap-2"
-          >
-            <ListTodo className="h-4 w-4" />
-            Tasks ({tasks.length})
-          </Button>
-        </div>
-
-        {/* Calendar Tab */}
-        {activeTab === 'calendar' && (
-          <div className="max-w-xl">
-            {/* Upcoming Sessions */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle>Class Sessions</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {sessions.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-6 text-sm">No upcoming sessions</p>
-                ) : (
-                  <div className="space-y-2">
-                    {sessions.map((session) => (
-                      <div
-                        key={session.id}
-                        className="border border-border rounded-lg p-2.5 text-sm"
-                      >
-                        <h4 className="font-semibold text-foreground">{session.title}</h4>
-                        <p className="text-muted-foreground text-xs mt-0.5">
-                          {new Date(session.session_date).toLocaleDateString()} at {session.session_time}
-                        </p>
-                        {session.facilitator_name && (
-                          <p className="text-muted-foreground text-xs">
-                            {session.facilitator_name}
-                          </p>
-                        )}
-                        {session.meeting_link && (
-                          <a
-                            href={session.meeting_link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline text-xs mt-1 inline-block"
-                          >
-                            Join Meeting
-                          </a>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Tasks Tab */}
-        {activeTab === 'tasks' && (
-          <Card>
-            <CardHeader>
-              <CardTitle>All Tasks</CardTitle>
+        {/* Class Top Students List Widget */}
+        <div className="max-w-md mt-6">
+          <Card className="border-border/50 shadow-sm bg-card">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                <Trophy className="h-5 w-5 text-amber-500" />
+                Class Top Students
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              {tasks.length === 0 ? (
-                <p className="text-muted-foreground text-center py-8">No tasks assigned yet</p>
+              {classStudentsList.length === 0 ? (
+                <p className="text-center text-sm text-muted-foreground py-8">No student data found.</p>
               ) : (
-                <div className="space-y-3">
-                  {tasks.map((task) => (
-                    <div
-                      key={task.id}
-                      onClick={() => handleTaskClick(task)}
-                      className="border border-border rounded-lg p-4 hover:bg-muted/50 transition-colors cursor-pointer"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-foreground">{task.task_name}</h3>
-                          <p className="text-sm text-muted-foreground capitalize">{task.feedback_type}</p>
-                          {task.feedback_notes && (
-                            <p className="text-sm text-foreground mt-2">{task.feedback_notes}</p>
-                          )}
-                        </div>
-                        <span className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${
-                          task.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                          task.status === 'submitted' ? 'bg-blue-100 text-blue-800' :
-                          task.status === 'reviewed' ? 'bg-purple-100 text-purple-800' :
-                          'bg-green-100 text-green-800'
-                        }`}>
-                          {task.status}
-                        </span>
-                      </div>
-                      <div className="mt-3 text-sm">
-                        <p className="text-muted-foreground">
-                          Deadline: {new Date(task.deadline).toLocaleDateString()}
-                        </p>
-                        {task.submission_link && (
-                          <a
-                            href={task.submission_link.startsWith('http') ? task.submission_link : `https://${task.submission_link}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline mt-2 inline-block"
-                          >
-                            View Submission
-                          </a>
+                <Tabs defaultValue="earnings" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2 mb-4">
+                    <TabsTrigger value="earnings">By Earnings</TabsTrigger>
+                    <TabsTrigger value="attendance">By Attendance</TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="earnings" className="space-y-4">
+                    {classStudentsList.filter(s => s.earnings > 0).length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">No earnings found.</p>
+                    ) : (
+                      <>
+                        {[...classStudentsList]
+                          .sort((a, b) => b.earnings - a.earnings)
+                          .slice(0, classEarnersLimit)
+                          .map((student, i) => (
+                            <div key={`earn-${student.id}`} className="flex items-center justify-between group">
+                              <div className="flex items-center gap-3">
+                                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-muted text-xs font-bold text-muted-foreground">
+                                  {i + 1}
+                                </span>
+                                <span className="font-medium text-sm group-hover:text-primary transition-colors">{student.name}</span>
+                              </div>
+                              <div className="flex items-center gap-1.5 text-amber-600 font-bold text-sm bg-amber-50 px-2.5 py-0.5 rounded-full">
+                                <span>{student.earnings}</span>
+                                <span className="text-[10px] uppercase tracking-wider">Units</span>
+                              </div>
+                            </div>
+                          ))}
+                        
+                        {(classStudentsList.filter(s => s.earnings > 0).length > classEarnersLimit || classEarnersLimit > 5) && (
+                          <div className="pt-2 flex justify-center gap-2 border-t border-dashed mt-2">
+                            {classStudentsList.filter(s => s.earnings > 0).length > classEarnersLimit && (
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => setClassEarnersLimit(prev => prev + 5)}
+                                className="text-xs text-primary font-semibold hover:underline h-8 flex-1"
+                              >
+                                See More
+                              </Button>
+                            )}
+                            {classEarnersLimit > 5 && (
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => setClassEarnersLimit(5)}
+                                className="text-xs text-muted-foreground font-semibold hover:underline h-8 flex-1"
+                              >
+                                See Less
+                              </Button>
+                            )}
+                          </div>
                         )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                      </>
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="attendance" className="space-y-4">
+                    {classStudentsList.filter(s => s.attendance > 0).length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">No attendance records found.</p>
+                    ) : (
+                      <>
+                        {[...classStudentsList]
+                          .sort((a, b) => b.attendance - a.attendance)
+                          .slice(0, classAttendeesLimit)
+                          .map((student, i) => (
+                            <div key={`att-${student.id}`} className="flex items-center justify-between group">
+                              <div className="flex items-center gap-3">
+                                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-muted text-xs font-bold text-muted-foreground">
+                                  {i + 1}
+                                </span>
+                                <span className="font-medium text-sm group-hover:text-primary transition-colors">{student.name}</span>
+                              </div>
+                              <div className="flex items-center gap-1.5 text-green-600 font-bold text-sm bg-green-50 px-2.5 py-0.5 rounded-full">
+                                <span>{student.attendance}</span>
+                                <span className="text-[10px] uppercase tracking-wider">Present</span>
+                              </div>
+                            </div>
+                          ))}
+                        
+                        {(classStudentsList.filter(s => s.attendance > 0).length > classAttendeesLimit || classAttendeesLimit > 5) && (
+                          <div className="pt-2 flex justify-center gap-2 border-t border-dashed mt-2">
+                            {classStudentsList.filter(s => s.attendance > 0).length > classAttendeesLimit && (
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => setClassAttendeesLimit(prev => prev + 5)}
+                                className="text-xs text-primary font-semibold hover:underline h-8 flex-1"
+                              >
+                                See More
+                              </Button>
+                            )}
+                            {classAttendeesLimit > 5 && (
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => setClassAttendeesLimit(5)}
+                                className="text-xs text-muted-foreground font-semibold hover:underline h-8 flex-1"
+                              >
+                                See Less
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </TabsContent>
+                </Tabs>
               )}
             </CardContent>
           </Card>
-        )}
+        </div>
 
-        {/* Task Details Modal */}
-        <Dialog open={!!selectedTask} onOpenChange={(open) => !open && setSelectedTask(null)}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Task Details</DialogTitle>
-              <DialogClose />
-            </DialogHeader>
-
-            {selectedTask && (() => {
-              const deadlineDate = new Date(selectedTask.deadline);
-              const cutoffDate = new Date(deadlineDate);
-              cutoffDate.setDate(cutoffDate.getDate() + 3);
-              cutoffDate.setHours(23, 59, 59, 999);
-              const isSubmissionClosed = new Date() > cutoffDate;
-              const maxDateString = cutoffDate.toISOString().split('T')[0];
-              const isReviewedOrApproved = selectedTask.status === 'reviewed' || selectedTask.status === 'approved';
-
-              return (
-                <div className="space-y-6">
-                  {/* Task Information */}
-                  <div className="space-y-4">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Task Name</p>
-                      <p className="font-semibold text-lg">{selectedTask.task_name}</p>
-                    </div>
-
-                    <div>
-                      <p className="text-xs text-muted-foreground">Type</p>
-                      <p className="font-medium capitalize">{selectedTask.feedback_type}</p>
-                    </div>
-
-                    <div>
-                      <p className="text-xs text-muted-foreground">Deadline</p>
-                      <p className="font-medium">{new Date(selectedTask.deadline).toLocaleDateString()}</p>
-                    </div>
-
-                    <div>
-                      <p className="text-xs text-muted-foreground">Status</p>
-                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold capitalize ${
-                        selectedTask.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                        selectedTask.status === 'submitted' ? 'bg-blue-100 text-blue-800' :
-                        selectedTask.status === 'reviewed' ? 'bg-purple-100 text-purple-800' :
-                        'bg-green-100 text-green-800'
-                      }`}>
-                        {selectedTask.status}
-                      </span>
-                    </div>
-
-                    {selectedTask.feedback_notes && (
-                      <div>
-                        <p className="text-xs text-muted-foreground">Feedback Notes</p>
-                        <p className="text-sm">{selectedTask.feedback_notes}</p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Submission Section */}
-                  <div className="border-t border-border pt-4 space-y-4">
-                    <h3 className="font-semibold">Submit Your Work</h3>
-
-                    {isSubmissionClosed && (
-                      <div className="bg-destructive/10 border border-destructive/20 text-destructive rounded-lg p-3 text-sm flex items-center gap-2 font-medium">
-                        <AlertCircle className="h-4 w-4 shrink-0" />
-                        <span>Submission period closed. Submissions are only allowed up to 3 days after the deadline.</span>
-                      </div>
-                    )}
-
-                    {isReviewedOrApproved && (
-                      <div className="bg-muted border border-border text-muted-foreground rounded-lg p-3 text-sm flex items-center gap-2">
-                        <CheckCircle2 className="h-4 w-4 shrink-0 text-muted-foreground" />
-                        <span>This task has already been reviewed/approved and cannot be updated.</span>
-                      </div>
-                    )}
-
-                    <div>
-                      <label className="text-sm font-medium text-foreground block mb-2">
-                        Submission Link
-                      </label>
-                      <input
-                        type="url"
-                        placeholder="https://example.com/your-submission"
-                        value={submissionLink}
-                        onChange={(e) => setSubmissionLink(e.target.value)}
-                        className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
-                        disabled={isSubmissionClosed || isReviewedOrApproved}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-sm font-medium text-foreground block mb-2">
-                        Submission Date
-                      </label>
-                      <input
-                        type="date"
-                        value={submissionDate}
-                        onChange={(e) => setSubmissionDate(e.target.value)}
-                        max={maxDateString}
-                        className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
-                        disabled={isSubmissionClosed || isReviewedOrApproved}
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Must be on or before 3 days after deadline: {new Date(maxDateString).toLocaleDateString()}
-                      </p>
-                    </div>
-
-                    {selectedTask.submission_link && (
-                      <div className="bg-blue-50 border border-blue-200 rounded p-3">
-                        <p className="text-sm text-blue-800 font-medium mb-1">
-                          Current Submission(s):
-                        </p>
-                        <div className="flex flex-col gap-1">
-                          {selectedTask.submission_link.split(',').filter(Boolean).map((link, idx) => (
-                            <a
-                              key={idx}
-                              href={link.trim().startsWith('http') ? link.trim() : `https://${link.trim()}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="underline hover:text-blue-900 text-sm truncate"
-                            >
-                              {link.trim()}
-                            </a>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="flex gap-2 justify-end border-t border-border pt-4">
-                    <Button
-                      variant="outline"
-                      onClick={() => setSelectedTask(null)}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={handleSubmitTask}
-                      className="bg-primary text-primary-foreground hover:bg-primary/90"
-                      disabled={isSubmissionClosed || isReviewedOrApproved || !submissionLink.trim()}
-                    >
-                      Save Submission
-                    </Button>
-                  </div>
-                </div>
-              );
-            })()}
-          </DialogContent>
-        </Dialog>
       </div>
     </DashboardLayout>
   );

@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ExternalLink, Edit2, Trash2, XCircle, MessageSquare, Pencil, Calendar } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Edit2, Trash2, XCircle, MessageSquare, Pencil, Calendar, Download } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -49,6 +49,7 @@ interface TaskItem {
   earning_amount?: number;
   feedback_type?: string;
   rejection_comment?: string | null;
+  feedback_notes?: string | null;
 }
 
 interface TaskGroup {
@@ -445,7 +446,107 @@ export default function TaskDetail() {
 
   return (
     <DashboardLayout>
-      <div className="max-w-4xl mx-auto space-y-6">
+      {/* PRINT VIEW - Only visible when printing */}
+      <div className="hidden print:block w-full max-w-none bg-white text-black p-4 space-y-6">
+        <div className="text-[10px] text-gray-500 mb-4 border-b pb-2 break-all">
+          Task URL: {window.location.href}
+        </div>
+        
+        {/* Header Info */}
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold mb-4">{taskGroup.title}</h1>
+          <div className="grid grid-cols-2 gap-y-2 gap-x-8 text-sm">
+             <p><strong>Class:</strong> {taskGroup.class_name || '-'}</p>
+             <p><strong>Year:</strong> {taskGroup.academic_year || '-'}</p>
+             <p><strong>Created:</strong> {new Date(taskGroup.created_at).toLocaleDateString()}</p>
+             <p><strong>Deadline:</strong> {taskGroup.due_date ? new Date(taskGroup.due_date).toLocaleDateString() : '-'}</p>
+             <p><strong>Total Students:</strong> {taskGroup.tasks.length}</p>
+             <p><strong>Completed:</strong> {taskGroup.tasks.filter(t => t.status === 'completed').length}</p>
+          </div>
+        </div>
+
+        {taskGroup.description && (
+          <>
+            <hr className="border-gray-300" />
+            <div className="space-y-2 text-sm">
+              <h2 className="text-lg font-bold">Description</h2>
+              <div 
+                className="prose prose-sm text-black" 
+                dangerouslySetInnerHTML={{ __html: taskGroup.description }} 
+              />
+            </div>
+          </>
+        )}
+
+        <hr className="border-gray-300" />
+
+        {/* Student Submissions List */}
+        <div className="space-y-4">
+          <h2 className="text-lg font-bold">Student Submissions</h2>
+          <table className="w-full text-left text-sm border-collapse">
+            <thead>
+              <tr className="border-b border-gray-300 bg-gray-50">
+                <th className="py-2 px-3 font-bold">Student Name</th>
+                <th className="py-2 px-3 font-bold">Class</th>
+                <th className="py-2 px-3 font-bold">Status</th>
+                <th className="py-2 px-3 font-bold">Submission Link(s)</th>
+                <th className="py-2 px-3 font-bold">Feedback / Comments</th>
+              </tr>
+            </thead>
+            <tbody>
+              {taskGroup.tasks.map((task) => (
+                <tr key={task.id} className="border-b border-gray-200">
+                  <td className="py-2.5 px-3 font-medium">{task.student_name}</td>
+                  <td className="py-2.5 px-3">{task.class_name}</td>
+                  <td className="py-2.5 px-3 capitalize">
+                    <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                      task.status === 'completed' ? 'bg-green-100 text-green-800' :
+                      task.status === 'submitted' ? 'bg-blue-100 text-blue-800' :
+                      task.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {task.status}
+                    </span>
+                  </td>
+                  <td className="py-2.5 px-3 break-all">
+                    {task.submission_link ? (
+                      <div className="space-y-1">
+                        {task.submission_link.split(',').filter(Boolean).map((link, idx) => (
+                          <div key={idx}>
+                            <a 
+                              href={link.trim()} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-blue-600 underline hover:text-blue-800"
+                            >
+                              {link.trim()}
+                            </a>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-gray-400 italic">No submission</span>
+                    )}
+                  </td>
+                  <td className="py-2.5 px-3 text-xs">
+                    {task.status === 'rejected' && task.rejection_comment && (
+                      <p className="text-red-600"><strong>Rejected:</strong> {task.rejection_comment}</p>
+                    )}
+                    {task.status === 'completed' && task.feedback_notes && (
+                      <p className="text-green-700"><strong>Verified Note:</strong> {task.feedback_notes}</p>
+                    )}
+                    {!task.rejection_comment && !task.feedback_notes && (
+                      <span className="text-gray-400">-</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="max-w-4xl mx-auto space-y-6 print:hidden">
         {/* Header */}
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
@@ -463,6 +564,15 @@ export default function TaskDetail() {
             </div>
           </div>
           <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.print()}
+              className="gap-2"
+            >
+              <Download className="h-4 w-4" />
+              Download PDF
+            </Button>
             <Button
               variant="outline"
               size="sm"
