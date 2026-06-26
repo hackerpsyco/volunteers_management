@@ -7,6 +7,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAcademicYear } from '@/contexts/AcademicYearContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from '@/components/ui/select';
 
 interface StudentTask {
   id: string;
@@ -27,6 +34,14 @@ interface SessionMeeting {
   meeting_link?: string;
 }
 
+const getStudentType = (designation?: string | null) => {
+  if (!designation) return 'Fellow';
+  const d = designation.toLowerCase();
+  if (d.includes('fellow') || d.includes('intern')) return 'Fellow';
+  if (d.includes('certified') || d.includes('computer') || d.includes('ccc')) return 'CCC';
+  return 'Fellow';
+};
+
 export default function StudentDashboard() {
   const { user } = useAuth();
   const [studentName, setStudentName] = useState('');
@@ -38,17 +53,212 @@ export default function StudentDashboard() {
   const [classEarnersLimit, setClassEarnersLimit] = useState(5);
   const [classAttendeesLimit, setClassAttendeesLimit] = useState(5);
 
-
   const [totalEarnings, setTotalEarnings] = useState(0);
   const [attendanceRate, setAttendanceRate] = useState('100%');
   const [attendanceDetails, setAttendanceDetails] = useState('No sessions');
   const { selectedYear, getDateRange } = useAcademicYear();
+
+  // Filters and class stats states
+  const [selectedClassId, setSelectedClassId] = useState<string>('');
+  const [selectedType, setSelectedType] = useState<string>('');
+  const [classList, setClassList] = useState<{ id: string; name: string }[]>([]);
+  const [courseCompletion, setCourseCompletion] = useState<number>(0);
+  const [ownClassId, setOwnClassId] = useState<string>('');
+  const [ownType, setOwnType] = useState<string>('Fellow');
 
   useEffect(() => {
     if (user?.id) {
       loadStudentData();
     }
   }, [user?.id, selectedYear]);
+
+  // Load class list on mount
+  useEffect(() => {
+    async function fetchClasses() {
+      try {
+        const { data, error } = await supabase
+          .from('classes')
+          .select('id, name')
+          .order('name');
+        if (!error && data) {
+          setClassList(data);
+        }
+      } catch (e) {
+        console.error('Error loading classes list:', e);
+      }
+    }
+    fetchClasses();
+  }, []);
+
+  // Load batch data when selected class, type or year changes
+  useEffect(() => {
+    async function loadBatchData() {
+      if (!selectedClassId) return;
+
+      try {
+        // Fetch class info
+        const { data: classData } = await supabase
+          .from('classes')
+          .select('id, name')
+          .eq('id', selectedClassId)
+          .single();
+
+        const classDataName = classData?.name || '';
+
+        // 1. Fetch sessions for the selected class
+        const { startDate, endDate } = getDateRange();
+        const { data: sessionsData } = await supabase
+          .from('sessions')
+          .select('id, title, session_date, session_time, facilitator_name, meeting_link, class_batch')
+          .eq('class_batch', classDataName)
+          .gte('session_date', startDate.toISOString().split('T')[0])
+          .lte('session_date', endDate.toISOString().split('T')[0])
+          .order('session_date', { ascending: true });
+
+        setSessions(sessionsData || []);
+
+        // 2. Calculate Course Completion %
+        if (classDataName) {
+          const { data: curriculumData } = await supabase
+            .from('curriculum')
+            .select('topics_covered')
+            .eq('class_id', selectedClassId);
+
+          const { data: completedSessionsData } = await supabase
+            .from('sessions')
+            .select('topics_covered')
+            .eq('class_batch', classDataName)
+            .eq('status', 'completed');
+
+          if (curriculumData && curriculumData.length > 0) {
+            const completedTopics = new Set(
+              completedSessionsData?.map(s => s.topics_covered?.trim().toLowerCase()).filter(Boolean) || []
+            );
+            let completedCount = 0;
+            curriculumData.forEach(item => {
+              const topic = item.topics_covered?.trim().toLowerCase();
+              if (topic && completedTopics.has(topic)) {
+                completedCount++;
+              }
+            });
+            setCourseCompletion(Math.round((completedCount / curriculumData.length) * 100));
+          } else {
+            setCourseCompletion(0);
+          }
+        } else {
+          setCourseCompletion(0);
+        }
+
+        // 3. Load leaderboard (Class Top Performers)
+        let studentsList: { id: string; name: string; designation: string }[] = [];
+        const { data: studentsInClass } = await supabase
+          .from('students')
+          .select('id, name, designation')
+          .eq('class_id', selectedClassId);
+        
+        if (studentsInClass) {
+          studentsList = studentsInClass.map(s => ({
+            id: s.id,
+            name: s.name || '',
+            designation: s.designation || ''
+          }));
+        }
+
+        // Apply selectedType filter
+        if (selectedType && selectedType !== 'all') {
+          studentsList = studentsList.filter(s => {
+            const type = getStudentType(s.designation);
+            return type === selectedType;
+          });
+        }
+
+        if (studentsList.length > 0) {
+          const studentIds = studentsList.map(s => s.id);
+          const { startDate: earningStart, endDate: earningEnd } = getDateRange();
+
+          // Earnings for all filtered students
+          const { data: earningsData } = await supabase
+            .from('student_earnings')
+            .select('student_id, amount')
+            .in('student_id', studentIds)
+            .gte('earned_at', earningStart.toISOString())
+            .lte('earned_at', earningEnd.toISOString());
+
+          // Sessions for attendance mapping
+          const { data: sessionsForLeaderboard } = await supabase
+            .from('sessions')
+            .select('id')
+            .eq('class_batch', classDataName)
+            .gte('session_date', earningStart.toISOString().split('T')[0])
+            .lte('session_date', earningEnd.toISOString().split('T')[0]);
+
+          let attendanceData: any[] = [];
+          if (sessionsForLeaderboard && sessionsForLeaderboard.length > 0) {
+            const sessionIds = sessionsForLeaderboard.map(s => s.id);
+            const { data: perfData } = await supabase
+              .from('student_performance')
+              .select('attendance_status, student_name')
+              .in('session_id', sessionIds)
+              .eq('attendance_status', 'Present');
+            if (perfData) {
+              attendanceData = perfData;
+            }
+          }
+
+          // Aggregate statistics
+          const statsMap: Record<string, { id: string; name: string; earnings: number; attendance: number }> = {};
+          const studentNameMap: Record<string, string> = {};
+          studentsList.forEach(s => {
+            statsMap[s.id] = { id: s.id, name: s.name, earnings: 0, attendance: 0 };
+            studentNameMap[s.name.toLowerCase().trim()] = s.id;
+          });
+
+          earningsData?.forEach(item => {
+            const amount = parseFloat(item.amount as any) || 0;
+            if (statsMap[item.student_id]) {
+              statsMap[item.student_id].earnings += amount;
+            }
+          });
+
+          attendanceData?.forEach(record => {
+            if (!record.student_name) return;
+            const nameKey = record.student_name.toLowerCase().trim();
+            const sId = studentNameMap[nameKey];
+            if (sId && statsMap[sId]) {
+              statsMap[sId].attendance += 1;
+            }
+          });
+
+          const aggregatedList = Object.values(statsMap);
+          setClassStudentsList(aggregatedList);
+
+          // Find top student
+          let bestStudentName = '';
+          let bestStudentEarnings = -1;
+          aggregatedList.forEach(s => {
+            if (s.earnings > bestStudentEarnings) {
+              bestStudentEarnings = s.earnings;
+              bestStudentName = s.name;
+            }
+          });
+          if (bestStudentEarnings > 0 && bestStudentName) {
+            setTopStudent({ name: bestStudentName, earnings: bestStudentEarnings });
+          } else {
+            setTopStudent(null);
+          }
+        } else {
+          setClassStudentsList([]);
+          setTopStudent(null);
+        }
+      } catch (err) {
+        console.error('Error fetching batch statistics:', err);
+        setClassStudentsList([]);
+        setTopStudent(null);
+      }
+    }
+
+    loadBatchData();
+  }, [selectedClassId, selectedType, selectedYear]);
 
   const loadStudentData = async () => {
     try {
@@ -66,7 +276,6 @@ export default function StudentDashboard() {
         .single();
 
       if (idError) {
-        // If RLS blocks it (profile ID mismatch), try querying by email
         if (idError.code === 'PGRST116') {
           console.warn('Profile ID mismatch detected, querying by email...');
           const { data: emailData, error: emailError } = await supabase
@@ -91,22 +300,36 @@ export default function StudentDashboard() {
       // Fetch student records from students table
       const { data: studentRecords, error: studentError } = await supabase
         .from('students')
-        .select('id, name')
+        .select('id, name, designation, class_id')
         .ilike('email', user?.email);
 
       let activeStudentName = profileData?.full_name || '';
-      if (!activeStudentName && studentRecords && studentRecords.length > 0) {
-        const { data: sRec } = await supabase
-          .from('students')
-          .select('name')
-          .ilike('email', user?.email)
-          .limit(1)
-          .maybeSingle();
-        if (sRec?.name) {
-          activeStudentName = sRec.name;
+      let studentDesignation = '';
+      let studentClassId = profileData?.class_id;
+
+      if (studentRecords && studentRecords.length > 0) {
+        studentDesignation = studentRecords[0].designation || '';
+        if (!studentClassId && studentRecords[0].class_id) {
+          studentClassId = studentRecords[0].class_id;
+        }
+        if (!activeStudentName && studentRecords[0].name) {
+          activeStudentName = studentRecords[0].name;
         }
       }
       setStudentName(activeStudentName);
+
+      const computedOwnType = getStudentType(studentDesignation);
+      setOwnType(computedOwnType);
+
+      if (studentClassId) {
+        setOwnClassId(studentClassId);
+        if (!selectedClassId) {
+          setSelectedClassId(studentClassId);
+        }
+      }
+      if (!selectedType) {
+        setSelectedType(computedOwnType);
+      }
 
       if (studentError) {
         console.warn('Student record not found for email:', user?.email, studentError);
@@ -143,200 +366,42 @@ export default function StudentDashboard() {
         setTotalEarnings(total);
       }
 
-      // Resolve class_id (profileData or fallback to students table)
-      let classId = profileData?.class_id;
-      if (!classId && studentRecords && studentRecords.length > 0) {
-        const { data: studentWithClass } = await supabase
-          .from('students')
-          .select('class_id')
-          .ilike('email', user?.email)
-          .limit(1)
-          .maybeSingle();
-        if (studentWithClass?.class_id) {
-          classId = studentWithClass.class_id;
-        }
-      }
-
-      let sessionsDataList: SessionMeeting[] = [];
-      if (classId) {
-        // Get the class info
-        const { data: classData } = await supabase
+      // Calculate personal attendance rate
+      let ownSessionsList: SessionMeeting[] = [];
+      const targetClassId = studentClassId || ownClassId;
+      if (targetClassId) {
+        const { data: ownClassData } = await supabase
           .from('classes')
-          .select('id, name, email')
-          .eq('id', classId)
+          .select('name')
+          .eq('id', targetClassId)
           .single();
 
-        // Fetch sessions for this class filtered by academic year
-        const { startDate, endDate } = getDateRange();
-        const { data: sessionsData, error: sessionsError } = await supabase
-          .from('sessions')
-          .select('id, title, session_date, session_time, facilitator_name, meeting_link, class_batch')
-          .eq('class_batch', classData?.name)
-          .gte('session_date', startDate.toISOString().split('T')[0])
-          .lte('session_date', endDate.toISOString().split('T')[0])
-          .order('session_date', { ascending: true });
-
-        if (sessionsError) {
-          console.error('Error fetching sessions:', sessionsError);
-          setSessions([]);
-        } else {
-          sessionsDataList = sessionsData || [];
-          setSessions(sessionsDataList);
-        }
-      } else {
-        setSessions([]);
-      }
-
-      // Fetch all class or global students data (earnings and attendance)
-      try {
-        let studentsList: { id: string; name: string }[] = [];
-        let classDataName: string | null = null;
-        
-        if (classId) {
-          const { data: classData } = await supabase
-            .from('classes')
-            .select('id, name')
-            .eq('id', classId)
-            .single();
-          if (classData) {
-            classDataName = classData.name;
-          }
-
-          const { data: studentsInClass } = await supabase
-            .from('students')
-            .select('id, name')
-            .eq('class_id', classId);
-          
-          if (studentsInClass && studentsInClass.length > 0) {
-            studentsList = studentsInClass.map(s => ({ id: s.id, name: s.name || '' }));
-          }
-        }
-
-        // Fallback: If no classId or no students found in class, fetch all students (like admin panel)
-        if (studentsList.length === 0) {
-          const { data: allStudents } = await supabase
-            .from('students')
-            .select('id, name');
-          if (allStudents) {
-            studentsList = allStudents.map(s => ({ id: s.id, name: s.name || '' }));
-          }
-        }
-
-        if (studentsList.length > 0) {
-          const studentIds = studentsList.map(s => s.id);
-          const { startDate: earningStart, endDate: earningEnd } = getDateRange();
-          
-          // Query 1: Earnings for all selected students
-          const { data: earningsData, error: earningsError } = await supabase
-            .from('student_earnings')
-            .select('student_id, amount')
-            .in('student_id', studentIds)
-            .gte('earned_at', earningStart.toISOString())
-            .lte('earned_at', earningEnd.toISOString());
-
-          if (earningsError) {
-            console.error('Leaderboard earnings error:', earningsError);
-          }
-
-          // Query 2: Sessions for the class (or all classes if fallback)
-          let sessionsQuery = supabase
+        if (ownClassData) {
+          const { startDate, endDate } = getDateRange();
+          const { data: ownSessionsData } = await supabase
             .from('sessions')
-            .select('id')
-            .gte('session_date', earningStart.toISOString().split('T')[0])
-            .lte('session_date', earningEnd.toISOString().split('T')[0]);
-          
-          if (classDataName) {
-            sessionsQuery = sessionsQuery.eq('class_batch', classDataName);
+            .select('id, session_date')
+            .eq('class_batch', ownClassData.name)
+            .gte('session_date', startDate.toISOString().split('T')[0])
+            .lte('session_date', endDate.toISOString().split('T')[0]);
+          if (ownSessionsData) {
+            ownSessionsList = ownSessionsData as any[];
           }
-          const { data: sessionsData, error: sessionsError } = await sessionsQuery;
-          if (sessionsError) {
-            console.error('Leaderboard sessions error:', sessionsError);
-          }
-
-          let attendanceData: any[] = [];
-          if (sessionsData && sessionsData.length > 0) {
-            const sessionIds = sessionsData.map(s => s.id);
-            const { data: perfData, error: perfError } = await supabase
-              .from('student_performance')
-              .select('attendance_status, student_name')
-              .in('session_id', sessionIds)
-              .eq('attendance_status', 'Present');
-            
-            if (perfError) {
-              console.error('Leaderboard student performance error:', perfError);
-            } else if (perfData) {
-              attendanceData = perfData;
-            }
-          }
-
-          // Aggregate stats
-          const statsMap: Record<string, { id: string; name: string; earnings: number; attendance: number }> = {};
-          const studentNameMap: Record<string, string> = {};
-          studentsList.forEach(s => {
-            statsMap[s.id] = { id: s.id, name: s.name, earnings: 0, attendance: 0 };
-            studentNameMap[s.name.toLowerCase().trim()] = s.id;
-          });
-
-          // Process Earnings
-          earningsData?.forEach(item => {
-            const amount = parseFloat(item.amount as any) || 0;
-            if (statsMap[item.student_id]) {
-              statsMap[item.student_id].earnings += amount;
-            }
-          });
-
-          // Process Attendance
-          attendanceData?.forEach(record => {
-            if (!record.student_name) return;
-            const nameKey = record.student_name.toLowerCase().trim();
-            const sId = studentNameMap[nameKey];
-            if (sId && statsMap[sId]) {
-              statsMap[sId].attendance += 1;
-            }
-          });
-
-          const aggregatedList = Object.values(statsMap);
-          setClassStudentsList(aggregatedList);
-
-          // Set top student metric (remains for state support if needed)
-          let bestStudentName = '';
-          let bestStudentEarnings = -1;
-
-          aggregatedList.forEach(s => {
-            if (s.earnings > bestStudentEarnings) {
-              bestStudentEarnings = s.earnings;
-              bestStudentName = s.name;
-            }
-          });
-
-          if (bestStudentEarnings > 0 && bestStudentName) {
-            setTopStudent({ name: bestStudentName, earnings: bestStudentEarnings });
-          } else {
-            setTopStudent(null);
-          }
-        } else {
-          setClassStudentsList([]);
-          setTopStudent(null);
         }
-      } catch (err) {
-        console.error('Error fetching class students stats:', err);
-        setClassStudentsList([]);
-        setTopStudent(null);
       }
 
-      // Calculate attendance rate
-      if (activeStudentName && sessionsDataList.length > 0) {
+      if (activeStudentName && ownSessionsList.length > 0) {
         const { data: perfData } = await supabase
-          .from('student_performance' as any)
+          .from('student_performance')
           .select('session_id, attendance_status')
-          .ilike('student_name', profileData.full_name.trim());
+          .ilike('student_name', activeStudentName.trim());
 
         if (perfData) {
           const now = new Date();
           const currentYear = now.getFullYear();
           const currentMonth = now.getMonth();
 
-          const currentMonthSessions = sessionsDataList.filter(s => {
+          const currentMonthSessions = ownSessionsList.filter(s => {
             const date = new Date(s.session_date);
             return date.getFullYear() === currentYear && date.getMonth() === currentMonth;
           });
@@ -368,7 +433,6 @@ export default function StudentDashboard() {
       }
     } catch (error) {
       console.error('Error loading student data:', error);
-      toast.error('Failed to load your tasks');
     } finally {
       setLoading(false);
     }
@@ -389,13 +453,53 @@ export default function StudentDashboard() {
   return (
     <DashboardLayout>
       <div className="max-w-7xl mx-auto space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">My Dashboard</h1>
-          <p className="text-sm text-muted-foreground">Welcome, {studentName}</p>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">My Dashboard</h1>
+            <p className="text-sm text-muted-foreground">Welcome, {studentName}</p>
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Batch Filter */}
+            <div className="flex flex-col bg-card border border-border px-3 py-1.5 rounded-lg justify-center h-[58px] min-w-[150px]">
+              <label className="text-[10px] text-muted-foreground font-semibold">BATCH / CLASS</label>
+              <Select 
+                value={selectedClassId} 
+                onValueChange={setSelectedClassId}
+              >
+                <SelectTrigger className="h-7 border-none bg-transparent focus:ring-0 text-sm font-semibold p-0 shadow-none hover:bg-transparent">
+                  <SelectValue placeholder="Select Batch" />
+                </SelectTrigger>
+                <SelectContent>
+                  {classList.filter(c => c.id === ownClassId).map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Type Filter */}
+            <div className="flex flex-col bg-card border border-border px-3 py-1.5 rounded-lg justify-center h-[58px] min-w-[120px]">
+              <label className="text-[10px] text-muted-foreground font-semibold">TYPE</label>
+              <Select 
+                value={selectedType} 
+                onValueChange={setSelectedType}
+              >
+                <SelectTrigger className="h-7 border-none bg-transparent focus:ring-0 text-sm font-semibold p-0 shadow-none hover:bg-transparent">
+                  <SelectValue placeholder="Select Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ownType}>{ownType}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
           <Card className="bg-card border-border/50 shadow-sm overflow-hidden border-l-4 border-l-primary">
             <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
               <CardTitle className="text-sm font-medium text-muted-foreground">Total Tasks</CardTitle>
@@ -450,15 +554,31 @@ export default function StudentDashboard() {
               <p className="text-xs text-muted-foreground mt-1">{attendanceDetails} this month</p>
             </CardContent>
           </Card>
+
+          <Card className="bg-card border-border/50 shadow-sm overflow-hidden border-l-4 border-l-orange-500">
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Course Completion</CardTitle>
+              <CheckCircle2 className="h-4 w-4 text-orange-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{courseCompletion}%</div>
+              <div className="w-full bg-muted rounded-full h-1.5 mt-2">
+                <div 
+                  className="bg-orange-500 h-1.5 rounded-full transition-all duration-500" 
+                  style={{ width: `${courseCompletion}%` }}
+                />
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Class Top Students List Widget */}
+        {/* Class Top Performers List Widget */}
         <div className="max-w-md mt-6">
           <Card className="border-border/50 shadow-sm bg-card">
             <CardHeader className="pb-2">
               <CardTitle className="text-lg font-semibold flex items-center gap-2">
                 <Trophy className="h-5 w-5 text-amber-500" />
-                Class Top Students
+                Class Top Performers
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -466,9 +586,9 @@ export default function StudentDashboard() {
                 <p className="text-center text-sm text-muted-foreground py-8">No student data found.</p>
               ) : (
                 <Tabs defaultValue="earnings" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2 mb-4">
-                    <TabsTrigger value="earnings">By Earnings</TabsTrigger>
-                    <TabsTrigger value="attendance">By Attendance</TabsTrigger>
+                  <TabsList className="flex w-full mb-4 bg-muted/60 p-1 rounded-xl">
+                    <TabsTrigger value="earnings" className="flex-1 rounded-lg">By Earnings</TabsTrigger>
+                    <TabsTrigger value="attendance" className="flex-1 rounded-lg">By Attendance</TabsTrigger>
                   </TabsList>
                   
                   <TabsContent value="earnings" className="space-y-4">
@@ -481,15 +601,32 @@ export default function StudentDashboard() {
                           .slice(0, classEarnersLimit)
                           .map((student, i) => (
                             <div key={`earn-${student.id}`} className="flex items-center justify-between group">
-                              <div className="flex items-center gap-3">
-                                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-muted text-xs font-bold text-muted-foreground">
-                                  {i + 1}
-                                </span>
-                                <span className="font-medium text-sm group-hover:text-primary transition-colors">{student.name}</span>
+                              <div className="flex items-center gap-3 min-w-0">
+                                {i === 0 && (
+                                  <span className="flex items-center justify-center w-6 h-6 rounded-full bg-amber-100 text-[11px] font-extrabold text-amber-700 border border-amber-200 shrink-0">
+                                    1
+                                  </span>
+                                )}
+                                {i === 1 && (
+                                  <span className="flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 text-[11px] font-extrabold text-slate-700 border border-slate-200 shrink-0">
+                                    2
+                                  </span>
+                                )}
+                                {i === 2 && (
+                                  <span className="flex items-center justify-center w-6 h-6 rounded-full bg-orange-100 text-[11px] font-extrabold text-orange-700 border border-orange-200 shrink-0">
+                                    3
+                                  </span>
+                                )}
+                                {i > 2 && (
+                                  <span className="flex items-center justify-center w-6 h-6 rounded-full bg-muted text-[11px] font-bold text-muted-foreground shrink-0">
+                                    {i + 1}
+                                  </span>
+                                )}
+                                <span className="font-medium text-sm group-hover:text-primary transition-colors truncate" title={student.name}>{student.name}</span>
                               </div>
-                              <div className="flex items-center gap-1.5 text-amber-600 font-bold text-sm bg-amber-50 px-2.5 py-0.5 rounded-full">
+                              <div className="flex items-center gap-1.5 text-amber-600 font-bold text-xs bg-amber-50/85 px-2.5 py-0.5 rounded-full border border-amber-100 shrink-0">
                                 <span>{student.earnings}</span>
-                                <span className="text-[10px] uppercase tracking-wider">Units</span>
+                                <span className="text-[9px] uppercase tracking-wider text-amber-700/80">Units</span>
                               </div>
                             </div>
                           ))}
@@ -532,15 +669,32 @@ export default function StudentDashboard() {
                           .slice(0, classAttendeesLimit)
                           .map((student, i) => (
                             <div key={`att-${student.id}`} className="flex items-center justify-between group">
-                              <div className="flex items-center gap-3">
-                                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-muted text-xs font-bold text-muted-foreground">
-                                  {i + 1}
-                                </span>
-                                <span className="font-medium text-sm group-hover:text-primary transition-colors">{student.name}</span>
+                              <div className="flex items-center gap-3 min-w-0">
+                                {i === 0 && (
+                                  <span className="flex items-center justify-center w-6 h-6 rounded-full bg-amber-100 text-[11px] font-extrabold text-amber-700 border border-amber-200 shrink-0">
+                                    1
+                                  </span>
+                                )}
+                                {i === 1 && (
+                                  <span className="flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 text-[11px] font-extrabold text-slate-700 border border-slate-200 shrink-0">
+                                    2
+                                  </span>
+                                )}
+                                {i === 2 && (
+                                  <span className="flex items-center justify-center w-6 h-6 rounded-full bg-orange-100 text-[11px] font-extrabold text-orange-700 border border-orange-200 shrink-0">
+                                    3
+                                  </span>
+                                )}
+                                {i > 2 && (
+                                  <span className="flex items-center justify-center w-6 h-6 rounded-full bg-muted text-[11px] font-bold text-muted-foreground shrink-0">
+                                    {i + 1}
+                                  </span>
+                                )}
+                                <span className="font-medium text-sm group-hover:text-primary transition-colors truncate" title={student.name}>{student.name}</span>
                               </div>
-                              <div className="flex items-center gap-1.5 text-green-600 font-bold text-sm bg-green-50 px-2.5 py-0.5 rounded-full">
+                              <div className="flex items-center gap-1.5 text-green-600 font-bold text-xs bg-green-50/85 px-2.5 py-0.5 rounded-full border border-green-100 shrink-0">
                                 <span>{student.attendance}</span>
-                                <span className="text-[10px] uppercase tracking-wider">Present</span>
+                                <span className="text-[9px] uppercase tracking-wider text-green-700/80">Present</span>
                               </div>
                             </div>
                           ))}

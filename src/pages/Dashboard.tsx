@@ -65,10 +65,137 @@ export default function Dashboard() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<string>('all');
   const [loading, setLoading] = useState(true);
-  const [customStartDate, setCustomStartDate] = useState<Date | null>(null);
-  const [customEndDate, setCustomEndDate] = useState<Date | null>(null);
   const [userRole, setUserRole] = useState<number | null>(null);
   const { getDateRange, selectedYear } = useAcademicYear();
+
+  const getAcademicYearMonths = (yearStr: string) => {
+    const startYear = parseInt(yearStr.split('-')[0]);
+    const startYearShort = String(startYear).slice(-2);
+    const endYearShort = String(startYear + 1).slice(-2);
+    return [
+      { label: `June ${startYearShort}`, month: 5, year: startYear },
+      { label: 'July', month: 6, year: startYear },
+      { label: 'Aug', month: 7, year: startYear },
+      { label: 'Sept', month: 8, year: startYear },
+      { label: 'Oct', month: 9, year: startYear },
+      { label: 'Nov', month: 10, year: startYear },
+      { label: 'Dec', month: 11, year: startYear },
+      { label: 'Jan', month: 0, year: startYear + 1 },
+      { label: 'Feb', month: 1, year: startYear + 1 },
+      { label: 'Mar', month: 2, year: startYear + 1 },
+      { label: 'Apr', month: 3, year: startYear + 1 },
+      { label: `May ${endYearShort}`, month: 4, year: startYear + 1 },
+    ];
+  };
+
+  const getCurrentMonthValue = (yearStr: string) => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    const months = getAcademicYearMonths(yearStr);
+    const matched = months.find(m => m.month === currentMonth && m.year === currentYear);
+    return matched ? matched.label : months[0].label;
+  };
+
+  const [customStartDate, setCustomStartDate] = useState<Date | null>(() => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    const savedYear = localStorage.getItem('selectedAcademicYear_v2') || '2026-27';
+    const startYear = parseInt(savedYear.split('-')[0]);
+    const months = [
+      { month: 5, year: startYear },
+      { month: 6, year: startYear },
+      { month: 7, year: startYear },
+      { month: 8, year: startYear },
+      { month: 9, year: startYear },
+      { month: 10, year: startYear },
+      { month: 11, year: startYear },
+      { month: 0, year: startYear + 1 },
+      { month: 1, year: startYear + 1 },
+      { month: 2, year: startYear + 1 },
+      { month: 3, year: startYear + 1 },
+      { month: 4, year: startYear + 1 },
+    ];
+    const matched = months.find(m => m.month === currentMonth && m.year === currentYear);
+    if (matched) {
+      return new Date(matched.year, matched.month, 1);
+    }
+    return new Date(startYear, 5, 1);
+  });
+
+  const [customEndDate, setCustomEndDate] = useState<Date | null>(() => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    const savedYear = localStorage.getItem('selectedAcademicYear_v2') || '2026-27';
+    const startYear = parseInt(savedYear.split('-')[0]);
+    const months = [
+      { month: 5, year: startYear },
+      { month: 6, year: startYear },
+      { month: 7, year: startYear },
+      { month: 8, year: startYear },
+      { month: 9, year: startYear },
+      { month: 10, year: startYear },
+      { month: 11, year: startYear },
+      { month: 0, year: startYear + 1 },
+      { month: 1, year: startYear + 1 },
+      { month: 2, year: startYear + 1 },
+      { month: 3, year: startYear + 1 },
+      { month: 4, year: startYear + 1 },
+    ];
+    const matched = months.find(m => m.month === currentMonth && m.year === currentYear);
+    if (matched) {
+      return new Date(matched.year, matched.month + 1, 0, 23, 59, 59);
+    }
+    return new Date(startYear, 6, 0, 23, 59, 59);
+  });
+
+  useEffect(() => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    const startYear = parseInt(selectedYear.split('-')[0]);
+    const months = [
+      { month: 5, year: startYear },
+      { month: 6, year: startYear },
+      { month: 7, year: startYear },
+      { month: 8, year: startYear },
+      { month: 9, year: startYear },
+      { month: 10, year: startYear },
+      { month: 11, year: startYear },
+      { month: 0, year: startYear + 1 },
+      { month: 1, year: startYear + 1 },
+      { month: 2, year: startYear + 1 },
+      { month: 3, year: startYear + 1 },
+      { month: 4, year: startYear + 1 },
+    ];
+    const matched = months.find(m => m.month === currentMonth && m.year === currentYear);
+    if (matched) {
+      setCustomStartDate(new Date(matched.year, matched.month, 1));
+      setCustomEndDate(new Date(matched.year, matched.month + 1, 0, 23, 59, 59));
+    } else {
+      setCustomStartDate(new Date(startYear, 5, 1));
+      setCustomEndDate(new Date(startYear, 6, 0, 23, 59, 59));
+    }
+  }, [selectedYear]);
+
+  const monthsList = getAcademicYearMonths(selectedYear);
+
+  const getSelectedMonthLabel = () => {
+    if (!customStartDate || !customEndDate) return 'all';
+    const startStr = customStartDate.toISOString().split('T')[0];
+    const endStr = customEndDate.toISOString().split('T')[0];
+    for (const m of monthsList) {
+      const monthStart = new Date(m.year, m.month, 1);
+      const monthEnd = new Date(m.year, m.month + 1, 0, 23, 59, 59);
+      if (monthStart.toISOString().split('T')[0] === startStr && 
+          monthEnd.toISOString().split('T')[0] === endStr) {
+        return m.label;
+      }
+    }
+    return 'custom';
+  };
 
   useEffect(() => {
     async function checkUserRole() {
@@ -130,7 +257,9 @@ export default function Dashboard() {
 
       try {
         setLoading(true);
-        const { startDate, endDate } = getDateRange();
+        const { startDate: yrStart, endDate: yrEnd } = getDateRange();
+        const startDate = customStartDate || yrStart;
+        const endDate = customEndDate || yrEnd;
 
         // Fetch user profile first to get role and name
         const { data: profileData } = await supabase
@@ -218,7 +347,7 @@ export default function Dashboard() {
     }
 
     fetchDashboardData();
-  }, [user?.id, selectedYear]);
+  }, [user?.id, selectedYear, customStartDate, customEndDate]);
 
   useEffect(() => {
     async function fetchCurriculumData() {
@@ -287,25 +416,63 @@ export default function Dashboard() {
               Welcome to WesFellow Hub
             </p>
           </div>
-          <div className="flex items-center gap-2 bg-card border border-border p-2 rounded-lg">
-            <div className="flex flex-col">
-              <label className="text-[10px] text-muted-foreground font-semibold px-1">START DATE</label>
-              <input 
-                type="date" 
-                className="bg-transparent text-sm border-0 focus:ring-0 cursor-pointer"
-                value={customStartDate ? customStartDate.toISOString().split('T')[0] : ''}
-                onChange={e => setCustomStartDate(e.target.value ? new Date(e.target.value) : null)}
-              />
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Month Filter */}
+            <div className="flex flex-col bg-card border border-border px-3 py-1.5 rounded-lg justify-center h-[58px] min-w-[140px]">
+              <label className="text-[10px] text-muted-foreground font-semibold">MONTH</label>
+              <Select 
+                value={getSelectedMonthLabel()} 
+                onValueChange={(val) => {
+                  if (val === 'all') {
+                    setCustomStartDate(null);
+                    setCustomEndDate(null);
+                  } else if (val !== 'custom') {
+                    const matched = monthsList.find(m => m.label === val);
+                    if (matched) {
+                      setCustomStartDate(new Date(matched.year, matched.month, 1));
+                      setCustomEndDate(new Date(matched.year, matched.month + 1, 0, 23, 59, 59));
+                    }
+                  }
+                }}
+              >
+                <SelectTrigger className="h-7 border-none bg-transparent focus:ring-0 text-sm font-semibold p-0 shadow-none hover:bg-transparent">
+                  <SelectValue placeholder="Select Month" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Months</SelectItem>
+                  {monthsList.map((m) => (
+                    <SelectItem key={m.label} value={m.label}>
+                      {m.label}
+                    </SelectItem>
+                  ))}
+                  {getSelectedMonthLabel() === 'custom' && (
+                    <SelectItem value="custom">Custom Range</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
             </div>
-            <div className="text-muted-foreground">-</div>
-            <div className="flex flex-col">
-              <label className="text-[10px] text-muted-foreground font-semibold px-1">END DATE</label>
-              <input 
-                type="date" 
-                className="bg-transparent text-sm border-0 focus:ring-0 cursor-pointer"
-                value={customEndDate ? customEndDate.toISOString().split('T')[0] : ''}
-                onChange={e => setCustomEndDate(e.target.value ? new Date(e.target.value) : null)}
-              />
+
+            {/* Custom Date Range */}
+            <div className="flex items-center gap-2 bg-card border border-border p-2 rounded-lg h-[58px]">
+              <div className="flex flex-col">
+                <label className="text-[10px] text-muted-foreground font-semibold px-1">START DATE</label>
+                <input 
+                  type="date" 
+                  className="bg-transparent text-sm border-0 focus:ring-0 cursor-pointer p-0 h-6"
+                  value={customStartDate ? customStartDate.toISOString().split('T')[0] : ''}
+                  onChange={e => setCustomStartDate(e.target.value ? new Date(e.target.value) : null)}
+                />
+              </div>
+              <div className="text-muted-foreground">-</div>
+              <div className="flex flex-col">
+                <label className="text-[10px] text-muted-foreground font-semibold px-1">END DATE</label>
+                <input 
+                  type="date" 
+                  className="bg-transparent text-sm border-0 focus:ring-0 cursor-pointer p-0 h-6"
+                  value={customEndDate ? customEndDate.toISOString().split('T')[0] : ''}
+                  onChange={e => setCustomEndDate(e.target.value ? new Date(e.target.value) : null)}
+                />
+              </div>
             </div>
           </div>
         </div>

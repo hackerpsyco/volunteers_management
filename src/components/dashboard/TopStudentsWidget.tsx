@@ -149,7 +149,7 @@ export function TopStudentsWidget({ startDate, endDate, academicYear }: TopStude
       <CardHeader className="pb-2">
         <CardTitle className="text-lg font-semibold flex items-center gap-2">
           <Trophy className="h-5 w-5 text-amber-500" />
-          Top Students
+          Top Performers
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -165,23 +165,40 @@ export function TopStudentsWidget({ startDate, endDate, academicYear }: TopStude
           <p className="text-center text-sm text-muted-foreground py-8">No student data found for this period.</p>
         ) : (
           <Tabs defaultValue="earnings" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-4">
-              <TabsTrigger value="earnings">By Earnings</TabsTrigger>
-              <TabsTrigger value="attendance">By Attendance</TabsTrigger>
+            <TabsList className="flex w-full mb-4 bg-muted/60 p-1 rounded-xl">
+              <TabsTrigger value="earnings" className="flex-1 rounded-lg">By Earnings</TabsTrigger>
+              <TabsTrigger value="attendance" className="flex-1 rounded-lg">By Attendance</TabsTrigger>
             </TabsList>
             
             <TabsContent value="earnings" className="space-y-4">
               {topEarners.length > 0 ? topEarners.map((student, i) => (
                 <div key={`earn-${student.id}`} className="flex items-center justify-between group">
-                  <div className="flex items-center gap-3">
-                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-muted text-xs font-bold text-muted-foreground">
-                      {i + 1}
-                    </span>
-                    <span className="font-medium text-sm group-hover:text-primary transition-colors">{student.name}</span>
+                  <div className="flex items-center gap-3 min-w-0">
+                    {i === 0 && (
+                      <span className="flex items-center justify-center w-6 h-6 rounded-full bg-amber-100 text-[11px] font-extrabold text-amber-700 border border-amber-200 shrink-0">
+                        1
+                      </span>
+                    )}
+                    {i === 1 && (
+                      <span className="flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 text-[11px] font-extrabold text-slate-700 border border-slate-200 shrink-0">
+                        2
+                      </span>
+                    )}
+                    {i === 2 && (
+                      <span className="flex items-center justify-center w-6 h-6 rounded-full bg-orange-100 text-[11px] font-extrabold text-orange-700 border border-orange-200 shrink-0">
+                        3
+                      </span>
+                    )}
+                    {i > 2 && (
+                      <span className="flex items-center justify-center w-6 h-6 rounded-full bg-muted text-[11px] font-bold text-muted-foreground shrink-0">
+                        {i + 1}
+                      </span>
+                    )}
+                    <span className="font-medium text-sm group-hover:text-primary transition-colors truncate" title={student.name}>{student.name}</span>
                   </div>
-                  <div className="flex items-center gap-1.5 text-amber-600 font-bold text-sm bg-amber-50 px-2.5 py-0.5 rounded-full">
+                  <div className="flex items-center gap-1.5 text-amber-600 font-bold text-xs bg-amber-50/85 px-2.5 py-0.5 rounded-full border border-amber-100 shrink-0">
                     <span>{student.earnings}</span>
-                    <span className="text-[10px] uppercase tracking-wider">Units</span>
+                    <span className="text-[9px] uppercase tracking-wider text-amber-700/80">Units</span>
                   </div>
                 </div>
               )) : <p className="text-sm text-muted-foreground text-center py-4">No earnings found.</p>}
@@ -214,15 +231,32 @@ export function TopStudentsWidget({ startDate, endDate, academicYear }: TopStude
             <TabsContent value="attendance" className="space-y-4">
               {topAttendees.length > 0 ? topAttendees.map((student, i) => (
                 <div key={`att-${student.id}`} className="flex items-center justify-between group">
-                  <div className="flex items-center gap-3">
-                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-muted text-xs font-bold text-muted-foreground">
-                      {i + 1}
-                    </span>
-                    <span className="font-medium text-sm group-hover:text-primary transition-colors">{student.name}</span>
+                  <div className="flex items-center gap-3 min-w-0">
+                    {i === 0 && (
+                      <span className="flex items-center justify-center w-6 h-6 rounded-full bg-amber-100 text-[11px] font-extrabold text-amber-700 border border-amber-200 shrink-0">
+                        1
+                      </span>
+                    )}
+                    {i === 1 && (
+                      <span className="flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 text-[11px] font-extrabold text-slate-700 border border-slate-200 shrink-0">
+                        2
+                      </span>
+                    )}
+                    {i === 2 && (
+                      <span className="flex items-center justify-center w-6 h-6 rounded-full bg-orange-100 text-[11px] font-extrabold text-orange-700 border border-orange-200 shrink-0">
+                        3
+                      </span>
+                    )}
+                    {i > 2 && (
+                      <span className="flex items-center justify-center w-6 h-6 rounded-full bg-muted text-[11px] font-bold text-muted-foreground shrink-0">
+                        {i + 1}
+                      </span>
+                    )}
+                    <span className="font-medium text-sm group-hover:text-primary transition-colors truncate" title={student.name}>{student.name}</span>
                   </div>
-                  <div className="flex items-center gap-1.5 text-green-600 font-bold text-sm bg-green-50 px-2.5 py-0.5 rounded-full">
+                  <div className="flex items-center gap-1.5 text-green-600 font-bold text-xs bg-green-50/85 px-2.5 py-0.5 rounded-full border border-green-100 shrink-0">
                     <span>{student.attendance}</span>
-                    <span className="text-[10px] uppercase tracking-wider">Present</span>
+                    <span className="text-[9px] uppercase tracking-wider text-green-700/80">Present</span>
                   </div>
                 </div>
               )) : <p className="text-sm text-muted-foreground text-center py-4">No attendance records found.</p>}
