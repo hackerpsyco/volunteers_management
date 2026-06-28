@@ -26,6 +26,12 @@ export default function EditProfile() {
     location: '',
   });
 
+  const [isStudent, setIsStudent] = useState(false);
+  const [bankName, setBankName] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [ifscCode, setIfscCode] = useState('');
+  const [isLocked, setIsLocked] = useState(false);
+
   useEffect(() => {
     if (user?.id) {
       loadProfileData();
@@ -56,6 +62,25 @@ export default function EditProfile() {
         });
         if (data.profile_image_url) {
           setProfileImage(data.profile_image_url);
+        }
+
+        // Check if student (role_id = 5)
+        if (data.role_id === 5) {
+          setIsStudent(true);
+
+          // Fetch student record by email
+          const { data: studentRecord } = await supabase
+            .from('students')
+            .select('bank_name, account_number, ifsc_code, allow_profile_edit')
+            .eq('email', data.email)
+            .maybeSingle();
+
+          if (studentRecord) {
+            setBankName(studentRecord.bank_name || '');
+            setAccountNumber(studentRecord.account_number || '');
+            setIfscCode(studentRecord.ifsc_code || '');
+            setIsLocked(studentRecord.allow_profile_edit === false);
+          }
         }
       }
     } catch (error) {
@@ -125,6 +150,29 @@ export default function EditProfile() {
   };
 
   const handleSaveProfile = async () => {
+    if (isLocked) {
+      toast.error('Profile editing is locked by the admin.');
+      return;
+    }
+
+    if (isStudent) {
+      if (accountNumber && accountNumber.trim()) {
+        const accountRegex = /^\d{9,18}$/;
+        if (!accountRegex.test(accountNumber.trim())) {
+          toast.error('Bank Account Number must be between 9 and 18 digits');
+          return;
+        }
+      }
+
+      if (ifscCode && ifscCode.trim()) {
+        const ifscRegex = /^[A-Za-z]{4}0[A-Za-z0-9]{6}$/;
+        if (!ifscRegex.test(ifscCode.trim())) {
+          toast.error('IFSC Code must be an 11-character alphanumeric code (e.g. SBIN0001234)');
+          return;
+        }
+      }
+    }
+
     try {
       setSaving(true);
 
@@ -160,6 +208,25 @@ export default function EditProfile() {
       if (error) {
         console.error('Upsert error:', error);
         throw error;
+      }
+
+      // If student, save bank details to students table
+      if (isStudent && user?.email) {
+        const { error: studentUpdateError } = await supabase
+          .from('students')
+          .update({
+            bank_name: bankName.trim() || null,
+            account_number: accountNumber.trim() || null,
+            ifsc_code: ifscCode.trim() || null,
+            name: profileData.full_name.trim() || undefined,
+            phone_number: profileData.phone.trim() || undefined,
+          })
+          .eq('email', user.email);
+
+        if (studentUpdateError) {
+          console.error('Student update error:', studentUpdateError);
+          throw studentUpdateError;
+        }
       }
 
       toast.success('Profile updated successfully');
@@ -204,6 +271,15 @@ export default function EditProfile() {
             <CardDescription>Update your personal details and profile picture</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            {isLocked && (
+              <div className="p-4 bg-amber-50 border border-amber-250 rounded-lg text-sm text-amber-800 flex gap-2 items-start">
+                <span className="text-base">🔒</span>
+                <div>
+                  <strong className="font-semibold">Profile Editing Locked:</strong> Editing details is currently locked by the admin for your class. You can review your details, but making updates is disabled.
+                </div>
+              </div>
+            )}
+
             {/* Profile Image */}
             <div>
               <Label className="text-sm font-medium mb-3 block">Profile Picture</Label>
@@ -215,12 +291,14 @@ export default function EditProfile() {
                       alt="Profile"
                       className="h-24 w-24 rounded-lg object-cover border border-border"
                     />
-                    <button
-                      onClick={handleRemoveImage}
-                      className="absolute -top-2 -right-2 bg-destructive text-white rounded-full p-1 hover:bg-destructive/90"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
+                    {!isLocked && (
+                      <button
+                        onClick={handleRemoveImage}
+                        className="absolute -top-2 -right-2 bg-destructive text-white rounded-full p-1 hover:bg-destructive/90"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <div className="h-24 w-24 rounded-lg border-2 border-dashed border-border flex items-center justify-center bg-muted/50">
@@ -232,7 +310,7 @@ export default function EditProfile() {
                     type="file"
                     accept="image/*"
                     onChange={handleImageSelect}
-                    disabled={uploading}
+                    disabled={uploading || isLocked}
                     className="cursor-pointer"
                   />
                   <p className="text-xs text-muted-foreground mt-2">
@@ -250,7 +328,7 @@ export default function EditProfile() {
                 type="email"
                 value={user?.email || ''}
                 disabled
-                className="mt-1"
+                className="mt-1 bg-muted/50"
               />
               <p className="text-xs text-muted-foreground mt-1">Email cannot be changed</p>
             </div>
@@ -264,6 +342,7 @@ export default function EditProfile() {
                 placeholder="Enter your full name"
                 value={profileData.full_name}
                 onChange={(e) => setProfileData({ ...profileData, full_name: e.target.value })}
+                disabled={isLocked}
                 className="mt-1"
               />
             </div>
@@ -277,6 +356,7 @@ export default function EditProfile() {
                 placeholder="Enter your phone number"
                 value={profileData.phone}
                 onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
+                disabled={isLocked}
                 className="mt-1"
               />
             </div>
@@ -290,6 +370,7 @@ export default function EditProfile() {
                 placeholder="Enter your location"
                 value={profileData.location}
                 onChange={(e) => setProfileData({ ...profileData, location: e.target.value })}
+                disabled={isLocked}
                 className="mt-1"
               />
             </div>
@@ -302,9 +383,55 @@ export default function EditProfile() {
                 placeholder="Tell us about yourself"
                 value={profileData.bio}
                 onChange={(e) => setProfileData({ ...profileData, bio: e.target.value })}
+                disabled={isLocked}
                 className="mt-1 min-h-[100px]"
               />
             </div>
+
+            {/* Bank Details Section for Students */}
+            {isStudent && (
+              <div className="border-t pt-6 space-y-4">
+                <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">Bank Details</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="bank_name" className="text-sm font-medium">Bank Name</Label>
+                    <Input
+                      id="bank_name"
+                      type="text"
+                      placeholder="e.g. State Bank of India"
+                      value={bankName}
+                      onChange={(e) => setBankName(e.target.value)}
+                      disabled={isLocked}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="account_number" className="text-sm font-medium">Account Number</Label>
+                    <Input
+                      id="account_number"
+                      type="text"
+                      placeholder="e.g. 123456789012"
+                      value={accountNumber}
+                      onChange={(e) => setAccountNumber(e.target.value)}
+                      disabled={isLocked}
+                      className="mt-1 font-mono"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label htmlFor="ifsc_code" className="text-sm font-medium">IFSC Code</Label>
+                    <Input
+                      id="ifsc_code"
+                      type="text"
+                      placeholder="e.g. SBIN0001234"
+                      value={ifscCode}
+                      onChange={(e) => setIfscCode(e.target.value)}
+                      disabled={isLocked}
+                      className="mt-1 font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Action Buttons */}
             <div className="flex gap-3 pt-4">
@@ -312,14 +439,16 @@ export default function EditProfile() {
                 variant="outline"
                 onClick={() => navigate(-1)}
               >
-                Cancel
+                {isLocked ? 'Back' : 'Cancel'}
               </Button>
-              <Button
-                onClick={handleSaveProfile}
-                disabled={saving || uploading}
-              >
-                {saving || uploading ? 'Saving...' : 'Save Changes'}
-              </Button>
+              {!isLocked && (
+                <Button
+                  onClick={handleSaveProfile}
+                  disabled={saving || uploading}
+                >
+                  {saving || uploading ? 'Saving...' : 'Save Changes'}
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>

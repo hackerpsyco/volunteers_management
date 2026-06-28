@@ -134,10 +134,14 @@ export default function AddTask() {
     let query = supabase
       .from('students')
       .select('id, name')
-      .eq('class_id', classId)
-      .order('name');
+      .eq('class_id', classId);
 
-    // academicYear filter removed so all students in the class load
+    if (academicYear) {
+      query = query.eq('academic_year', academicYear);
+    }
+
+    query = query.order('name');
+
     const { data, error } = await query;
     if (!error && data) {
         setStudents(data);
@@ -320,6 +324,23 @@ export default function AddTask() {
                 <p className="text-xs text-muted-foreground">Select which formats students can upload.</p>
               </div>
 
+              <div className="space-y-2">
+                <Label htmlFor="academic_year">Academic Year *</Label>
+                <Select
+                  value={formData.academic_year}
+                  onValueChange={(value) => setFormData({ ...formData, academic_year: value })}
+                >
+                  <SelectTrigger id="academic_year">
+                    <SelectValue placeholder="Select Academic Year" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="2025-26">2025-26</SelectItem>
+                    <SelectItem value="2026-27">2026-27</SelectItem>
+                    <SelectItem value="2027-28">2027-28</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="col-span-1 md:col-span-2 space-y-2">
                 <Label htmlFor="class">Assign to Class *</Label>
                 <Select
@@ -426,22 +447,7 @@ export default function AddTask() {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="academic_year">Academic Year *</Label>
-                <Select
-                  value={formData.academic_year}
-                  onValueChange={(value) => setFormData({ ...formData, academic_year: value })}
-                >
-                  <SelectTrigger id="academic_year">
-                    <SelectValue placeholder="Select Academic Year" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="2025-26">2025-26</SelectItem>
-                    <SelectItem value="2026-27">2026-27</SelectItem>
-                    <SelectItem value="2027-28">2027-28</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* Academic Year field moved up */}
 
               <div className="space-y-2">
                 <Label htmlFor="due_date">Due Date</Label>

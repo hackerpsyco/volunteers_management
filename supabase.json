@@ -3,6 +3,10 @@
     {
       "key": "sync-google-calendar",
       "excludeAuth": true
+    },
+    {
+      "key": "sync-sessions-to-sheet",
+      "excludeAuth": true
     }
   ]
 }

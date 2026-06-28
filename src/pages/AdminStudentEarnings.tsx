@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Wallet, Search, Filter, ArrowUpDown, Pencil, Trash2, TrendingUp, Info } from 'lucide-react';
+import { Wallet, Search, Filter, ArrowUpDown, Pencil, Trash2, TrendingUp, Info, FileSpreadsheet } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -41,6 +41,9 @@ interface StudentEarning {
   designation: string;
   total_earned: number;
   last_earned_at: string | null;
+  bank_name?: string | null;
+  account_number?: string | null;
+  ifsc_code?: string | null;
 }
 
 interface EarningRecord {
@@ -89,6 +92,7 @@ export default function AdminStudentEarnings() {
   const [isEditingConfigs, setIsEditingConfigs] = useState(false);
   const [editingConfigs, setEditingConfigs] = useState<RewardConfig[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
+  const [selectedDesignation, setSelectedDesignation] = useState<string>('all');
   const { selectedYear, getDateRange } = useAcademicYear();
 
   useEffect(() => {
@@ -146,6 +150,9 @@ export default function AdminStudentEarnings() {
           id,
           name,
           designation,
+          bank_name,
+          account_number,
+          ifsc_code,
           classes (name),
           student_earnings (
             amount, 
@@ -177,7 +184,10 @@ export default function AdminStudentEarnings() {
           class_name: s.classes?.name || 'Unassigned',
           designation: s.designation || '-',
           total_earned: total,
-          last_earned_at: lastDate
+          last_earned_at: lastDate,
+          bank_name: s.bank_name || null,
+          account_number: s.account_number || null,
+          ifsc_code: s.ifsc_code || null
         };
       });
 
@@ -291,6 +301,73 @@ export default function AdminStudentEarnings() {
     }
   };
 
+  const handleExportBankFormat = () => {
+    if (selectedMonth === 'all') {
+      toast.warning('Please select a specific month from the dropdown to export payouts.');
+      return;
+    }
+
+    const monthNames = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    const monthLabel = monthNames[parseInt(selectedMonth)];
+
+    const headers = [
+      'Student Name',
+      'Class',
+      'Designation',
+      'Bank Name',
+      'Account Number',
+      'IFSC Code',
+      `Earnings (₹) - ${monthLabel} ${selectedYear}`
+    ];
+
+    const csvRows = [headers.join(',')];
+
+    const escapeCsv = (val: any) => {
+      if (val === null || val === undefined) return '';
+      const str = String(val);
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    let count = 0;
+    sortedStudents.forEach((s) => {
+      if (s.total_earned <= 0) return;
+      count++;
+      const row = [
+        s.student_name,
+        s.class_name,
+        s.designation,
+        s.bank_name || '-',
+        s.account_number || '-',
+        s.ifsc_code || '-',
+        s.total_earned
+      ];
+      csvRows.push(row.map(escapeCsv).join(','));
+    });
+
+    if (count === 0) {
+      toast.error('No earnings found for the selected month.');
+      return;
+    }
+
+    const csvContent = csvRows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `Bank_Payout_${monthLabel}_${selectedYear}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast.success(`Successfully exported payouts for ${count} students`);
+  };
+
   const handleSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc';
     if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
@@ -302,7 +379,8 @@ export default function AdminStudentEarnings() {
   const filteredStudents = studentEarnings.filter(s => {
     const matchesSearch = s.student_name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesClass = selectedClass === 'all' || s.class_name === selectedClass;
-    return matchesSearch && matchesClass;
+    const matchesDesignation = selectedDesignation === 'all' || s.designation === selectedDesignation;
+    return matchesSearch && matchesClass && matchesDesignation;
   });
 
   const sortedStudents = [...filteredStudents].sort((a, b) => {
@@ -334,10 +412,16 @@ export default function AdminStudentEarnings() {
               Monitor and manage rewards earned by students
             </p>
           </div>
-          <Button onClick={() => setIsPotentialModalOpen(true)} className="gap-2 bg-blue-600 hover:bg-blue-700">
-            <TrendingUp className="h-4 w-4" />
-            Set Monthly Potential
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={handleExportBankFormat} className="gap-2 bg-green-600 hover:bg-green-700">
+              <FileSpreadsheet className="h-4 w-4" />
+              Export Bank Format
+            </Button>
+            <Button onClick={() => setIsPotentialModalOpen(true)} className="gap-2 bg-blue-600 hover:bg-blue-700">
+              <TrendingUp className="h-4 w-4" />
+              Set Monthly Potential
+            </Button>
+          </div>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-4">
@@ -349,6 +433,28 @@ export default function AdminStudentEarnings() {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9"
             />
+          </div>
+          <div className="w-full sm:w-48">
+            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+              <SelectTrigger>
+                <SelectValue placeholder="All Months" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Months</SelectItem>
+                <SelectItem value="5">June</SelectItem>
+                <SelectItem value="6">July</SelectItem>
+                <SelectItem value="7">August</SelectItem>
+                <SelectItem value="8">September</SelectItem>
+                <SelectItem value="9">October</SelectItem>
+                <SelectItem value="10">November</SelectItem>
+                <SelectItem value="11">December</SelectItem>
+                <SelectItem value="0">January</SelectItem>
+                <SelectItem value="1">February</SelectItem>
+                <SelectItem value="2">March</SelectItem>
+                <SelectItem value="3">April</SelectItem>
+                <SelectItem value="4">May</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="w-full sm:w-48">
             <Select value={selectedClass} onValueChange={setSelectedClass}>
@@ -377,24 +483,16 @@ export default function AdminStudentEarnings() {
             </Select>
           </div>
           <div className="w-full sm:w-48">
-            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+            <Select value={selectedDesignation} onValueChange={setSelectedDesignation}>
               <SelectTrigger>
-                <SelectValue placeholder="All Months" />
+                <SelectValue placeholder="All Types" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Months</SelectItem>
-                <SelectItem value="5">June</SelectItem>
-                <SelectItem value="6">July</SelectItem>
-                <SelectItem value="7">August</SelectItem>
-                <SelectItem value="8">September</SelectItem>
-                <SelectItem value="9">October</SelectItem>
-                <SelectItem value="10">November</SelectItem>
-                <SelectItem value="11">December</SelectItem>
-                <SelectItem value="0">January</SelectItem>
-                <SelectItem value="1">February</SelectItem>
-                <SelectItem value="2">March</SelectItem>
-                <SelectItem value="3">April</SelectItem>
-                <SelectItem value="4">May</SelectItem>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="1 Certified computer course">1 Certified computer course</SelectItem>
+                <SelectItem value="2 Certified computer course_EMP">2 Certified computer course_EMP</SelectItem>
+                <SelectItem value="3 WES Intern/Junior Fellow">3 WES Intern/Junior Fellow</SelectItem>
+                <SelectItem value="4 WES Senior Fellow">4 WES Senior Fellow</SelectItem>
               </SelectContent>
             </Select>
           </div>

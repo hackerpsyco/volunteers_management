@@ -40,6 +40,7 @@ export function AddClassDialog({ open, onOpenChange, onSuccess }: AddClassDialog
   const [customClass, setCustomClass] = useState('');
   const [email, setEmail] = useState('');
   const [isManual, setIsManual] = useState(false);
+  const [allowProfileEdit, setAllowProfileEdit] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const handleAdd = async () => {
@@ -63,6 +64,7 @@ export function AddClassDialog({ open, onOpenChange, onSuccess }: AddClassDialog
           name: className,
           description: className,
           email: email.trim(), // ✅ Added email
+          allow_profile_edit: allowProfileEdit,
         },
       ]);
 
@@ -74,6 +76,7 @@ export function AddClassDialog({ open, onOpenChange, onSuccess }: AddClassDialog
       setCustomClass('');
       setEmail('');
       setIsManual(false);
+      setAllowProfileEdit(true);
 
       onOpenChange(false);
       onSuccess();
@@ -95,6 +98,7 @@ export function AddClassDialog({ open, onOpenChange, onSuccess }: AddClassDialog
     setCustomClass('');
     setEmail('');
     setIsManual(false);
+    setAllowProfileEdit(true);
     onOpenChange(false);
   };
 
@@ -180,6 +184,20 @@ export function AddClassDialog({ open, onOpenChange, onSuccess }: AddClassDialog
               onChange={(e) => setEmail(e.target.value)}
               className="mt-2"
             />
+          </div>
+
+          {/* Allow Student Profile Editing Toggle */}
+          <div className="flex items-center space-x-2 pt-1">
+            <input
+              id="allow-profile-edit"
+              type="checkbox"
+              checked={allowProfileEdit}
+              onChange={(e) => setAllowProfileEdit(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+            />
+            <Label htmlFor="allow-profile-edit" className="text-sm font-medium cursor-pointer">
+              Allow students to edit their profile
+            </Label>
           </div>
         </div>
 

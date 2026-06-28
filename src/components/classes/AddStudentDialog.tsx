@@ -46,6 +46,9 @@ export function AddStudentDialog({
     subject: '',
     academic_year: '',
     designation: '',
+    bank_name: '',
+    account_number: '',
+    ifsc_code: '',
   });
 
   const handleAddStudent = async () => {
@@ -62,6 +65,24 @@ export function AddStudentDialog({
     if (!emailRegex.test(newStudent.email.trim())) {
       toast.error('Please enter a valid email address');
       return;
+    }
+
+    // Bank Account validation if provided
+    if (newStudent.account_number.trim()) {
+      const accountRegex = /^\d{9,18}$/;
+      if (!accountRegex.test(newStudent.account_number.trim())) {
+        toast.error('Bank Account Number must be between 9 and 18 digits');
+        return;
+      }
+    }
+
+    // IFSC Code validation if provided
+    if (newStudent.ifsc_code.trim()) {
+      const ifscRegex = /^[A-Za-z]{4}0[A-Za-z0-9]{6}$/;
+      if (!ifscRegex.test(newStudent.ifsc_code.trim())) {
+        toast.error('IFSC Code must be an 11-character alphanumeric code (e.g. SBIN0001234)');
+        return;
+      }
     }
 
     try {
@@ -96,6 +117,9 @@ export function AddStudentDialog({
           subject: newStudent.subject || null,
           academic_year: newStudent.academic_year || null,
           designation: newStudent.designation || null,
+          bank_name: newStudent.bank_name.trim() || null,
+          account_number: newStudent.account_number.trim() || null,
+          ifsc_code: newStudent.ifsc_code.trim() || null,
         },
       ]);
 
@@ -137,6 +161,9 @@ export function AddStudentDialog({
         subject: '',
         academic_year: '',
         designation: '',
+        bank_name: '',
+        account_number: '',
+        ifsc_code: '',
       });
       onOpenChange(false);
       onSuccess();
@@ -164,6 +191,9 @@ export function AddStudentDialog({
       subject: '',
       academic_year: '',
       designation: '',
+      bank_name: '',
+      account_number: '',
+      ifsc_code: '',
     });
     onOpenChange(false);
   };
@@ -349,6 +379,43 @@ export function AddStudentDialog({
                   <SelectItem value="4 WES Senior Fellow">4 WES Senior Fellow</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+          </div>
+
+          {/* Bank Details Section */}
+          <div className="border-t pt-4 space-y-3">
+            <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">Bank Details</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="bank_name" className="text-sm">Bank Name</Label>
+                <Input
+                  id="bank_name"
+                  placeholder="e.g. State Bank of India"
+                  value={newStudent.bank_name}
+                  onChange={(e) => setNewStudent({ ...newStudent, bank_name: e.target.value })}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="account_number" className="text-sm">Account Number</Label>
+                <Input
+                  id="account_number"
+                  placeholder="e.g. 123456789012"
+                  value={newStudent.account_number}
+                  onChange={(e) => setNewStudent({ ...newStudent, account_number: e.target.value })}
+                  className="mt-1"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <Label htmlFor="ifsc_code" className="text-sm">IFSC Code</Label>
+                <Input
+                  id="ifsc_code"
+                  placeholder="e.g. SBIN0001234"
+                  value={newStudent.ifsc_code}
+                  onChange={(e) => setNewStudent({ ...newStudent, ifsc_code: e.target.value })}
+                  className="mt-1"
+                />
+              </div>
             </div>
           </div>
         </div>

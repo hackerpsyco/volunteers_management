@@ -6,6 +6,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 
 import {
   Table,
@@ -47,6 +48,7 @@ import { toast } from 'sonner';
 
 import { AddClassDialog } from '@/components/classes/AddClassDialog';
 import { EditClassDialog } from '@/components/classes/EditClassDialog';
+import { useAcademicYear } from '@/contexts/AcademicYearContext';
 import { BulkStudentImportDialog } from '@/components/classes/BulkStudentImportDialog';
 
 interface Class {
@@ -57,10 +59,12 @@ interface Class {
   created_at: string;
   updated_at: string;
   student_count?: number;
+  allow_profile_edit?: boolean;
 }
 
 export default function Classes() {
   const navigate = useNavigate();
+  const { selectedYear } = useAcademicYear();
 
   const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,7 +82,7 @@ export default function Classes() {
 
   useEffect(() => {
     fetchClasses();
-  }, []);
+  }, [selectedYear]);
 
   const fetchClasses = async () => {
     try {
@@ -86,18 +90,19 @@ export default function Classes() {
 
       const { data, error } = await supabase
         .from('classes')
-        .select('id, name, description, email, created_at, updated_at')
+        .select('id, name, description, email, allow_profile_edit, created_at, updated_at')
         .order('name', { ascending: true });
 
       if (error) throw error;
 
-      // Fetch student count for each class
+      // Fetch student count for each class, filtered by academic year
       const classesWithCounts = await Promise.all(
         (data || []).map(async (classItem) => {
           const { count, error: countError } = await supabase
             .from('students')
             .select('*', { count: 'exact', head: true })
-            .eq('class_id', classItem.id);
+            .eq('class_id', classItem.id)
+            .eq('academic_year', selectedYear);
 
           return {
             ...classItem,
@@ -203,6 +208,7 @@ export default function Classes() {
                     <TableHead>Class Name</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Total Students</TableHead>
+                    <TableHead>Profile Edit</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead className="w-[60px]">Actions</TableHead>
                   </TableRow>
@@ -224,6 +230,18 @@ export default function Classes() {
                           <Users className="h-4 w-4" />
                           {classItem.student_count || 0}
                         </span>
+                      </TableCell>
+
+                      <TableCell>
+                        {classItem.allow_profile_edit !== false ? (
+                          <Badge variant="outline" className="bg-green-50 text-green-700 hover:bg-green-100 border-green-200">
+                            🔓 Unlocked
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="bg-red-50 text-red-700 hover:bg-red-100 border-red-200">
+                            🔒 Locked
+                          </Badge>
+                        )}
                       </TableCell>
 
                       <TableCell>

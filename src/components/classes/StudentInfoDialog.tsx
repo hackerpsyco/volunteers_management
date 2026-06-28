@@ -133,6 +133,72 @@ export function StudentInfoDialog({ open, onOpenChange, student }: StudentInfoDi
 
             <Card>
               <CardContent className="pt-6">
+                <h3 className="font-semibold mb-3">Personal Details</h3>
+                <div className="grid grid-cols-2 gap-y-3 gap-x-6 text-sm mb-4">
+                  <div>
+                    <span className="text-muted-foreground block text-xs">Email</span>
+                    <span className="font-medium text-foreground">{student.email || '-'}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block text-xs">Phone</span>
+                    <span className="font-medium text-foreground">{student.phone_number || '-'}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block text-xs">Gender</span>
+                    <span className="font-medium text-foreground">{student.gender || '-'}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block text-xs">DOB</span>
+                    <span className="font-medium text-foreground">
+                      {student.dob ? new Date(student.dob).toLocaleDateString() : '-'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block text-xs">Designation</span>
+                    <span className="font-medium text-foreground">{student.designation || '-'}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block text-xs">Subject</span>
+                    <span className="font-medium text-foreground">{student.subject || '-'}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block text-xs">Location</span>
+                    <span className="font-medium text-foreground">{student.location || '-'}</span>
+                  </div>
+                </div>
+                {student.bio && (
+                  <div className="border-t pt-3 mt-3">
+                    <span className="text-muted-foreground block text-xs mb-1">Bio</span>
+                    <p className="text-sm text-foreground italic bg-muted/30 p-2.5 rounded-lg border border-border/50">
+                      "{student.bio}"
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="pt-6">
+                <h3 className="font-semibold mb-3">Bank Account Details</h3>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <div className="text-sm text-muted-foreground">Bank Name</div>
+                    <div className="text-base font-bold">{student.bank_name || '-'}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-muted-foreground">Account Number</div>
+                    <div className="text-base font-bold font-mono">{student.account_number || '-'}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-muted-foreground">IFSC Code</div>
+                    <div className="text-base font-bold font-mono">{student.ifsc_code || '-'}</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="pt-6">
                 <h3 className="font-semibold mb-4">Task & Earnings Summary</h3>
                 <div className="grid grid-cols-3 gap-4 text-center">
                   <div>

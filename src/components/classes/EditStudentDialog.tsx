@@ -33,6 +33,10 @@ interface Student {
   subject: string | null;
   academic_year: string | null;
   designation: string | null;
+  bank_name?: string | null;
+  account_number?: string | null;
+  ifsc_code?: string | null;
+  allow_profile_edit?: boolean;
 }
 
 interface EditStudentDialogProps {
@@ -65,6 +69,24 @@ export function EditStudentDialog({
       return;
     }
 
+    // Bank Account validation if provided
+    if (editedStudent.account_number && editedStudent.account_number.trim()) {
+      const accountRegex = /^\d{9,18}$/;
+      if (!accountRegex.test(editedStudent.account_number.trim())) {
+        toast.error('Bank Account Number must be between 9 and 18 digits');
+        return;
+      }
+    }
+
+    // IFSC Code validation if provided
+    if (editedStudent.ifsc_code && editedStudent.ifsc_code.trim()) {
+      const ifscRegex = /^[A-Za-z]{4}0[A-Za-z0-9]{6}$/;
+      if (!ifscRegex.test(editedStudent.ifsc_code.trim())) {
+        toast.error('IFSC Code must be an 11-character alphanumeric code (e.g. SBIN0001234)');
+        return;
+      }
+    }
+
     try {
       setSaving(true);
       const { error } = await (supabase as any)
@@ -79,6 +101,10 @@ export function EditStudentDialog({
           subject: editedStudent.subject || null,
           academic_year: editedStudent.academic_year || null,
           designation: editedStudent.designation || null,
+          bank_name: editedStudent.bank_name ? editedStudent.bank_name.trim() : null,
+          account_number: editedStudent.account_number ? editedStudent.account_number.trim() : null,
+          ifsc_code: editedStudent.ifsc_code ? editedStudent.ifsc_code.trim() : null,
+          allow_profile_edit: editedStudent.allow_profile_edit !== false,
         })
         .eq('id', editedStudent.id);
 
@@ -326,6 +352,57 @@ export function EditStudentDialog({
                   <SelectItem value="4 WES Senior Fellow">4 WES Senior Fellow</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+          </div>
+
+          {/* Allow Profile Edit Toggle */}
+          <div className="flex items-center space-x-2 pt-2 pb-1">
+            <input
+              id="allow-profile-edit"
+              type="checkbox"
+              checked={editedStudent.allow_profile_edit !== false}
+              onChange={(e) => setEditedStudent({ ...editedStudent, allow_profile_edit: e.target.checked })}
+              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+            />
+            <Label htmlFor="allow-profile-edit" className="text-sm font-medium cursor-pointer">
+              Allow student to edit their profile details
+            </Label>
+          </div>
+
+          {/* Bank Details Section */}
+          <div className="border-t pt-4 space-y-3">
+            <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">Bank Details</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="bank_name" className="text-sm">Bank Name</Label>
+                <Input
+                  id="bank_name"
+                  placeholder="e.g. State Bank of India"
+                  value={editedStudent.bank_name || ''}
+                  onChange={(e) => setEditedStudent({ ...editedStudent, bank_name: e.target.value || null })}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="account_number" className="text-sm">Account Number</Label>
+                <Input
+                  id="account_number"
+                  placeholder="e.g. 123456789012"
+                  value={editedStudent.account_number || ''}
+                  onChange={(e) => setEditedStudent({ ...editedStudent, account_number: e.target.value || null })}
+                  className="mt-1"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <Label htmlFor="ifsc_code" className="text-sm">IFSC Code</Label>
+                <Input
+                  id="ifsc_code"
+                  placeholder="e.g. SBIN0001234"
+                  value={editedStudent.ifsc_code || ''}
+                  onChange={(e) => setEditedStudent({ ...editedStudent, ifsc_code: e.target.value || null })}
+                  className="mt-1"
+                />
+              </div>
             </div>
           </div>
         </div>

@@ -50,6 +50,8 @@ interface TaskItem {
   feedback_type?: string;
   rejection_comment?: string | null;
   feedback_notes?: string | null;
+  volunteer_name?: string;
+  facilitator_name?: string;
 }
 
 interface TaskGroup {
@@ -59,6 +61,8 @@ interface TaskGroup {
   due_date: string;
   academic_year: string;
   class_name: string;
+  volunteer_name?: string;
+  facilitator_name?: string;
   tasks: TaskItem[];
 }
 
@@ -109,7 +113,7 @@ export default function TaskDetail() {
           rejection_comment,
           feedback_notes,
           students:student_id(name),
-          sessions:session_id(title, class_batch)
+          sessions:session_id(title, class_batch, volunteer_name, facilitator_name)
         `)
         .eq('task_name', decodeURIComponent(taskTitle || ''))
         .eq('academic_year', selectedYear)
@@ -136,6 +140,8 @@ export default function TaskDetail() {
           feedback_type: task.feedback_type || '',
           rejection_comment: task.rejection_comment || null,
           feedback_notes: task.feedback_notes || null,
+          volunteer_name: task.sessions?.volunteer_name || '-',
+          facilitator_name: task.sessions?.facilitator_name || '-',
         }));
 
         setTaskGroup({
@@ -145,6 +151,8 @@ export default function TaskDetail() {
           due_date: data[0].deadline || '',
           academic_year: data[0].academic_year || '-',
           class_name: data[0].sessions?.class_batch || '-',
+          volunteer_name: data[0].sessions?.volunteer_name || '-',
+          facilitator_name: data[0].sessions?.facilitator_name || '-',
           tasks: enriched,
         });
       }
@@ -457,6 +465,8 @@ export default function TaskDetail() {
           <h1 className="text-2xl font-bold mb-4">{taskGroup.title}</h1>
           <div className="grid grid-cols-2 gap-y-2 gap-x-8 text-sm">
              <p><strong>Class:</strong> {taskGroup.class_name || '-'}</p>
+             <p><strong>Volunteer:</strong> {taskGroup.volunteer_name || '-'}</p>
+             <p><strong>Facilitator:</strong> {taskGroup.facilitator_name || '-'}</p>
              <p><strong>Year:</strong> {taskGroup.academic_year || '-'}</p>
              <p><strong>Created:</strong> {new Date(taskGroup.created_at).toLocaleDateString()}</p>
              <p><strong>Deadline:</strong> {taskGroup.due_date ? new Date(taskGroup.due_date).toLocaleDateString() : '-'}</p>
@@ -597,10 +607,18 @@ export default function TaskDetail() {
         {/* Task Summary */}
         <Card className="bg-muted/50">
           <CardContent className="pt-6">
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
               <div>
                 <span className="text-sm text-muted-foreground">Class</span>
                 <p className="font-medium">{taskGroup.class_name}</p>
+              </div>
+              <div>
+                <span className="text-sm text-muted-foreground">Volunteer</span>
+                <p className="font-medium text-sm break-all">{taskGroup.volunteer_name || '-'}</p>
+              </div>
+              <div>
+                <span className="text-sm text-muted-foreground">Facilitator</span>
+                <p className="font-medium text-sm break-all">{taskGroup.facilitator_name || '-'}</p>
               </div>
               <div>
                 <span className="text-sm text-muted-foreground">Year</span>

@@ -35,11 +35,31 @@ interface SessionMeeting {
 }
 
 const getStudentType = (designation?: string | null) => {
-  if (!designation) return 'Fellow';
-  const d = designation.toLowerCase();
-  if (d.includes('fellow') || d.includes('intern')) return 'Fellow';
-  if (d.includes('certified') || d.includes('computer') || d.includes('ccc')) return 'CCC';
-  return 'Fellow';
+  if (!designation) return 'None';
+  const d = designation.trim();
+  
+  if (d.includes('1 Certified') || d.toLowerCase().includes('1 certified') || (d.toLowerCase().includes('computer course') && !d.toLowerCase().includes('emp'))) {
+    return '1 Certified computer course';
+  }
+  if (d.includes('2 Certified') || d.toLowerCase().includes('2 certified') || d.toLowerCase().includes('computer course_emp') || d.toLowerCase().includes('emp')) {
+    return '2 Certified computer course_EMP';
+  }
+  if (d.includes('3 WES') || d.toLowerCase().includes('3 wes') || d.toLowerCase().includes('intern') || d.toLowerCase().includes('junior')) {
+    return '3 WES Intern/Junior Fellow';
+  }
+  if (d.includes('4 WES') || d.toLowerCase().includes('4 wes') || d.toLowerCase().includes('senior')) {
+    return '4 WES Senior Fellow';
+  }
+  
+  // Fallback defaults
+  if (d.toLowerCase().includes('fellow') || d.toLowerCase().includes('intern')) {
+    return '3 WES Intern/Junior Fellow';
+  }
+  if (d.toLowerCase().includes('certified') || d.toLowerCase().includes('computer') || d.toLowerCase().includes('ccc')) {
+    return '1 Certified computer course';
+  }
+  
+  return 'None';
 };
 
 export default function StudentDashboard() {
@@ -164,13 +184,7 @@ export default function StudentDashboard() {
           }));
         }
 
-        // Apply selectedType filter
-        if (selectedType && selectedType !== 'all') {
-          studentsList = studentsList.filter(s => {
-            const type = getStudentType(s.designation);
-            return type === selectedType;
-          });
-        }
+        // Do not filter the class leaderboard by designation to show all classmates' earnings (Class Top Performers)
 
         if (studentsList.length > 0) {
           const studentIds = studentsList.map(s => s.id);
@@ -460,38 +474,37 @@ export default function StudentDashboard() {
           </div>
           
           <div className="flex flex-wrap items-center gap-3">
-            {/* Batch Filter */}
+            {/* Batch / Class Plain Text (Not Filter) */}
             <div className="flex flex-col bg-card border border-border px-3 py-1.5 rounded-lg justify-center h-[58px] min-w-[150px]">
               <label className="text-[10px] text-muted-foreground font-semibold">BATCH / CLASS</label>
-              <Select 
-                value={selectedClassId} 
-                onValueChange={setSelectedClassId}
-              >
-                <SelectTrigger className="h-7 border-none bg-transparent focus:ring-0 text-sm font-semibold p-0 shadow-none hover:bg-transparent">
-                  <SelectValue placeholder="Select Batch" />
-                </SelectTrigger>
-                <SelectContent>
-                  {classList.filter(c => c.id === ownClassId).map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <span className="text-sm font-semibold text-foreground mt-0.5">
+                {classList.find(c => c.id === ownClassId)?.name || 'Loading...'}
+              </span>
             </div>
 
-            {/* Type Filter */}
-            <div className="flex flex-col bg-card border border-border px-3 py-1.5 rounded-lg justify-center h-[58px] min-w-[120px]">
-              <label className="text-[10px] text-muted-foreground font-semibold">TYPE</label>
+            {/* Designation Filter */}
+            <div className="flex flex-col bg-card border border-border px-3 py-1.5 rounded-lg justify-center h-[58px] min-w-[220px]">
+              <label className="text-[10px] text-muted-foreground font-semibold">DESIGNATION</label>
               <Select 
                 value={selectedType} 
                 onValueChange={setSelectedType}
               >
                 <SelectTrigger className="h-7 border-none bg-transparent focus:ring-0 text-sm font-semibold p-0 shadow-none hover:bg-transparent">
-                  <SelectValue placeholder="Select Type" />
+                  <SelectValue placeholder="Select Designation" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={ownType}>{ownType}</SelectItem>
+                  <SelectItem value="1 Certified computer course" disabled={ownType !== "1 Certified computer course"}>
+                    1 Certified computer course
+                  </SelectItem>
+                  <SelectItem value="2 Certified computer course_EMP" disabled={ownType !== "2 Certified computer course_EMP"}>
+                    2 Certified computer course_EMP
+                  </SelectItem>
+                  <SelectItem value="3 WES Intern/Junior Fellow" disabled={ownType !== "3 WES Intern/Junior Fellow"}>
+                    3 WES Intern/Junior Fellow
+                  </SelectItem>
+                  <SelectItem value="4 WES Senior Fellow" disabled={ownType !== "4 WES Senior Fellow"}>
+                    4 WES Senior Fellow
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>

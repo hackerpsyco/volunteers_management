@@ -12,6 +12,14 @@ interface RecentReachOut {
 export function VolunteerReachOutStats() {
   const [recentReachOuts, setRecentReachOuts] = useState<RecentReachOut[]>([]);
   const [loading, setLoading] = useState(false);
+  const [expandedRemarks, setExpandedRemarks] = useState<Record<string, boolean>>({});
+
+  const toggleRemark = (key: string) => {
+    setExpandedRemarks(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
 
   useEffect(() => {
     fetchRecentReachOuts();
@@ -96,24 +104,36 @@ export function VolunteerReachOutStats() {
             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
           </div>
         ) : recentReachOuts.length > 0 ? (
-          recentReachOuts.map((item, index) => (
-            <div
-              key={`${item.volunteerId}-${index}`}
-              className="bg-muted/20 border border-border/50 rounded-lg p-2 flex flex-col justify-center hover:bg-muted/30 transition-colors"
-            >
-              <div className="flex justify-between items-center mb-1">
-                <span className="font-medium text-[10px] md:text-xs text-foreground truncate max-w-[150px]">
-                  {item.volunteerName}
-                </span>
-                <span className="text-[9px] md:text-[10px] text-muted-foreground whitespace-nowrap ml-2">
-                  {formatDate(item.timestamp)}
-                </span>
+          recentReachOuts.map((item, index) => {
+            const key = `${item.volunteerId}-${index}`;
+            const isExpanded = !!expandedRemarks[key];
+            return (
+              <div
+                key={key}
+                className="bg-muted/20 border border-border/50 rounded-lg p-2 flex flex-col justify-center hover:bg-muted/30 transition-colors"
+              >
+                <div className="flex justify-between items-center mb-1">
+                  <span className="font-medium text-[10px] md:text-xs text-foreground truncate max-w-[150px]">
+                    {item.volunteerName}
+                  </span>
+                  <span className="text-[9px] md:text-[10px] text-muted-foreground whitespace-nowrap ml-2">
+                    {formatDate(item.timestamp)}
+                  </span>
+                </div>
+                <p className={`text-[10px] md:text-xs text-muted-foreground ${isExpanded ? '' : 'line-clamp-2'}`} title={item.remarkText}>
+                  {item.remarkText}
+                </p>
+                {item.remarkText.length > 60 && (
+                  <button 
+                    onClick={() => toggleRemark(key)}
+                    className="text-[9px] md:text-[10px] text-primary font-semibold hover:underline mt-1 text-left w-fit self-start"
+                  >
+                    {isExpanded ? 'See Less' : 'See More'}
+                  </button>
+                )}
               </div>
-              <p className="text-[10px] md:text-xs text-muted-foreground line-clamp-2" title={item.remarkText}>
-                {item.remarkText}
-              </p>
-            </div>
-          ))
+            );
+          })
         ) : (
           <div className="text-center py-6">
             <p className="text-muted-foreground text-[10px] md:text-xs">No recent reach outs available</p>

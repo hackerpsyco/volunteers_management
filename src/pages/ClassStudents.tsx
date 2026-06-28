@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Plus, Trash2, ArrowLeft, MoreVertical, Edit, ArrowUpRight, Info, Key, UserCog } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, MoreVertical, Edit, ArrowUpRight, Info, Key, UserCog, Lock, Unlock } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -68,6 +68,9 @@ interface Student {
   monitor_name?: string | null;
   joining_year?: string | null;
   promotion_history?: any;
+  bank_name?: string | null;
+  account_number?: string | null;
+  ifsc_code?: string | null;
 }
 
 type SortDirection = 'asc' | 'desc' | null;
@@ -251,6 +254,25 @@ export default function ClassStudents() {
     setIsEditStudentOpen(true);
   };
 
+  const handleToggleProfileLock = async (student: Student) => {
+    try {
+      const newStatus = student.allow_profile_edit === false;
+      
+      const { error } = await supabase
+        .from('students')
+        .update({ allow_profile_edit: newStatus })
+        .eq('id', student.id);
+        
+      if (error) throw error;
+      
+      setStudents(students.map(s => s.id === student.id ? { ...s, allow_profile_edit: newStatus } : s));
+      toast.success(`Profile editing ${newStatus ? 'unlocked' : 'locked'} for ${student.name}`);
+    } catch (error: any) {
+      console.error('Error toggling profile lock:', error);
+      toast.error('Failed to toggle profile lock: ' + (error.message || 'Unknown error'));
+    }
+  };
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -357,6 +379,8 @@ export default function ClassStudents() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-[60px]">Action</TableHead>
+                        <TableHead className="w-[110px]">Profile Edit</TableHead>
                         <TableHead 
                           className="w-[100px] cursor-pointer hover:bg-muted/50 transition-colors"
                           onClick={() => handleColumnSort('student_id')}
@@ -382,34 +406,11 @@ export default function ClassStudents() {
                         <TableHead className="w-[120px]">Subject</TableHead>
                         <TableHead className="w-[120px]">Academic Year</TableHead>
                         <TableHead className="w-[150px]">Designation</TableHead>
-                        <TableHead className="w-[60px]">Action</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredStudents.map((student) => (
                         <TableRow key={student.id}>
-                          <TableCell className="font-medium">{student.student_id}</TableCell>
-                          <TableCell>{student.name}</TableCell>
-                          <TableCell className="text-sm">{student.gender || '-'}</TableCell>
-                          <TableCell className="text-sm">
-                            {student.dob
-                              ? new Date(student.dob).toLocaleDateString()
-                              : '-'}
-                          </TableCell>
-                          <TableCell className="text-sm">{student.email || '-'}</TableCell>
-                          <TableCell className="text-sm">{student.phone_number || '-'}</TableCell>
-                          <TableCell className="text-sm">
-                            {student.monitor_name ? (
-                              <Badge variant="outline" className="font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200">
-                                {student.monitor_name}
-                              </Badge>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-sm">{student.subject || '-'}</TableCell>
-                          <TableCell className="text-sm">{student.academic_year || '-'}</TableCell>
-                          <TableCell className="text-sm">{student.designation || '-'}</TableCell>
                           <TableCell>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -417,7 +418,7 @@ export default function ClassStudents() {
                                   <MoreVertical className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="bg-popover">
+                              <DropdownMenuContent align="start" className="bg-popover">
                                 <DropdownMenuItem onClick={() => {
                                   setSelectedStudentForInfo(student);
                                   setInfoDialogOpen(true);
@@ -440,6 +441,19 @@ export default function ClassStudents() {
                                   <UserCog className="h-4 w-4 mr-2" />
                                   Assign Monitor
                                 </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleToggleProfileLock(student)}>
+                                  {student.allow_profile_edit !== false ? (
+                                    <>
+                                      <Lock className="h-4 w-4 mr-2" />
+                                      Lock Profile Edit
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Unlock className="h-4 w-4 mr-2" />
+                                      Unlock Profile Edit
+                                    </>
+                                  )}
+                                </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => {
                                   setStudentForAuth(student);
                                   setIsAuthDialogOpen(true);
@@ -460,6 +474,39 @@ export default function ClassStudents() {
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </TableCell>
+                          <TableCell className="text-sm">
+                            {student.allow_profile_edit !== false ? (
+                              <Badge variant="outline" className="bg-green-50 text-green-700 hover:bg-green-100 border-green-200">
+                                🔓 Unlocked
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="bg-red-50 text-red-700 hover:bg-red-100 border-red-200">
+                                🔒 Locked
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="font-medium">{student.student_id}</TableCell>
+                          <TableCell>{student.name}</TableCell>
+                          <TableCell className="text-sm">{student.gender || '-'}</TableCell>
+                          <TableCell className="text-sm">
+                            {student.dob
+                              ? new Date(student.dob).toLocaleDateString()
+                              : '-'}
+                          </TableCell>
+                          <TableCell className="text-sm">{student.email || '-'}</TableCell>
+                          <TableCell className="text-sm">{student.phone_number || '-'}</TableCell>
+                          <TableCell className="text-sm">
+                            {student.monitor_name ? (
+                              <Badge variant="outline" className="font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200">
+                                {student.monitor_name}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm">{student.subject || '-'}</TableCell>
+                          <TableCell className="text-sm">{student.academic_year || '-'}</TableCell>
+                          <TableCell className="text-sm">{student.designation || '-'}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>

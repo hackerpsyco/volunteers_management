@@ -494,7 +494,38 @@ export default function Dashboard() {
 
         {/* Status, Volunteer Stats, and Curriculum Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-          {/* Curriculum Categories */}
+          {/* 1. Volunteer Session Stats */}
+          {userRole !== 4 && <VolunteerSessionStats />}
+
+          {/* 2. Top Facilitators */}
+          <TopFacilitatorsWidget startDate={customStartDate || getDateRange().startDate} endDate={customEndDate || getDateRange().endDate} academicYear={selectedYear} />
+
+          {/* 3. Session Status */}
+          <div className="bg-card border border-border rounded-lg p-3 md:p-4">
+            <h2 className="text-base md:text-lg font-bold text-foreground mb-3">Session</h2>
+            <div className="space-y-2">
+              {sessionStatusItems.map((item, index) => (
+                <div key={index} className={`${item.color} rounded-lg p-2 md:p-3 flex justify-between items-center`}>
+                  <span className={`font-medium text-xs md:text-sm ${item.textColor}`}>{item.label}</span>
+                  <span className={`font-bold text-base md:text-lg ${item.textColor}`}>{item.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 4. Volunteer Reach Out */}
+          {userRole !== 4 && <VolunteerReachOutStats />}
+        </div>
+
+        {/* Top Rankings & Attendance Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+          {/* 5. Today's Attendance */}
+          <TodayClassAttendanceWidget />
+
+          {/* 6. Top Performers */}
+          <TopStudentsWidget startDate={customStartDate || getDateRange().startDate} endDate={customEndDate || getDateRange().endDate} academicYear={selectedYear} />
+
+          {/* 7. Curriculum */}
           <div className="bg-card border border-border rounded-lg p-3 md:p-4 flex flex-col">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2">
               <h2 className="text-base md:text-lg font-bold text-foreground">Curriculum</h2>
@@ -530,32 +561,6 @@ export default function Dashboard() {
               )}
             </div>
           </div>
-
-          {/* Session Status */}
-          <div className="bg-card border border-border rounded-lg p-3 md:p-4">
-            <h2 className="text-base md:text-lg font-bold text-foreground mb-3">Session</h2>
-            <div className="space-y-2">
-              {sessionStatusItems.map((item, index) => (
-                <div key={index} className={`${item.color} rounded-lg p-2 md:p-3 flex justify-between items-center`}>
-                  <span className={`font-medium text-xs md:text-sm ${item.textColor}`}>{item.label}</span>
-                  <span className={`font-bold text-base md:text-lg ${item.textColor}`}>{item.value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Volunteer Session Stats */}
-          {userRole !== 4 && <VolunteerSessionStats />}
-
-          {/* Volunteer Reach Out */}
-          {userRole !== 4 && <VolunteerReachOutStats />}
-        </div>
-
-        {/* Top Rankings & Attendance Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-          <TodayClassAttendanceWidget />
-          <TopStudentsWidget startDate={customStartDate || getDateRange().startDate} endDate={customEndDate || getDateRange().endDate} academicYear={selectedYear} />
-          <TopFacilitatorsWidget startDate={customStartDate || getDateRange().startDate} endDate={customEndDate || getDateRange().endDate} academicYear={selectedYear} />
         </div>
 
         {/* Quick Action Buttons */}

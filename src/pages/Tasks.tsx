@@ -61,6 +61,8 @@ interface TaskItem {
   class_name?: string;
   subject_name?: string;
   academic_year?: string;
+  volunteer_name?: string;
+  facilitator_name?: string;
 }
 
 interface TaskGroup {
@@ -71,6 +73,8 @@ interface TaskGroup {
   subject_name: string;
   class_name: string;
   session_title: string;
+  volunteer_name: string;
+  facilitator_name: string;
   academic_year: string;
   reward: number;
   latestCompletionDate: string | null;
@@ -176,6 +180,8 @@ export default function Tasks() {
           subject_name: task.subject_name && task.subject_name !== '-' ? task.subject_name : '-',
           class_name: task.class_name && task.class_name !== '-' ? task.class_name : '-',
           session_title: task.session_title && task.session_title !== '-' ? task.session_title : '-',
+          volunteer_name: task.volunteer_name && task.volunteer_name !== '-' ? task.volunteer_name : '-',
+          facilitator_name: task.facilitator_name && task.facilitator_name !== '-' ? task.facilitator_name : '-',
           academic_year: task.academic_year || '-',
           reward: (task as any).earning_amount || 0,
           latestCompletionDate: null,
@@ -196,6 +202,12 @@ export default function Tasks() {
       }
       if (group.session_title === '-' && task.session_title && task.session_title !== '-') {
         group.session_title = task.session_title;
+      }
+      if (group.volunteer_name === '-' && task.volunteer_name && task.volunteer_name !== '-') {
+        group.volunteer_name = task.volunteer_name;
+      }
+      if (group.facilitator_name === '-' && task.facilitator_name && task.facilitator_name !== '-') {
+        group.facilitator_name = task.facilitator_name;
       }
       if (group.academic_year === '-' && task.academic_year) {
         group.academic_year = task.academic_year;
@@ -305,6 +317,8 @@ export default function Tasks() {
           sessions:session_id(
             title, 
             class_batch,
+            volunteer_name,
+            facilitator_name,
             subjects:subject_id(name)
           )
         `)
@@ -329,6 +343,8 @@ export default function Tasks() {
         earning_amount: task.earning_amount || 0,
         student_name: task.students?.name || '-',
         session_title: task.sessions?.title || '-',
+        volunteer_name: task.sessions?.volunteer_name || '-',
+        facilitator_name: task.sessions?.facilitator_name || '-',
         class_name: task.sessions?.class_batch || 
                    (task.students?.classes && !Array.isArray(task.students.classes) ? task.students.classes.name : 
                     Array.isArray(task.students?.classes) && task.students.classes.length > 0 ? task.students.classes[0].name : '-'),
@@ -583,6 +599,8 @@ export default function Tasks() {
                       <TableHead><div className="flex items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('subject_name')}>Subject <ArrowUpDown className="h-3 w-3" /></div></TableHead>
                       <TableHead><div className="flex items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('class_name')}>Class <ArrowUpDown className="h-3 w-3" /></div></TableHead>
                       <TableHead><div className="flex items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('session_title')}>Session <ArrowUpDown className="h-3 w-3" /></div></TableHead>
+                      <TableHead><div className="flex items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('volunteer_name')}>Volunteer <ArrowUpDown className="h-3 w-3" /></div></TableHead>
+                      <TableHead><div className="flex items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('facilitator_name')}>Facilitator <ArrowUpDown className="h-3 w-3" /></div></TableHead>
                       <TableHead><div className="flex items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('academic_year')}>Year <ArrowUpDown className="h-3 w-3" /></div></TableHead>
                       <TableHead><div className="flex items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('reward')}>Reward <ArrowUpDown className="h-3 w-3" /></div></TableHead>
                       <TableHead><div className="flex items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('due_date')}>Deadline <ArrowUpDown className="h-3 w-3" /></div></TableHead>
@@ -624,6 +642,8 @@ export default function Tasks() {
                             <span className="text-xs text-muted-foreground">-</span>
                           )}
                         </TableCell>
+                        <TableCell className="text-xs whitespace-nowrap">{group.volunteer_name}</TableCell>
+                        <TableCell className="text-xs whitespace-nowrap">{group.facilitator_name}</TableCell>
                         <TableCell className="text-[10px] whitespace-nowrap">{group.academic_year}</TableCell>
                         <TableCell>
                           <Badge variant="secondary" className="bg-purple-50 text-purple-700 border-purple-100 text-[10px]">
