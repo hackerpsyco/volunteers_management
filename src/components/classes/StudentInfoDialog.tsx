@@ -166,14 +166,12 @@ export function StudentInfoDialog({ open, onOpenChange, student }: StudentInfoDi
                     <span className="font-medium text-foreground">{student.location || '-'}</span>
                   </div>
                 </div>
-                {student.bio && (
-                  <div className="border-t pt-3 mt-3">
-                    <span className="text-muted-foreground block text-xs mb-1">Bio</span>
-                    <p className="text-sm text-foreground italic bg-muted/30 p-2.5 rounded-lg border border-border/50">
-                      "{student.bio}"
-                    </p>
-                  </div>
-                )}
+                <div className="border-t pt-3 mt-3">
+                  <span className="text-muted-foreground block text-xs mb-1">Bio</span>
+                  <p className="text-sm text-foreground italic bg-muted/30 p-2.5 rounded-lg border border-border/50">
+                    {student.bio ? `"${student.bio}"` : 'No bio provided'}
+                  </p>
+                </div>
               </CardContent>
             </Card>
 
