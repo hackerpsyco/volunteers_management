@@ -13,6 +13,7 @@ export function VolunteerReachOutStats() {
   const [recentReachOuts, setRecentReachOuts] = useState<RecentReachOut[]>([]);
   const [loading, setLoading] = useState(false);
   const [expandedRemarks, setExpandedRemarks] = useState<Record<string, boolean>>({});
+  const [remarksLimit, setRemarksLimit] = useState(5);
 
   const toggleRemark = (key: string) => {
     setExpandedRemarks(prev => ({
@@ -76,7 +77,7 @@ export function VolunteerReachOutStats() {
 
       allRemarks.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-      setRecentReachOuts(allRemarks.slice(0, 5));
+      setRecentReachOuts(allRemarks);
     } catch (error) {
       console.error('Error fetching reach outs:', error);
     } finally {
@@ -104,7 +105,7 @@ export function VolunteerReachOutStats() {
             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
           </div>
         ) : recentReachOuts.length > 0 ? (
-          recentReachOuts.map((item, index) => {
+          recentReachOuts.slice(0, remarksLimit).map((item, index) => {
             const key = `${item.volunteerId}-${index}`;
             const isExpanded = !!expandedRemarks[key];
             return (
@@ -123,7 +124,7 @@ export function VolunteerReachOutStats() {
                 <p className={`text-[10px] md:text-xs text-muted-foreground ${isExpanded ? '' : 'line-clamp-2'}`} title={item.remarkText}>
                   {item.remarkText}
                 </p>
-                {item.remarkText.length > 60 && (
+                {(item.remarkText.length > 30 || item.remarkText.includes('\n')) && (
                   <button 
                     onClick={() => toggleRemark(key)}
                     className="text-[9px] md:text-[10px] text-primary font-semibold hover:underline mt-1 text-left w-fit self-start"
@@ -137,6 +138,27 @@ export function VolunteerReachOutStats() {
         ) : (
           <div className="text-center py-6">
             <p className="text-muted-foreground text-[10px] md:text-xs">No recent reach outs available</p>
+          </div>
+        )}
+
+        {recentReachOuts.length > 5 && (
+          <div className="flex gap-2 mt-2">
+            {remarksLimit < recentReachOuts.length && (
+              <button 
+                onClick={() => setRemarksLimit(prev => prev + 5)}
+                className="flex-1 py-1 text-[10px] md:text-xs text-primary font-bold hover:bg-primary/5 border border-primary/20 rounded-md transition-colors text-center"
+              >
+                See More
+              </button>
+            )}
+            {remarksLimit > 5 && (
+              <button 
+                onClick={() => setRemarksLimit(prev => Math.max(5, prev - 5))}
+                className="flex-1 py-1 text-[10px] md:text-xs text-muted-foreground font-bold hover:bg-muted/10 border border-border rounded-md transition-colors text-center"
+              >
+                See Less
+              </button>
+            )}
           </div>
         )}
       </div>
