@@ -188,6 +188,11 @@ export default function StudentTasks() {
                   <CardTitle className="text-xl mt-3 group-hover:text-primary transition-colors line-clamp-2">
                     {task.task_name}
                   </CardTitle>
+                  {(task as any).task_id && (
+                    <div className="font-mono text-[10px] text-muted-foreground mt-1.5 bg-muted/60 px-2 py-0.5 rounded w-fit">
+                      {(task as any).task_id}
+                    </div>
+                  )}
                   <CardDescription className="line-clamp-2 mt-1">
                     {task.task_description
                       ? task.task_description.replace(/<[^>]*>/g, '').slice(0, 120) + (task.task_description.length > 120 ? '…' : '')

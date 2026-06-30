@@ -77,6 +77,7 @@ export default function AddTask() {
     submission_types: ['code'],
   });
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
+  const [studentSearchQuery, setStudentSearchQuery] = useState('');
 
   useEffect(() => {
     fetchClasses();
@@ -164,6 +165,20 @@ export default function AddTask() {
       }
 
       const studentsToAssign = selectedStudents.map(id => ({ id }));
+
+      // Check if a task with the same name already exists in this academic year
+      const { data: duplicateCheck, error: duplicateCheckError } = await supabase
+        .from('student_task_feedback')
+        .select('id')
+        .eq('task_name', formData.title)
+        .eq('academic_year', formData.academic_year)
+        .limit(1);
+
+      if (duplicateCheck && duplicateCheck.length > 0) {
+        toast.error('A task with this title already exists in this academic year. Please use a unique title.');
+        setLoading(false);
+        return;
+      }
 
       const d = new Date();
       const yearStr = d.getFullYear();
@@ -390,38 +405,59 @@ export default function AddTask() {
                                 {selectedStudents.length === students.length ? 'Deselect All' : 'Select All'}
                             </Button>
                           </div>
+                          <div className="p-2 border-b">
+                            <Input
+                              type="text"
+                              placeholder="Search students..."
+                              value={studentSearchQuery}
+                              onChange={(e) => setStudentSearchQuery(e.target.value)}
+                              className="h-8 text-xs"
+                            />
+                          </div>
                           <div className="max-h-[250px] overflow-y-auto p-2 space-y-1">
-                            {students.map(student => (
-                              <div key={student.id} className="flex items-center space-x-3 hover:bg-accent hover:text-accent-foreground p-2 rounded-sm cursor-pointer"
-                                onClick={() => {
-                                  if (selectedStudents.includes(student.id)) {
-                                    setSelectedStudents(selectedStudents.filter(id => id !== student.id));
-                                  } else {
-                                    setSelectedStudents([...selectedStudents, student.id]);
-                                  }
-                                }}
-                              >
-                                <Checkbox 
-                                  id={`student-${student.id}`}
-                                  checked={selectedStudents.includes(student.id)}
-                                  onCheckedChange={(checked) => {
-                                      if (checked) {
-                                          setSelectedStudents([...selectedStudents, student.id]);
-                                      } else {
-                                          setSelectedStudents(selectedStudents.filter(id => id !== student.id));
-                                      }
+                            {(() => {
+                              const filtered = students.filter(s => 
+                                s.name.toLowerCase().includes(studentSearchQuery.toLowerCase())
+                              );
+                              if (filtered.length === 0) {
+                                return (
+                                  <div className="text-center py-4 text-xs text-muted-foreground">
+                                    No matching students found
+                                  </div>
+                                );
+                              }
+                              return filtered.map(student => (
+                                <div key={student.id} className="flex items-center space-x-3 hover:bg-accent hover:text-accent-foreground p-2 rounded-sm cursor-pointer"
+                                  onClick={() => {
+                                    if (selectedStudents.includes(student.id)) {
+                                      setSelectedStudents(selectedStudents.filter(id => id !== student.id));
+                                    } else {
+                                      setSelectedStudents([...selectedStudents, student.id]);
+                                    }
                                   }}
-                                  onClick={(e) => e.stopPropagation()}
-                                />
-                                <label 
-                                  htmlFor={`student-${student.id}`}
-                                  className="text-sm font-medium leading-none cursor-pointer flex-1"
-                                  onClick={(e) => e.preventDefault()}
                                 >
-                                  {student.name}
-                                </label>
-                              </div>
-                            ))}
+                                  <Checkbox 
+                                    id={`student-${student.id}`}
+                                    checked={selectedStudents.includes(student.id)}
+                                    onCheckedChange={(checked) => {
+                                        if (checked) {
+                                            setSelectedStudents([...selectedStudents, student.id]);
+                                        } else {
+                                            setSelectedStudents(selectedStudents.filter(id => id !== student.id));
+                                        }
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                  <label 
+                                    htmlFor={`student-${student.id}`}
+                                    className="text-sm font-medium leading-none cursor-pointer flex-1"
+                                    onClick={(e) => e.preventDefault()}
+                                  >
+                                    {student.name}
+                                  </label>
+                                </div>
+                              ));
+                            })()}
                           </div>
                         </PopoverContent>
                       </Popover>

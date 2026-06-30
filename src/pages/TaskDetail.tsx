@@ -78,6 +78,7 @@ export default function TaskDetail() {
   const [verificationComment, setVerificationComment] = useState<string>('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [studentSearchQuery, setStudentSearchQuery] = useState('');
   // Reject dialog state
   const [rejectingTaskId, setRejectingTaskId] = useState<string | null>(null);
   const [rejectionComment, setRejectionComment] = useState('');
@@ -671,9 +672,20 @@ export default function TaskDetail() {
           <CardHeader>
             <CardTitle>Student Details</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            <div>
+              <Input
+                type="text"
+                placeholder="Search student..."
+                value={studentSearchQuery}
+                onChange={(e) => setStudentSearchQuery(e.target.value)}
+                className="max-w-sm h-8 text-xs"
+              />
+            </div>
             <div className="space-y-2">
-              {taskGroup.tasks.map((task) => (
+              {taskGroup.tasks.filter(t => 
+                t.student_name.toLowerCase().includes(studentSearchQuery.toLowerCase())
+              ).map((task) => (
                 <div key={task.id} className="flex flex-col gap-2 p-4 bg-muted/30 rounded border border-border">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex-1">

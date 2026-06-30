@@ -63,6 +63,7 @@ interface TaskItem {
   academic_year?: string;
   volunteer_name?: string;
   facilitator_name?: string;
+  task_id?: string;
 }
 
 interface TaskGroup {
@@ -81,6 +82,7 @@ interface TaskGroup {
   tasks: TaskItem[];
   completedCount: number;
   submittedCount: number;
+  task_id: string;
 }
 
 interface ClassOption {
@@ -174,6 +176,7 @@ export default function Tasks() {
       if (!grouped.has(key)) {
         grouped.set(key, {
           title: task.title,
+          task_id: task.task_id || '-',
           description: task.description,
           created_at: task.created_at,
           due_date: task.due_date,
@@ -192,6 +195,11 @@ export default function Tasks() {
       }
       const group = grouped.get(key)!;
       group.tasks.push(task);
+      
+      // Update group metadata if the current task has better info
+      if (group.task_id === '-' && task.task_id && task.task_id !== '-') {
+        group.task_id = task.task_id;
+      }
       
       // Update group metadata if the current task has better info
       if (group.subject_name === '-' && task.subject_name && task.subject_name !== '-') {
@@ -300,6 +308,7 @@ export default function Tasks() {
         .select(`
           id,
           task_name,
+          task_id,
           task_description,
           deadline,
           submission_link,
@@ -330,6 +339,7 @@ export default function Tasks() {
       const enriched: TaskItem[] = (data || []).map((task: any) => ({
         id: task.id,
         title: task.task_name || '',
+        task_id: task.task_id || '',
         description: task.task_description || '',
         class_id: '',
         session_id: task.session_id || '',
@@ -438,6 +448,9 @@ export default function Tasks() {
     } else if (key === 'created_at' || key === 'due_date') {
       aVal = aVal ? new Date(aVal).getTime() : 0;
       bVal = bVal ? new Date(bVal).getTime() : 0;
+    } else if (key === 'task_id') {
+      aVal = aVal || '';
+      bVal = bVal || '';
     }
 
     if (aVal < bVal) return direction === 'asc' ? -1 : 1;
@@ -594,6 +607,7 @@ export default function Tasks() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead><div className="flex items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('task_id')}>Task ID <ArrowUpDown className="h-3 w-3" /></div></TableHead>
                       <TableHead className="w-[18%]"><div className="flex items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('title')}>Task Name <ArrowUpDown className="h-3 w-3" /></div></TableHead>
                       <TableHead><div className="flex items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('created_at')}>Created <ArrowUpDown className="h-3 w-3" /></div></TableHead>
                       <TableHead><div className="flex items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('subject_name')}>Subject <ArrowUpDown className="h-3 w-3" /></div></TableHead>
@@ -613,6 +627,9 @@ export default function Tasks() {
                   <TableBody>
                     {sortedGroups.map((group) => (
                       <TableRow key={group.title} className="hover:bg-muted/50 transition-colors">
+                        <TableCell className="font-mono text-xs text-muted-foreground whitespace-nowrap">
+                          {group.task_id}
+                        </TableCell>
                         <TableCell className="font-medium">
                           <Link 
                             to={`/tasks/${encodeURIComponent(group.title)}`}

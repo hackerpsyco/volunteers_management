@@ -99,6 +99,7 @@ export default function SessionRecording() {
   const [hoursSubTab, setHoursSubTab] = useState('a');
   const [studentPerformance, setStudentPerformance] = useState<StudentPerformance[]>([]);
   const [studentFormData, setStudentFormData] = useState<{ [key: string]: StudentPerformance }>({});
+  const [performerSearchQuery, setPerformerSearchQuery] = useState('');
   const [formData, setFormData] = useState({
     session_objective: '',
     practical_activities: '',
@@ -1217,6 +1218,20 @@ export default function SessionRecording() {
           return;
         }
 
+        // Check if a task with the same name already exists in this academic year
+        const { data: duplicateCheck, error: duplicateCheckError } = await supabase
+          .from('student_task_feedback')
+          .select('id')
+          .eq('task_name', newHomework.task_name)
+          .eq('academic_year', selectedYear)
+          .limit(1);
+
+        if (duplicateCheck && duplicateCheck.length > 0) {
+          toast.error('A task with this title already exists in this academic year. Please use a unique title.');
+          setSavingHomework(false);
+          return;
+        }
+
         // Generate task ID
         const d = new Date();
         const yearStr = d.getFullYear();
@@ -1926,31 +1941,54 @@ export default function SessionRecording() {
                                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                               </Button>
                             </PopoverTrigger>
-                            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-2 max-h-[300px] overflow-y-auto" align="start">
+                            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-2 max-h-[300px] overflow-y-auto flex flex-col gap-2" align="start">
                               {presentStudents.length === 0 ? (
                                 <p className="text-xs text-muted-foreground p-2">No students marked present. Mark students present in the "Student Performance Feedback" section first.</p>
                               ) : (
-                                <div className="space-y-1">
-                                  {presentStudents.map((student) => {
-                                    const isSelected = selectedPerformerNames.includes(student.name);
-                                      
-                                    return (
-                                      <div
-                                        key={student.id}
-                                        onClick={() => handleTogglePerformer(student.name)}
-                                        className="flex items-center space-x-2 p-2 hover:bg-accent rounded cursor-pointer transition-colors"
-                                      >
-                                        <Checkbox
-                                          checked={isSelected}
-                                          className="pointer-events-none"
-                                        />
-                                        <span className="text-sm font-medium leading-none cursor-pointer flex-grow flex justify-between items-center">
-                                          <span>{student.name}</span>
-                                        </span>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
+                                <>
+                                  <div className="border-b pb-2">
+                                    <Input
+                                      type="text"
+                                      placeholder="Search students..."
+                                      value={performerSearchQuery}
+                                      onChange={(e) => setPerformerSearchQuery(e.target.value)}
+                                      className="h-8 text-xs"
+                                    />
+                                  </div>
+                                  <div className="space-y-1 overflow-y-auto flex-grow">
+                                    {(() => {
+                                      const filtered = presentStudents.filter(s => 
+                                        s.name.toLowerCase().includes(performerSearchQuery.toLowerCase())
+                                      );
+                                      if (filtered.length === 0) {
+                                        return (
+                                          <div className="text-center py-4 text-xs text-muted-foreground">
+                                            No matching students found
+                                          </div>
+                                        );
+                                      }
+                                      return filtered.map((student) => {
+                                        const isSelected = selectedPerformerNames.includes(student.name);
+                                          
+                                        return (
+                                          <div
+                                            key={student.id}
+                                            onClick={() => handleTogglePerformer(student.name)}
+                                            className="flex items-center space-x-2 p-2 hover:bg-accent rounded cursor-pointer transition-colors"
+                                          >
+                                            <Checkbox
+                                              checked={isSelected}
+                                              className="pointer-events-none"
+                                            />
+                                            <span className="text-sm font-medium leading-none cursor-pointer flex-grow flex justify-between items-center">
+                                              <span>{student.name}</span>
+                                            </span>
+                                          </div>
+                                        );
+                                      });
+                                    })()}
+                                  </div>
+                                </>
                               )}
                             </PopoverContent>
                           </Popover>

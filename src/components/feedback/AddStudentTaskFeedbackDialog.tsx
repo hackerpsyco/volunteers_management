@@ -131,6 +131,42 @@ export function AddStudentTaskFeedbackDialog({
     try {
       setSubmitting(true);
 
+      // Get the student's class name to generate a task_id
+      const { data: studentData } = await supabase
+        .from('students')
+        .select('classes(name)')
+        .eq('id', formData.student_id)
+        .single();
+        
+      const className = (studentData as any)?.classes?.name || 'Class';
+      const classNameStr = className.replace(/\s+/g, '');
+      
+      const d = new Date();
+      const yearStr = d.getFullYear();
+      const monthStr = String(d.getMonth() + 1).padStart(2, '0');
+      const prefix = `${yearStr}-${monthStr}-${classNameStr}-`;
+      
+      const { data: existingTasks } = await supabase
+        .from('student_task_feedback')
+        .select('task_id')
+        .like('task_id', `${prefix}%`)
+        .order('task_id', { ascending: false })
+        .limit(1);
+        
+      let nextSeq = 1;
+      if (existingTasks && existingTasks.length > 0 && existingTasks[0].task_id) {
+        const lastId = existingTasks[0].task_id;
+        const lastSeqStr = lastId.split('-').pop();
+        if (lastSeqStr) {
+          const lastSeqNum = parseInt(lastSeqStr, 10);
+          if (!isNaN(lastSeqNum)) {
+            nextSeq = lastSeqNum + 1;
+          }
+        }
+      }
+      const seqStr = String(nextSeq).padStart(3, '0');
+      const generatedTaskId = `${prefix}${seqStr}`;
+
       const { error } = await (supabase as any)
         .from('student_task_feedback')
         .insert({
@@ -138,6 +174,7 @@ export function AddStudentTaskFeedbackDialog({
           student_id: formData.student_id,
           feedback_type: formData.feedback_type,
           task_name: formData.task_name,
+          task_id: generatedTaskId,
           task_description: formData.task_description || null,
           deadline: formData.deadline || null,
           submission_link: formData.submission_link || null,

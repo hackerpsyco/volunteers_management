@@ -25,6 +25,7 @@ interface EarningRecord {
   earned_at: string;
   description: string;
   task_id?: string;
+  task_id_code?: string;
   task_name?: string;
   deadline?: string;
   subject_name?: string;
@@ -129,6 +130,7 @@ export default function StudentEarnings() {
           task_id,
           task:task_id(
             task_name, 
+            task_id,
             deadline,
             subject:subjects(name),
             session:sessions(title)
@@ -149,6 +151,7 @@ export default function StudentEarnings() {
           earned_at: item.earned_at,
           description: item.description,
           task_id: item.task_id,
+          task_id_code: taskData?.task_id,
           task_name: taskData?.task_name,
           deadline: taskData?.deadline,
           subject_name: taskData?.subject?.name,
@@ -319,6 +322,7 @@ export default function StudentEarnings() {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
+                      <TableHead>Task ID</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead>Task / Activity</TableHead>
                       <TableHead>Subject</TableHead>
@@ -342,7 +346,7 @@ export default function StudentEarnings() {
                       if (filtered.length === 0) {
                         return (
                           <TableRow>
-                            <TableCell colSpan={7} className="text-center py-6 text-muted-foreground">
+                            <TableCell colSpan={8} className="text-center py-6 text-muted-foreground">
                               No matching transactions found
                             </TableCell>
                           </TableRow>
@@ -351,6 +355,9 @@ export default function StudentEarnings() {
 
                       return filtered.map((record) => (
                         <TableRow key={record.id} className="hover:bg-muted/30 transition-colors">
+                          <TableCell className="font-mono text-xs text-muted-foreground whitespace-nowrap">
+                            {record.task_id_code || '-'}
+                          </TableCell>
                           <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                             {new Date(record.earned_at).toLocaleDateString()}
                           </TableCell>

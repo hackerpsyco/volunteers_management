@@ -303,11 +303,18 @@ export default function StudentTaskDetail() {
               {statusCfg.label}
             </span>
 
-            {task.academic_year && (
-              <span className="text-xs bg-muted px-2.5 py-1 rounded-full text-muted-foreground font-medium">
-                AY: {task.academic_year}
-              </span>
-            )}
+            <div className="flex gap-2">
+              {task.task_id && (
+                <span className="font-mono text-xs bg-muted px-2.5 py-1 rounded-full text-muted-foreground font-medium">
+                  Task ID: {task.task_id}
+                </span>
+              )}
+              {task.academic_year && (
+                <span className="text-xs bg-muted px-2.5 py-1 rounded-full text-muted-foreground font-medium">
+                  AY: {task.academic_year}
+                </span>
+              )}
+            </div>
           </div>
 
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">

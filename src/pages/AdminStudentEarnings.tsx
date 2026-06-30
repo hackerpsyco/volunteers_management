@@ -210,6 +210,7 @@ export default function AdminStudentEarnings() {
           *,
           student_task_feedback(
             task_name,
+            task_id,
             deadline,
             subjects(name),
             sessions(title)
@@ -575,6 +576,7 @@ export default function AdminStudentEarnings() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>Task ID</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead>Task / Description</TableHead>
                       <TableHead>Subject</TableHead>
@@ -590,7 +592,7 @@ export default function AdminStudentEarnings() {
                       return selectedMonth === 'all' || earnedAt.getMonth().toString() === selectedMonth;
                     }).length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center py-6 text-muted-foreground">
+                        <TableCell colSpan={8} className="text-center py-6 text-muted-foreground">
                           No records found for this student
                         </TableCell>
                       </TableRow>
@@ -602,6 +604,9 @@ export default function AdminStudentEarnings() {
                         })
                         .map((r) => (
                           <TableRow key={r.id}>
+                            <TableCell className="font-mono text-xs text-muted-foreground whitespace-nowrap">
+                              {(r as any).student_task_feedback?.task_id || '-'}
+                            </TableCell>
                             <TableCell className="text-xs">
                               {new Date(r.earned_at).toLocaleDateString()}
                             </TableCell>
