@@ -68,6 +68,7 @@ const navGroups: NavGroup[] = [
     items: [
 
       { title: 'Admin Action', url: '/admin', icon: Shield, requiredRole: 1, studentVisible: false },
+      { title: 'Activity Logs', url: '/activity-logs', icon: FileText, requiredRole: 1, studentVisible: false },
     ],
   },
   {

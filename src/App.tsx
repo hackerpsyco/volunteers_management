@@ -38,6 +38,7 @@ import AdminStudentEarnings from "./pages/AdminStudentEarnings";
 import ClassTaskReview from "@/pages/ClassTaskReview";
 import ClassLeaders from "./pages/ClassLeaders";
 import AddTask from "./pages/AddTask";
+import ActivityLogs from "./pages/ActivityLogs";
 import ResourceHub from "./pages/ResourceHub";
 import NotFound from "./pages/NotFound";
 
@@ -89,6 +90,7 @@ const App = () => (
               <Route path="/tasks/add" element={<AddTask />} />
               <Route path="/resources" element={<ResourceHub />} />
               <Route path="/admin" element={<AdminPanel />} />
+              <Route path="/activity-logs" element={<ActivityLogs />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

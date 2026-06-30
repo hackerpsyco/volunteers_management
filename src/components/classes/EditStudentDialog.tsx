@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { logActivity } from '@/utils/activityLogger';
 
 interface Student {
   id: string;
@@ -109,6 +110,8 @@ export function EditStudentDialog({
         .eq('id', editedStudent.id);
 
       if (error) throw error;
+
+      await logActivity('UPDATE', 'Students', `Updated student details: ${editedStudent.name.trim()} (Email: ${editedStudent.email})`);
       
       // Automatic account creation/update if email is provided
       if (editedStudent.email) {
@@ -346,10 +349,9 @@ export function EditStudentDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">None</SelectItem>
-                  <SelectItem value="1 Certified computer course">1 Certified computer course</SelectItem>
-                  <SelectItem value="2 Certified computer course_EMP">2 Certified computer course_EMP</SelectItem>
-                  <SelectItem value="3 WES Intern/Junior Fellow">3 WES Intern/Junior Fellow</SelectItem>
-                  <SelectItem value="4 WES Senior Fellow">4 WES Senior Fellow</SelectItem>
+                  <SelectItem value="1. CCC">1. CCC</SelectItem>
+                  <SelectItem value="2. Junior Fellow">2. Junior Fellow</SelectItem>
+                  <SelectItem value="3. Senior Fellow">3. Senior Fellow</SelectItem>
                 </SelectContent>
               </Select>
             </div>

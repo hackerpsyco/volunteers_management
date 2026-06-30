@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { logActivity } from '@/utils/activityLogger';
 
 interface EditClassDialogProps {
   open: boolean;
@@ -69,6 +70,8 @@ export function EditClassDialog({
         .eq('id', classData.id);
 
       if (error) throw error;
+
+      await logActivity('UPDATE', 'Classes', `Updated class: ${oldName} to ${newName}`);
 
       // If the class name was changed, update all string references in other tables
       if (oldName && oldName !== newName) {

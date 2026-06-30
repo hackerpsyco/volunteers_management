@@ -56,12 +56,12 @@ export function AssignMonitorDialog({
 
   const fetchMonitors = async () => {
     try {
-      // Fetch students in this class with 'fellow' designation
+      // Fetch students in this class with 'Senior Fellow' designation
       const { data, error } = await supabase
         .from('students')
         .select('id, name, designation')
         .eq('class_id', classId)
-        .eq('designation', '4 WES Senior Fellow');
+        .eq('designation', '3. Senior Fellow');
 
       if (error) throw error;
       setMonitors(data || []);
@@ -78,36 +78,30 @@ export function AssignMonitorDialog({
         .eq('id', student?.id)
         .single();
       
-      if (data?.monitor_id) {
-        setSelectedMonitorId(data.monitor_id);
-      } else {
-        setSelectedMonitorId('none');
-      }
+      if (error) throw error;
+      setSelectedMonitorId(data?.monitor_id || 'none');
     } catch (error) {
       console.error('Error fetching current monitor:', error);
     }
   };
 
-  const handleAssign = async () => {
-    if (!student) return;
-
+  const handleSave = async () => {
     try {
       setSaving(true);
+      const monitorId = selectedMonitorId === 'none' ? null : selectedMonitorId;
       const { error } = await supabase
         .from('students')
-        .update({
-          monitor_id: selectedMonitorId === 'none' ? null : selectedMonitorId
-        })
-        .eq('id', student.id);
+        .update({ monitor_id: monitorId })
+        .eq('id', student?.id);
 
       if (error) throw error;
-
-      toast.success(`Monitor updated for ${student.name}`);
-      onOpenChange(false);
+      
+      toast.success('Class leader assigned successfully');
       onSuccess();
+      onOpenChange(false);
     } catch (error) {
       console.error('Error assigning monitor:', error);
-      toast.error('Failed to assign monitor');
+      toast.error('Failed to assign class leader');
     } finally {
       setSaving(false);
     }
@@ -115,26 +109,26 @@ export function AssignMonitorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[400px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <UserCog className="h-5 w-5 text-primary" />
-            Assign Class Monitor
+            Assign Class Leader
           </DialogTitle>
           <DialogDescription>
-            Select which CR (Senior Fellow) will monitor tasks for <strong>{student?.name}</strong>.
+            Assign a Class Leader (Senior Fellow) for {student?.name}.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="py-4 space-y-4">
+        <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label>Select Monitor (Senior Fellows only)</Label>
+            <Label htmlFor="monitor">Class Leader (Senior Fellow)</Label>
             <Select value={selectedMonitorId} onValueChange={setSelectedMonitorId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a monitor" />
+              <SelectTrigger id="monitor">
+                <SelectValue placeholder="Select monitor" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">No Monitor (Unassigned)</SelectItem>
+                <SelectItem value="none">None</SelectItem>
                 {monitors.map((m) => (
                   <SelectItem key={m.id} value={m.id}>
                     {m.name}
@@ -144,7 +138,7 @@ export function AssignMonitorDialog({
             </Select>
             {monitors.length === 0 && (
               <p className="text-xs text-yellow-600 italic mt-1">
-                No students with '4 WES Senior Fellow' designation found in this class.
+                No students with '3. Senior Fellow' designation found in this class.
               </p>
             )}
           </div>
@@ -154,7 +148,7 @@ export function AssignMonitorDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleAssign} disabled={saving}>
+          <Button onClick={handleSave} disabled={saving}>
             {saving ? 'Assigning...' : 'Save Assignment'}
           </Button>
         </DialogFooter>

@@ -38,6 +38,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
+import { logActivity } from '@/utils/activityLogger';
 import { AddStudentDialog } from '@/components/classes/AddStudentDialog';
 import { EditStudentDialog } from '@/components/classes/EditStudentDialog';
 import { StudentInfoDialog } from '@/components/classes/StudentInfoDialog';
@@ -239,6 +240,9 @@ export default function ClassStudents() {
 
       if (error) throw error;
 
+      const targetStudent = students.find(s => s.id === id);
+      await logActivity('DELETE', 'Students', `Removed student: ${targetStudent ? targetStudent.name : id}`);
+
       setStudents(students.filter((s) => s.id !== id));
       toast.success('Student removed successfully');
       setDeleteDialogOpen(false);
@@ -264,6 +268,8 @@ export default function ClassStudents() {
         .eq('id', student.id);
         
       if (error) throw error;
+      
+      await logActivity(newStatus ? 'UNLOCK' : 'LOCK', 'Students', `${newStatus ? 'Unlocked' : 'Locked'} profile editing for student: ${student.name}`);
       
       setStudents(students.map(s => s.id === student.id ? { ...s, allow_profile_edit: newStatus } : s));
       toast.success(`Profile editing ${newStatus ? 'unlocked' : 'locked'} for ${student.name}`);

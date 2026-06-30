@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Plus, Trash2, Upload, MoreVertical, GraduationCap, FileText, Edit, Film, Search, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { logActivity } from '@/utils/activityLogger';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -225,12 +226,20 @@ export default function Sessions() {
 
   const handleDelete = async (id: string) => {
     try {
+      const targetSession = sessions.find(s => s.id === id);
+      const sessionDetails = targetSession 
+        ? `${targetSession.title} (Date: ${targetSession.session_date}, Class: ${targetSession.class_batch})`
+        : id;
+
       const { error } = await supabase
         .from('sessions')
         .delete()
         .eq('id', id);
 
       if (error) throw error;
+      
+      await logActivity('DELETE', 'Sessions', `Deleted session: ${sessionDetails}`);
+      
       toast.success('Session deleted successfully');
       setSessions(sessions.filter((s) => s.id !== id));
       setDeleteDialogOpen(false);
@@ -258,6 +267,8 @@ export default function Sessions() {
         .eq('id', selectedSession.id);
 
       if (error) throw error;
+      
+      await logActivity('UPDATE', 'Sessions', `Updated session status for "${selectedSession.title}" to: ${newStatus}`);
       
       // Update local state
       setSessions(sessions.map(s => 

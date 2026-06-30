@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Search, Plus, ExternalLink, ClipboardList, ChevronRight, MoreHorizontal, Eye, Trash2, BookOpen, Calendar, ArrowUpDown } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
+import { logActivity } from '@/utils/activityLogger';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -411,6 +412,9 @@ export default function Tasks() {
         .delete()
         .eq('task_name', taskToDelete.title);
       if (error) throw error;
+      
+      await logActivity('DELETE', 'Tasks', `Deleted task: "${taskToDelete.title}"`);
+      
       toast.success('Task deleted successfully');
       setDeleteDialogOpen(false);
       setTaskToDelete(null);

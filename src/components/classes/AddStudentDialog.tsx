@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { logActivity } from '@/utils/activityLogger';
 
 interface AddStudentDialogProps {
   open: boolean;
@@ -124,6 +125,8 @@ export function AddStudentDialog({
       ]);
 
       if (error) throw error;
+
+      await logActivity('CREATE', 'Students', `Created student: ${newStudent.name.trim()} (Email: ${newStudent.email})`);
       
       // Automatically create Supabase Auth account and User Profile via RPC
       try {
@@ -373,10 +376,9 @@ export function AddStudentDialog({
                   <SelectValue placeholder="Select designation" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="1 Certified computer course">1 Certified computer course</SelectItem>
-                  <SelectItem value="2 Certified computer course_EMP">2 Certified computer course_EMP</SelectItem>
-                  <SelectItem value="3 WES Intern/Junior Fellow">3 WES Intern/Junior Fellow</SelectItem>
-                  <SelectItem value="4 WES Senior Fellow">4 WES Senior Fellow</SelectItem>
+                  <SelectItem value="1. CCC">1. CCC</SelectItem>
+                  <SelectItem value="2. Junior Fellow">2. Junior Fellow</SelectItem>
+                  <SelectItem value="3. Senior Fellow">3. Senior Fellow</SelectItem>
                 </SelectContent>
               </Select>
             </div>

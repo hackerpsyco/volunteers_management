@@ -150,10 +150,10 @@ export default function FeedbackDetails() {
 
   const fetchAllStudentsInClass = async () => {
     try {
-      // Get session to find its class batch
+      // Get session to find its class batch and academic year
       const { data: sessionData, error: sessionError } = await supabase
         .from('sessions')
-        .select('class_batch')
+        .select('class_batch, academic_year')
         .eq('id', sessionId)
         .single();
 
@@ -174,12 +174,17 @@ export default function FeedbackDetails() {
         return;
       }
 
-      // Fetch all students from that class
-      const { data: studentsData, error: studentsError } = await supabase
+      // Fetch all students from that class, filtered by session academic year if available
+      let studentQuery = supabase
         .from('students')
         .select('id, name, student_id')
-        .eq('class_id', classData.id)
-        .order('name', { ascending: true });
+        .eq('class_id', classData.id);
+
+      if (sessionData?.academic_year) {
+        studentQuery = studentQuery.eq('academic_year', sessionData.academic_year);
+      }
+
+      const { data: studentsData, error: studentsError } = await studentQuery.order('name', { ascending: true });
 
       if (studentsError) throw studentsError;
 
@@ -345,7 +350,7 @@ export default function FeedbackDetails() {
                   const perfData = studentPerformance.find(sp => (sp.student_name || '').trim() === student.name.trim());
                   if (!perfData || perfData.attendance_status === 'Absent') return null;
 
-                  const finalRating = Math.max(0, (perfData.performance_rating ?? 0) - (perfData.bad_behaviour_points ?? 0));
+                  const finalRating = Math.max(0, ((perfData.questions_asked ?? 0) + (perfData.performance_rating ?? 0) - (perfData.bad_behaviour_points ?? 0)) / 2);
                   
                   return (
                     <tr key={student.id}>
@@ -357,7 +362,7 @@ export default function FeedbackDetails() {
                 })
               ) : (
                 studentPerformance.filter(s => s.attendance_status !== 'Absent').map((student) => {
-                  const finalRating = Math.max(0, (student.performance_rating ?? 0) - (student.bad_behaviour_points ?? 0));
+                  const finalRating = Math.max(0, ((student.questions_asked ?? 0) + (student.performance_rating ?? 0) - (student.bad_behaviour_points ?? 0)) / 2);
                   return (
                     <tr key={student.id}>
                       <td className="border border-gray-300 px-2 py-1">{student.student_name}</td>
@@ -596,7 +601,7 @@ export default function FeedbackDetails() {
                                   <p className="font-semibold">{perfData.questions_asked}</p>
                                 </div>
                                 <div>
-                                  <p className="text-xs text-gray-600">Rating</p>
+                                  <p className="text-xs text-gray-600">Response</p>
                                   <p className="font-semibold">{perfData.performance_rating}/10</p>
                                 </div>
                                 <div>
@@ -605,7 +610,7 @@ export default function FeedbackDetails() {
                                 </div>
                                 <div>
                                   <p className="text-xs text-gray-600">Total</p>
-                                  <p className="font-bold text-blue-600">{Math.max(0, (perfData.performance_rating ?? 0) - (perfData.bad_behaviour_points ?? 0))}/10</p>
+                                  <p className="font-bold text-blue-600">{Math.max(0, ((perfData.questions_asked ?? 0) + (perfData.performance_rating ?? 0) - (perfData.bad_behaviour_points ?? 0)) / 2)}/10</p>
                                 </div>
                               </div>
                             )}
@@ -643,7 +648,7 @@ export default function FeedbackDetails() {
                                 <p className="font-semibold">{student.questions_asked}</p>
                               </div>
                               <div>
-                                <p className="text-xs text-gray-600">Rating</p>
+                                <p className="text-xs text-gray-600">Response</p>
                                 <p className="font-semibold">{student.performance_rating}/10</p>
                               </div>
                               <div>
@@ -652,7 +657,7 @@ export default function FeedbackDetails() {
                               </div>
                               <div>
                                 <p className="text-xs text-gray-600">Total</p>
-                                <p className="font-bold text-blue-600">{Math.max(0, (student.performance_rating ?? 0) - (student.bad_behaviour_points ?? 0))}/10</p>
+                                <p className="font-bold text-blue-600">{Math.max(0, ((student.questions_asked ?? 0) + (student.performance_rating ?? 0) - (student.bad_behaviour_points ?? 0)) / 2)}/10</p>
                               </div>
                             </div>
                             

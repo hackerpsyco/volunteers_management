@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { logActivity } from '@/utils/activityLogger';
 import {
   Dialog,
   DialogContent,
@@ -113,6 +114,7 @@ export default function TaskDetail() {
           feedback_type,
           rejection_comment,
           feedback_notes,
+          created_at,
           students:student_id(name),
           sessions:session_id(title, class_batch, volunteer_name, facilitator_name)
         `)
@@ -123,6 +125,24 @@ export default function TaskDetail() {
       if (error) throw error;
 
       if (data && data.length > 0) {
+        // Calculate the oldest created_at timestamp as the original creation date
+        let oldestCreatedAt = data[0].created_at;
+        data.forEach((task: any) => {
+          if (task.created_at && (!oldestCreatedAt || new Date(task.created_at) < new Date(oldestCreatedAt))) {
+            oldestCreatedAt = task.created_at;
+          }
+        });
+
+        // Calculate the minimum (original) deadline across all assigned students
+        let earliestDeadline = null;
+        data.forEach((task: any) => {
+          if (task.deadline) {
+            if (!earliestDeadline || new Date(task.deadline) < new Date(earliestDeadline)) {
+              earliestDeadline = task.deadline;
+            }
+          }
+        });
+
         const enriched: TaskItem[] = data.map((task: any) => ({
           id: task.id,
           title: task.task_name || '',
@@ -133,7 +153,7 @@ export default function TaskDetail() {
           status: task.status || 'pending',
           submission_link: task.submission_link || '',
           due_date: task.deadline || '',
-          created_at: '',
+          created_at: task.created_at || '',
           student_name: task.students?.name || '-',
           session_title: task.sessions?.title || '-',
           class_name: task.sessions?.class_batch || '-',
@@ -148,8 +168,8 @@ export default function TaskDetail() {
         setTaskGroup({
           title: data[0].task_name,
           description: data[0].task_description || '',
-          created_at: data[0].created_at || new Date().toISOString(),
-          due_date: data[0].deadline || '',
+          created_at: oldestCreatedAt || new Date().toISOString(),
+          due_date: earliestDeadline || data[0].deadline || '',
           academic_year: data[0].academic_year || '-',
           class_name: data[0].sessions?.class_batch || '-',
           volunteer_name: data[0].sessions?.volunteer_name || '-',
@@ -192,6 +212,8 @@ export default function TaskDetail() {
         .select();
 
       if (error) throw error;
+      
+      await logActivity('VERIFY', 'Tasks', `Approved task submission: ${task.title} for student: ${task.student_name} (Points: ${amount})`);
       
       if (!data || data.length === 0) {
         throw new Error('No rows updated. You might not have permission or student mapping is incorrect.');
@@ -326,6 +348,8 @@ export default function TaskDetail() {
 
       if (error) throw error;
       
+      await logActivity('REJECT', 'Tasks', `Rejected task submission: ${task.title} for student: ${task.student_name}. Reason: ${rejectionComment}`);
+      
       if (!data || data.length === 0) {
         throw new Error('No rows updated. You might not have permission.');
       }
@@ -398,6 +422,8 @@ export default function TaskDetail() {
         .eq('id', editingDeadlineTaskId);
 
       if (error) throw error;
+      const targetTask = taskGroup?.tasks.find(t => t.id === editingDeadlineTaskId);
+      await logActivity('UPDATE', 'Tasks', `Updated deadline for task: ${decodeURIComponent(taskTitle || '')} for student: ${targetTask ? targetTask.student_name : editingDeadlineTaskId} to ${editDeadlineValue}`);
       toast.success('Deadline updated successfully!');
       fetchTaskDetail();
       setEditingDeadlineTaskId(null);
@@ -418,6 +444,8 @@ export default function TaskDetail() {
         .eq('academic_year', selectedYear);
 
       if (error) throw error;
+
+      await logActivity('DELETE', 'Tasks', `Deleted task: ${decodeURIComponent(taskTitle || '')}`);
 
       toast.success('Task deleted successfully');
       navigate('/tasks');

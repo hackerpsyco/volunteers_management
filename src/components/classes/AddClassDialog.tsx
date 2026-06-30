@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { logActivity } from '@/utils/activityLogger';
 
 interface AddClassDialogProps {
   open: boolean;
@@ -69,6 +70,8 @@ export function AddClassDialog({ open, onOpenChange, onSuccess }: AddClassDialog
       ]);
 
       if (error) throw error;
+
+      await logActivity('CREATE', 'Classes', `Created class: ${className}`);
 
       toast.success('Class added successfully');
 

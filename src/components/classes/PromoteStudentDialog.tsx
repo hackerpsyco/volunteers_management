@@ -64,9 +64,9 @@ export function PromoteStudentDialog({
       let nextDesignation = student.designation || '';
       if (nextDesignation) {
         const lower = nextDesignation.toLowerCase();
-        if (lower.includes('1 certified')) nextDesignation = '2 Certified computer course_EMP';
-        else if (lower.includes('2 certified')) nextDesignation = '3 WES Intern/Junior Fellow';
-        else if (lower.includes('3 wes intern')) nextDesignation = '4 WES Senior Fellow';
+        if (lower.includes('ccc') || lower.includes('certified') || lower.includes('1')) nextDesignation = '2. Junior Fellow';
+        else if (lower.includes('junior') || lower.includes('intern') || lower.includes('2')) nextDesignation = '3. Senior Fellow';
+        else if (lower.includes('senior') || lower.includes('3')) nextDesignation = '3. Senior Fellow';
       }
       setDesignation(nextDesignation);
     }
@@ -126,10 +126,9 @@ export function PromoteStudentDialog({
                 <SelectValue placeholder="Select designation" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="1 Certified computer course">1 Certified computer course</SelectItem>
-                <SelectItem value="2 Certified computer course_EMP">2 Certified computer course_EMP</SelectItem>
-                <SelectItem value="3 WES Intern/Junior Fellow">3 WES Intern/Junior Fellow</SelectItem>
-                <SelectItem value="4 WES Senior Fellow">4 WES Senior Fellow</SelectItem>
+                <SelectItem value="1. CCC">1. CCC</SelectItem>
+                <SelectItem value="2. Junior Fellow">2. Junior Fellow</SelectItem>
+                <SelectItem value="3. Senior Fellow">3. Senior Fellow</SelectItem>
               </SelectContent>
             </Select>
           </div>

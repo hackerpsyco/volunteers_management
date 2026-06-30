@@ -45,6 +45,7 @@ import {
 
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { logActivity } from '@/utils/activityLogger';
 
 import { AddClassDialog } from '@/components/classes/AddClassDialog';
 import { EditClassDialog } from '@/components/classes/EditClassDialog';
@@ -125,6 +126,9 @@ export default function Classes() {
       const { error } = await supabase.from('classes').delete().eq('id', id);
 
       if (error) throw error;
+
+      const targetClass = classes.find(c => c.id === id);
+      await logActivity('DELETE', 'Classes', `Deleted class: ${targetClass ? targetClass.name : id}`);
 
       toast.success('Class deleted');
       setClasses(classes.filter((c) => c.id !== id));

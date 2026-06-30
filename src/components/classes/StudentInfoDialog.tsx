@@ -88,10 +88,9 @@ export function StudentInfoDialog({ open, onOpenChange, student }: StudentInfoDi
     const designation = student.designation.toLowerCase();
     let yearsToSubtract = 0;
     
-    if (designation.includes('2 certified')) yearsToSubtract = 1;
-    else if (designation.includes('3 wes intern')) yearsToSubtract = 2;
-    else if (designation.includes('4 wes senior')) yearsToSubtract = 3;
-    else if (designation.includes('1 certified')) yearsToSubtract = 0;
+    if (designation.includes('ccc') || designation.includes('1.')) yearsToSubtract = 0;
+    else if (designation.includes('junior') || designation.includes('2.')) yearsToSubtract = 1;
+    else if (designation.includes('senior') || designation.includes('3.')) yearsToSubtract = 2;
     else return '-';
 
     const match = student.academic_year.match(/^(\d{4})-(\d{2})$/);

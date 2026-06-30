@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ArrowLeft, Save, ChevronRight, ChevronLeft, Plus, Trash2, Shield, ExternalLink, Mic, MicOff, Check, ChevronsUpDown, X, Edit, Search, ArrowUpDown } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { logActivity } from '@/utils/activityLogger';
 import { cn } from '@/lib/utils';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -152,8 +153,21 @@ export default function SessionRecording() {
 
   const [isListening, setIsListening] = useState(false);
   const [isEditingHomework, setIsEditingHomework] = useState(false);
+  const [isHomeworkSaved, setIsHomeworkSaved] = useState(false);
   const [isBestPerformerManual, setIsBestPerformerManual] = useState(false);
   const [rewardConfigs, setRewardConfigs] = useState<{ task_type: string, rate_per_task: number }[]>([]);
+
+  useEffect(() => {
+    setIsHomeworkSaved(false);
+  }, [
+    newHomework.task_name,
+    newHomework.task_type,
+    newHomework.custom_task_type,
+    newHomework.deadline,
+    newHomework.earning_amount,
+    newHomework.task_description,
+    JSON.stringify(newHomework.submission_types)
+  ]);
 
   useEffect(() => {
     if (session && rewardConfigs.length > 0 && !newHomework.task_type) {
@@ -230,9 +244,9 @@ export default function SessionRecording() {
   }, [user?.id]);
 
   useEffect(() => {
-    if (isBestPerformerManual || students.length === 0) return;
+    if (students.length === 0) return;
 
-    // Calculate top 3 present students with highest score (Rating - Bad Behaviour)
+    // Calculate top 3 present students with highest score: (Questions + Response - Bad Behaviour) / 2
     const resolved = students.map(student => {
       const formDataForStudent = studentFormData[student.id];
       const dbDataForStudent = studentPerformance.find(sp => (sp.student_name || '').trim() === student.name.trim());
@@ -246,9 +260,9 @@ export default function SessionRecording() {
       };
       
       const rating = Number(perfData.performance_rating) || 0;
-      const badBehaviour = Number((perfData as any).bad_behaviour_points) || 0;
-      const score = Math.max(0, rating - badBehaviour);
+      const badBehaviour = Number(perfData.bad_behaviour_points) || 0;
       const questions = Number(perfData.questions_asked) || 0;
+      const score = Math.max(0, (questions + rating - badBehaviour) / 2);
 
       return {
         name: student.name,
@@ -276,7 +290,7 @@ export default function SessionRecording() {
     if (formData.best_performer !== top3Names) {
       setFormData(prev => ({ ...prev, best_performer: top3Names }));
     }
-  }, [studentFormData, studentPerformance, students, isBestPerformerManual, formData.best_performer]);
+  }, [studentFormData, studentPerformance, students, formData.best_performer]);
 
   const loadUserRole = async () => {
     try {
@@ -771,6 +785,12 @@ export default function SessionRecording() {
 
       if (error) throw error;
 
+      await logActivity(
+        'UPDATE', 
+        'Sessions', 
+        `Submitted/updated feedback for session: "${session?.title}" (Class: ${session?.class_batch}, Role: ${currentPage === 1 ? 'Facilitator' : 'Coordinator'}, Status: ${updateData.status || 'in_progress'})`
+      );
+
       // Update student profiles for best performers in this session
       if (students.length > 0) {
         const sessionDateStr = session?.session_date || new Date().toISOString().split('T')[0];
@@ -1164,6 +1184,26 @@ export default function SessionRecording() {
     }
   };
 
+  const handleSaveTaskSettings = () => {
+    if (!newHomework.task_name.trim()) {
+      toast.error('Please enter a task name');
+      return;
+    }
+
+    if (!newHomework.task_type) {
+      toast.error('Please select a task type');
+      return;
+    }
+
+    if (newHomework.task_type === 'Other' && !newHomework.custom_task_type?.trim()) {
+      toast.error('Please specify the custom task type');
+      return;
+    }
+
+    setIsHomeworkSaved(true);
+    toast.success('Task settings saved! Click "Assign Task" to distribute it to students.');
+  };
+
   const handleSaveHomework = async () => {
     if (!newHomework.task_name.trim()) {
       toast.error('Please enter a task name');
@@ -1207,6 +1247,9 @@ export default function SessionRecording() {
           .eq('session_id', sessionId);
 
         if (error) throw error;
+        
+        await logActivity('UPDATE', 'Tasks', `Updated session homework: "${newHomework.task_name}" for session: "${session?.title}"`);
+        
         toast.success('Homework updated successfully');
         setIsEditingHomework(false);
       } else {
@@ -1282,6 +1325,9 @@ export default function SessionRecording() {
           .insert(homeworkRecords);
 
         if (error) throw error;
+        
+        await logActivity('CREATE', 'Tasks', `Assigned session homework: "${newHomework.task_name}" (Task ID: ${generatedTaskId}) to ${presentStudents.length} present students`);
+        
         toast.success(`Homework assigned to ${presentStudents.length} present students`);
       }
 
@@ -1310,6 +1356,9 @@ export default function SessionRecording() {
     if (!confirm('Delete this homework feedback?')) return;
 
     try {
+      const targetHw = homeworkRecords.find(h => h.id === id);
+      const taskName = targetHw?.task_name || 'Homework';
+
       // Delete associated earnings first to prevent orphan records
       const { error: earningError } = await supabase
         .from('student_earnings')
@@ -1326,6 +1375,8 @@ export default function SessionRecording() {
         .eq('id', id);
 
       if (error) throw error;
+
+      await logActivity('DELETE', 'Tasks', `Deleted session homework: "${taskName}" for session: "${session?.title}"`);
 
       toast.success('Homework deleted successfully');
       fetchHomeworkRecords();
@@ -1902,98 +1953,31 @@ export default function SessionRecording() {
                   </CardHeader>
                   <CardContent>
                     {(() => {
-                      const presentStudents = getPresentStudents();
                       const selectedPerformerNames = formData.best_performer 
                         ? formData.best_performer.split(',').map(name => name.trim()).filter(Boolean)
                         : [];
                         
                       return (
                         <div className="space-y-2">
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                className="w-full justify-between min-h-[40px] h-auto text-left font-normal border border-input hover:bg-accent hover:text-accent-foreground"
-                              >
-                                {selectedPerformerNames.length > 0 ? (
-                                  <div className="flex flex-wrap gap-1">
-                                    {selectedPerformerNames.map((name) => (
-                                      <Badge
-                                        key={name}
-                                        variant="secondary"
-                                        className="mr-1 flex items-center gap-1 bg-secondary/80 text-secondary-foreground"
-                                      >
-                                        {name}
-                                        <X
-                                          className="h-3 w-3 cursor-pointer text-muted-foreground hover:text-foreground"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleTogglePerformer(name);
-                                          }}
-                                        />
-                                      </Badge>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <span className="text-muted-foreground text-sm">Select best performers (present only)...</span>
-                                )}
-                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-2 max-h-[300px] overflow-y-auto flex flex-col gap-2" align="start">
-                              {presentStudents.length === 0 ? (
-                                <p className="text-xs text-muted-foreground p-2">No students marked present. Mark students present in the "Student Performance Feedback" section first.</p>
-                              ) : (
-                                <>
-                                  <div className="border-b pb-2">
-                                    <Input
-                                      type="text"
-                                      placeholder="Search students..."
-                                      value={performerSearchQuery}
-                                      onChange={(e) => setPerformerSearchQuery(e.target.value)}
-                                      className="h-8 text-xs"
-                                    />
-                                  </div>
-                                  <div className="space-y-1 overflow-y-auto flex-grow">
-                                    {(() => {
-                                      const filtered = presentStudents.filter(s => 
-                                        s.name.toLowerCase().includes(performerSearchQuery.toLowerCase())
-                                      );
-                                      if (filtered.length === 0) {
-                                        return (
-                                          <div className="text-center py-4 text-xs text-muted-foreground">
-                                            No matching students found
-                                          </div>
-                                        );
-                                      }
-                                      return filtered.map((student) => {
-                                        const isSelected = selectedPerformerNames.includes(student.name);
-                                          
-                                        return (
-                                          <div
-                                            key={student.id}
-                                            onClick={() => handleTogglePerformer(student.name)}
-                                            className="flex items-center space-x-2 p-2 hover:bg-accent rounded cursor-pointer transition-colors"
-                                          >
-                                            <Checkbox
-                                              checked={isSelected}
-                                              className="pointer-events-none"
-                                            />
-                                            <span className="text-sm font-medium leading-none cursor-pointer flex-grow flex justify-between items-center">
-                                              <span>{student.name}</span>
-                                            </span>
-                                          </div>
-                                        );
-                                      });
-                                    })()}
-                                  </div>
-                                </>
-                              )}
-                            </PopoverContent>
-                          </Popover>
+                          <div className="min-h-[40px] h-auto p-2 border border-input rounded-md bg-muted/30">
+                            {selectedPerformerNames.length > 0 ? (
+                              <div className="flex flex-wrap gap-1.5">
+                                {selectedPerformerNames.map((name) => (
+                                  <Badge
+                                    key={name}
+                                    variant="secondary"
+                                    className="flex items-center gap-1 bg-secondary/80 text-secondary-foreground"
+                                  >
+                                    {name}
+                                  </Badge>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground text-sm italic">No best performers yet (automatically calculated from top 3 present students' ratings)</span>
+                            )}
+                          </div>
                           <p className="text-xs text-muted-foreground mt-1">
-                            Only students marked present can be selected as best performers.
+                            Automatically selected as the top 3 present students based on their ratings. Non-editable.
                           </p>
                         </div>
                       );
@@ -2233,25 +2217,48 @@ export default function SessionRecording() {
                           placeholder="Describe the task or assignment with formatting..."
                         />
                       </div>
-                      <div className="flex gap-3">
-                        {isEditingHomework && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => setIsEditingHomework(false)}
-                            className="w-1/3"
-                          >
-                            Cancel
-                          </Button>
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        {isEditingHomework ? (
+                          <>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => setIsEditingHomework(false)}
+                              className="w-1/3"
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              onClick={handleSaveHomework}
+                              disabled={savingHomework}
+                              className="w-2/3 gap-2"
+                            >
+                              <Check className="h-4 w-4" />
+                              {savingHomework ? 'Saving...' : 'Save Changes'}
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button
+                              type="button"
+                              variant={isHomeworkSaved ? "secondary" : "default"}
+                              onClick={handleSaveTaskSettings}
+                              className="flex-1 gap-2"
+                            >
+                              <Save className="h-4 w-4" />
+                              Save Task
+                            </Button>
+                            <Button
+                              type="button"
+                              onClick={handleSaveHomework}
+                              disabled={!isHomeworkSaved || savingHomework}
+                              className="flex-1 gap-2 bg-green-600 hover:bg-green-700 text-white disabled:bg-gray-200 disabled:text-gray-400"
+                            >
+                              <Plus className="h-4 w-4" />
+                              {savingHomework ? 'Assigning...' : 'Assign Task'}
+                            </Button>
+                          </>
                         )}
-                        <Button
-                          onClick={handleSaveHomework}
-                          disabled={savingHomework}
-                          className={isEditingHomework ? "w-2/3 gap-2" : "w-full gap-2"}
-                        >
-                          {isEditingHomework ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-                          {savingHomework ? 'Saving...' : (isEditingHomework ? 'Save Changes' : 'Save Homework Feedback')}
-                        </Button>
                       </div>
                     </CardContent>
                   </Card>

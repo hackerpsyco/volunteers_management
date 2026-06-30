@@ -35,31 +35,20 @@ interface SessionMeeting {
 }
 
 const getStudentType = (designation?: string | null) => {
-  if (!designation) return 'None';
+  if (!designation) return 'All';
   const d = designation.trim();
   
-  if (d.includes('1 Certified') || d.toLowerCase().includes('1 certified') || (d.toLowerCase().includes('computer course') && !d.toLowerCase().includes('emp'))) {
-    return '1 Certified computer course';
+  if (d.includes('1. CCC') || d.toLowerCase().includes('ccc') || d.toLowerCase().includes('certified') || d.toLowerCase().includes('computer')) {
+    return '1. CCC';
   }
-  if (d.includes('2 Certified') || d.toLowerCase().includes('2 certified') || d.toLowerCase().includes('computer course_emp') || d.toLowerCase().includes('emp')) {
-    return '2 Certified computer course_EMP';
+  if (d.includes('2. Junior Fellow') || d.toLowerCase().includes('junior') || d.toLowerCase().includes('intern')) {
+    return '2. Junior Fellow';
   }
-  if (d.includes('3 WES') || d.toLowerCase().includes('3 wes') || d.toLowerCase().includes('intern') || d.toLowerCase().includes('junior')) {
-    return '3 WES Intern/Junior Fellow';
-  }
-  if (d.includes('4 WES') || d.toLowerCase().includes('4 wes') || d.toLowerCase().includes('senior')) {
-    return '4 WES Senior Fellow';
+  if (d.includes('3. Senior Fellow') || d.toLowerCase().includes('senior')) {
+    return '3. Senior Fellow';
   }
   
-  // Fallback defaults
-  if (d.toLowerCase().includes('fellow') || d.toLowerCase().includes('intern')) {
-    return '3 WES Intern/Junior Fellow';
-  }
-  if (d.toLowerCase().includes('certified') || d.toLowerCase().includes('computer') || d.toLowerCase().includes('ccc')) {
-    return '1 Certified computer course';
-  }
-  
-  return 'None';
+  return 'All';
 };
 
 export default function StudentDashboard() {
@@ -184,7 +173,13 @@ export default function StudentDashboard() {
           }));
         }
 
-        // Do not filter the class leaderboard by designation to show all classmates' earnings (Class Top Performers)
+        // Filter the class leaderboard by the selected designation type
+        if (selectedType && selectedType !== 'All') {
+          studentsList = studentsList.filter(s => {
+            const mappedType = getStudentType(s.designation);
+            return mappedType === selectedType;
+          });
+        }
 
         if (studentsList.length > 0) {
           const studentIds = studentsList.map(s => s.id);
@@ -493,18 +488,10 @@ export default function StudentDashboard() {
                   <SelectValue placeholder="Select Designation" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="1 Certified computer course" disabled={ownType !== "1 Certified computer course"}>
-                    1 Certified computer course
-                  </SelectItem>
-                  <SelectItem value="2 Certified computer course_EMP" disabled={ownType !== "2 Certified computer course_EMP"}>
-                    2 Certified computer course_EMP
-                  </SelectItem>
-                  <SelectItem value="3 WES Intern/Junior Fellow" disabled={ownType !== "3 WES Intern/Junior Fellow"}>
-                    3 WES Intern/Junior Fellow
-                  </SelectItem>
-                  <SelectItem value="4 WES Senior Fellow" disabled={ownType !== "4 WES Senior Fellow"}>
-                    4 WES Senior Fellow
-                  </SelectItem>
+                  <SelectItem value="All">All Designations</SelectItem>
+                  <SelectItem value="1. CCC">1. CCC</SelectItem>
+                  <SelectItem value="2. Junior Fellow">2. Junior Fellow</SelectItem>
+                  <SelectItem value="3. Senior Fellow">3. Senior Fellow</SelectItem>
                 </SelectContent>
               </Select>
             </div>

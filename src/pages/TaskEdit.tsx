@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { logActivity } from '@/utils/activityLogger';
 import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -147,6 +148,16 @@ export default function TaskEdit() {
         setSelectedStudents(assignedStudentIds);
         setOriginalStudents(assignedStudentIds);
 
+        // Find the minimum (original) deadline across all rows
+        let earliestDeadline = null;
+        data.forEach(row => {
+          if (row.deadline) {
+            if (!earliestDeadline || new Date(row.deadline) < new Date(earliestDeadline)) {
+              earliestDeadline = row.deadline;
+            }
+          }
+        });
+
         let resolvedClassId = firstRow.class_id;
 
         // If the task doesn't have a class_id saved, find it from the first assigned student
@@ -165,7 +176,7 @@ export default function TaskEdit() {
         setFormData({
           title: firstRow.task_name || '',
           description: firstRow.task_description || '',
-          dueDate: firstRow.deadline ? formatDatetimeLocal(firstRow.deadline) : '',
+          dueDate: earliestDeadline ? formatDatetimeLocal(earliestDeadline) : (firstRow.deadline ? formatDatetimeLocal(firstRow.deadline) : ''),
           academicYear: firstRow.academic_year || '',
           reward: firstRow.earning_amount || 0,
           classId: resolvedClassId || '',
@@ -232,6 +243,7 @@ export default function TaskEdit() {
       }
 
       toast.success('Task updated successfully');
+      await logActivity('UPDATE', 'Tasks', `Updated task: ${formData.title} (Added ${addedStudents.length} students, Removed ${removedStudents.length} students)`);
       navigate(`/tasks/${encodeURIComponent(formData.title)}`);
     } catch (error) {
       console.error('Error saving task:', error);

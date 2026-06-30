@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { GraduationCap, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { logActivity } from '@/utils/activityLogger';
 import {
   Dialog,
   DialogContent,
@@ -344,6 +345,8 @@ export function EditSessionDialog({
         .eq('id', formData.id);
 
       if (error) throw error;
+
+      await logActivity('UPDATE', 'Sessions', `Updated session: "${formData.title}" (Date: ${formData.session_date}, Class: ${formData.class_batch})`);
 
       // Try to update Google Calendar
       try {

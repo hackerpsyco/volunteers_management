@@ -23,6 +23,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { logActivity } from '@/utils/activityLogger';
 import { useAcademicYear } from '@/contexts/AcademicYearContext';
 
 interface ClassOption {
@@ -229,6 +230,8 @@ export default function AddTask() {
 
       const { error } = await supabase.from('student_task_feedback').insert(taskRecords);
       if (error) throw error;
+
+      await logActivity('CREATE', 'Tasks', `Created task: ${formData.title} (Assigned to ${studentsToAssign.length} students)`);
 
       toast.success(`Task assigned to ${studentsToAssign.length} students`);
       navigate('/tasks');

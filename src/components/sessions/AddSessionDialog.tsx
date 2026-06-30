@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { GraduationCap, Calendar, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { logActivity } from '@/utils/activityLogger';
 import {
   Dialog,
   DialogContent,
@@ -816,6 +817,12 @@ export function AddSessionDialog({
       });
     } else {
       const sessionId = insertedSession?.[0]?.id;
+      
+      await logActivity(
+        'CREATE', 
+        'Sessions', 
+        `Created session: "${formData.title}" (Date: ${format(selectedDate, 'yyyy-MM-dd')}, Class: ${formData.class_batch})`
+      );
 
       // Add to Google Calendar for volunteer and facilitator
       if (sessionId) {

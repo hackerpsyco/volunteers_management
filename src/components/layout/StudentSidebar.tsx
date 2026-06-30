@@ -112,7 +112,7 @@ export function StudentSidebar({ collapsed = false }: { collapsed?: boolean }) {
             );
           })}
 
-          {designation === '4 WES Senior Fellow' && (
+          {(designation === '3. Senior Fellow' || (designation && designation.includes('Senior Fellow'))) && (
             <>
               <div className="pt-4 pb-2">
                 <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground px-4">Class Monitor</p>
