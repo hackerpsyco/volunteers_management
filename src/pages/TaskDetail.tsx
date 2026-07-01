@@ -23,6 +23,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { useAcademicYear } from '@/contexts/AcademicYearContext';
 import { useAuth } from '@/contexts/AuthContext';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -80,6 +87,8 @@ export default function TaskDetail() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [verificationFilter, setVerificationFilter] = useState('all');
   // Reject dialog state
   const [rejectingTaskId, setRejectingTaskId] = useState<string | null>(null);
   const [rejectionComment, setRejectionComment] = useState('');
@@ -311,12 +320,13 @@ export default function TaskDetail() {
     try {
       setUpdatingId(taskId);
       
-      const taskToReject = taskGroup?.tasks.find(t => t.id === taskId);
+      const task = taskGroup?.tasks.find(t => t.id === taskId);
+      if (!task) return;
       
-      if (taskToReject?.submission_link) {
+      if (task.submission_link) {
         try {
           const { data: { session } } = await supabase.auth.getSession();
-          const links = taskToReject.submission_link.split(',');
+          const links = task.submission_link.split(',');
           for (const link of links) {
             if (link.includes('drive.google.com')) {
               await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-to-gdrive`, {
@@ -701,19 +711,52 @@ export default function TaskDetail() {
             <CardTitle>Student Details</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
+            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
               <Input
                 type="text"
                 placeholder="Search student..."
                 value={studentSearchQuery}
                 onChange={(e) => setStudentSearchQuery(e.target.value)}
-                className="max-w-sm h-8 text-xs"
+                className="max-w-sm h-8 text-xs flex-1"
               />
+              <div className="flex gap-2 w-full sm:w-auto">
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="h-8 w-[140px] text-xs">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="submitted">Submitted</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select value={verificationFilter} onValueChange={setVerificationFilter}>
+                  <SelectTrigger className="h-8 w-[140px] text-xs">
+                    <SelectValue placeholder="Verification" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Verification</SelectItem>
+                    <SelectItem value="to_verify">To Verify</SelectItem>
+                    <SelectItem value="verified">Verified</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="space-y-2">
-              {taskGroup.tasks.filter(t => 
-                t.student_name.toLowerCase().includes(studentSearchQuery.toLowerCase())
-              ).map((task) => (
+              {taskGroup.tasks.filter(t => {
+                const matchesSearch = t.student_name.toLowerCase().includes(studentSearchQuery.toLowerCase());
+                const matchesStatus = statusFilter === 'all' || t.status === statusFilter;
+                let matchesVerification = true;
+                if (verificationFilter === 'to_verify') {
+                  matchesVerification = t.status === 'submitted';
+                } else if (verificationFilter === 'verified') {
+                  matchesVerification = t.status === 'completed';
+                }
+                return matchesSearch && matchesStatus && matchesVerification;
+              }).map((task) => (
                 <div key={task.id} className="flex flex-col gap-2 p-4 bg-muted/30 rounded border border-border">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex-1">

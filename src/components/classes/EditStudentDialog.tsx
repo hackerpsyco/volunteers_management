@@ -357,19 +357,7 @@ export function EditStudentDialog({
             </div>
           </div>
 
-          {/* Allow Profile Edit Toggle */}
-          <div className="flex items-center space-x-2 pt-2 pb-1">
-            <input
-              id="allow-profile-edit"
-              type="checkbox"
-              checked={editedStudent.allow_profile_edit !== false}
-              onChange={(e) => setEditedStudent({ ...editedStudent, allow_profile_edit: e.target.checked })}
-              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
-            />
-            <Label htmlFor="allow-profile-edit" className="text-sm font-medium cursor-pointer">
-              Allow student to edit their profile details
-            </Label>
-          </div>
+
 
           {/* Bank Details Section */}
           <div className="border-t pt-4 space-y-3">

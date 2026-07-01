@@ -31,7 +31,7 @@ export default function StudentTasks() {
   const navigate = useNavigate();
   const [tasks, setTasks] = useState<StudentTask[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'pending' | 'submitted' | 'upcoming' | 'completed'>('all');
+  const [filter, setFilter] = useState<'pending' | 'submitted' | 'completed' | 'overdue'>('pending');
   const [searchQuery, setSearchQuery] = useState('');
 
   const { selectedYear, getDateRange } = useAcademicYear();
@@ -83,14 +83,17 @@ export default function StudentTasks() {
   const filteredTasks = tasks.filter(task => {
     const matchesSearch = task.task_name.toLowerCase().includes(searchQuery.toLowerCase());
 
-    if (filter === 'all') return matchesSearch;
     if (filter === 'submitted') return matchesSearch && task.status === 'submitted';
     if (filter === 'completed') return matchesSearch && task.status === 'completed';
-    if (filter === 'pending') return matchesSearch && task.status === 'pending';
-    if (filter === 'upcoming') {
+    if (filter === 'pending') {
       const isPending = task.status === 'pending';
-      const isUpcoming = new Date(task.deadline) >= new Date();
+      const isUpcoming = !task.deadline || new Date(task.deadline) >= new Date();
       return matchesSearch && isPending && isUpcoming;
+    }
+    if (filter === 'overdue') {
+      const isPending = task.status === 'pending';
+      const isOverdue = task.deadline && new Date(task.deadline) < new Date();
+      return matchesSearch && isPending && isOverdue;
     }
     return matchesSearch;
   });
@@ -124,10 +127,6 @@ export default function StudentTasks() {
             />
           </div>
           <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
-            <Button variant={filter === 'all' ? 'default' : 'ghost'} onClick={() => setFilter('all')} size="sm">All</Button>
-            <Button variant={filter === 'upcoming' ? 'default' : 'ghost'} onClick={() => setFilter('upcoming')} size="sm" className="gap-1.5">
-              <Clock className="h-4 w-4" /> Upcoming
-            </Button>
             <Button variant={filter === 'pending' ? 'default' : 'ghost'} onClick={() => setFilter('pending')} size="sm" className="gap-1.5">
               <History className="h-4 w-4" /> Pending
             </Button>
@@ -136,6 +135,9 @@ export default function StudentTasks() {
             </Button>
             <Button variant={filter === 'completed' ? 'default' : 'ghost'} onClick={() => setFilter('completed')} size="sm" className="gap-1.5 text-green-600 hover:text-green-700 hover:bg-green-50">
               <CheckCircle2 className="h-4 w-4" /> Approved
+            </Button>
+            <Button variant={filter === 'overdue' ? 'default' : 'ghost'} onClick={() => setFilter('overdue')} size="sm" className="gap-1.5 text-red-600 hover:text-red-700 hover:bg-red-50">
+              <Clock className="h-4 w-4" /> Overdue
             </Button>
           </div>
         </div>
