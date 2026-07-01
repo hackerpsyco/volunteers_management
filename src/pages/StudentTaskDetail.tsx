@@ -61,6 +61,7 @@ export default function StudentTaskDetail() {
   const [saving, setSaving] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [uploadingFile, setUploadingFile] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [showConfirmOpen, setShowConfirmOpen] = useState(false);
 
   useEffect(() => {
@@ -143,6 +144,68 @@ export default function StudentTaskDetail() {
     }
   };
 
+  const uploadFileWithProgress = (
+    file: File, 
+    folderPath: string[], 
+    accessToken: string,
+    onProgress: (percent: number) => void,
+    signal?: AbortSignal
+  ): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      
+      if (signal) {
+        signal.addEventListener('abort', () => {
+          xhr.abort();
+          reject(new DOMException('Aborted', 'AbortError'));
+        });
+      }
+
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable) {
+          const percent = Math.round((event.loaded / event.total) * 100);
+          onProgress(percent);
+        }
+      });
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const response = JSON.parse(xhr.responseText);
+            resolve(response);
+          } catch (e) {
+            reject(new Error('Invalid response from server'));
+          }
+        } else {
+          try {
+            const errorRes = JSON.parse(xhr.responseText);
+            reject(new Error(errorRes.error || `Upload failed with status ${xhr.status}`));
+          } catch (e) {
+            reject(new Error(`Upload failed with status ${xhr.status}`));
+          }
+        }
+      });
+
+      xhr.addEventListener('error', () => {
+        reject(new Error('Network error during upload'));
+      });
+
+      xhr.addEventListener('abort', () => {
+        reject(new DOMException('Aborted', 'AbortError'));
+      });
+
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-to-gdrive`;
+      xhr.open('POST', url, true);
+      xhr.setRequestHeader('Authorization', `Bearer ${accessToken}`);
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('folderPath', JSON.stringify(folderPath));
+      
+      xhr.send(formData);
+    });
+  };
+
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0 || !task) return;
@@ -185,6 +248,7 @@ export default function StudentTaskDetail() {
 
     try {
       setUploadingFile(true);
+      setUploadProgress(0);
       const newLinks: string[] = [];
       const { data: { session } } = await supabase.auth.getSession();
       
@@ -198,27 +262,23 @@ export default function StudentTaskDetail() {
 
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('folderPath', JSON.stringify(folderPath));
         
         // Timeout handling (60 seconds)
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 60000);
 
         try {
-          const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-to-gdrive`, {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${session?.access_token}`
+          const result = await uploadFileWithProgress(
+            file,
+            folderPath,
+            session?.access_token || '',
+            (percent) => {
+              setUploadProgress(percent);
             },
-            body: formData,
-            signal: controller.signal
-          });
+            controller.signal
+          );
           
           clearTimeout(timeoutId);
-          const result = await res.json();
-          if (!res.ok) throw new Error(result.error || `Upload failed for ${file.name}`);
           newLinks.push(result.webViewLink);
         } catch (err: any) {
           clearTimeout(timeoutId);
@@ -237,6 +297,7 @@ export default function StudentTaskDetail() {
       }
     } finally {
       setUploadingFile(false);
+      setUploadProgress(0);
       event.target.value = ''; 
     }
   };
@@ -509,7 +570,15 @@ export default function StudentTaskDetail() {
                       {uploadingFile ? (
                         <div className="flex flex-col items-center gap-2 py-4">
                           <Loader2 className="h-10 w-10 text-primary animate-spin" />
-                          <p className="text-sm font-semibold text-primary animate-pulse">Uploading file to Google Drive...</p>
+                          <p className="text-sm font-semibold text-primary animate-pulse">
+                            Uploading file to Google Drive... ({uploadProgress}%)
+                          </p>
+                          <div className="w-48 bg-muted rounded-full h-1.5 overflow-hidden mt-1">
+                            <div 
+                              className="bg-primary h-full transition-all duration-300 rounded-full" 
+                              style={{ width: `${uploadProgress}%` }}
+                            />
+                          </div>
                           <p className="text-xs text-muted-foreground">Please do not close this window</p>
                         </div>
                       ) : (

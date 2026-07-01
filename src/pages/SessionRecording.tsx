@@ -461,6 +461,7 @@ export default function SessionRecording() {
           student_id,
           feedback_type,
           task_name,
+          task_id,
           task_description,
           deadline,
           submission_link,
@@ -478,12 +479,62 @@ export default function SessionRecording() {
         return;
       }
 
+      let firstValidTaskId = (data || []).find((item: any) => item.task_id)?.task_id;
+      
+      // If all records have empty task_id, generate a new sequential task_id
+      if (!firstValidTaskId && data && data.length > 0) {
+        try {
+          const d = new Date();
+          const yearStr = d.getFullYear();
+          const monthStr = String(d.getMonth() + 1).padStart(2, '0');
+          const classNameStr = (session?.class_batch || 'Class').replace(/[\s\/]+/g, '');
+          const prefix = `${yearStr}-${monthStr}-${classNameStr}-`;
+          
+          const { data: existingSeqTasks } = await supabase
+            .from('student_task_feedback')
+            .select('task_id')
+            .like('task_id', `${prefix}%`)
+            .order('task_id', { ascending: false })
+            .limit(1);
+          
+          let nextSeq = 1;
+          if (existingSeqTasks && existingSeqTasks.length > 0 && existingSeqTasks[0].task_id) {
+            const lastId = existingSeqTasks[0].task_id;
+            const lastSeqStr = lastId.split('-').pop();
+            if (lastSeqStr) {
+              const lastSeqNum = parseInt(lastSeqStr, 10);
+              if (!isNaN(lastSeqNum)) {
+                nextSeq = lastSeqNum + 1;
+              }
+            }
+          }
+          const seqStr = String(nextSeq).padStart(3, '0');
+          firstValidTaskId = `${prefix}${seqStr}`;
+        } catch (e) {
+          console.error('Error generating task_id during healing:', e);
+        }
+      }
+      
+      // Background healing of empty task_ids in database
+      const emptyTaskIdRecords = (data || []).filter((item: any) => !item.task_id);
+      if (firstValidTaskId && emptyTaskIdRecords.length > 0) {
+        supabase
+          .from('student_task_feedback')
+          .update({ task_id: firstValidTaskId })
+          .eq('session_id', sessionId)
+          .is('task_id', null)
+          .then(({ error }) => {
+            if (error) console.error('Error healing empty task_ids in DB:', error);
+          });
+      }
+
       const transformedData = (data || []).map((item: any) => {
         const actualEarning = item.status === 'completed'
           ? (item.student_earnings?.[0]?.amount ?? item.earning_amount ?? 5)
           : 0;
         return {
           ...item,
+          task_id: item.task_id || firstValidTaskId || '',
           student_name: item.students?.name || 'Unknown',
           actual_earning: Number(actualEarning)
         };
@@ -1105,10 +1156,12 @@ export default function SessionRecording() {
               student_name: student.name,
               feedback_type: templateTask.feedback_type,
               task_name: templateTask.task_name,
+              task_id: templateTask.task_id || null,
               task_description: templateTask.task_description,
               deadline: templateTask.deadline,
               status: 'pending',
               earning_amount: templateTask.earning_amount,
+              submission_types: templateTask.submission_types || ['code'],
               academic_year: templateTask.academic_year || selectedYear
             }]);
           }
@@ -1244,12 +1297,51 @@ export default function SessionRecording() {
       }
 
       if (isEditingHomework) {
+        // Fetch to check if any task already has task_id
+        const { data: existingTasks } = await supabase
+          .from('student_task_feedback')
+          .select('task_id')
+          .eq('session_id', sessionId)
+          .limit(1);
+          
+        let taskIdToUse = existingTasks?.[0]?.task_id;
+        
+        if (!taskIdToUse) {
+          const d = new Date();
+          const yearStr = d.getFullYear();
+          const monthStr = String(d.getMonth() + 1).padStart(2, '0');
+          const classNameStr = (session?.class_batch || 'Class').replace(/[\s\/]+/g, '');
+          const prefix = `${yearStr}-${monthStr}-${classNameStr}-`;
+          
+          const { data: existingSeqTasks } = await supabase
+            .from('student_task_feedback')
+            .select('task_id')
+            .like('task_id', `${prefix}%`)
+            .order('task_id', { ascending: false })
+            .limit(1);
+          
+          let nextSeq = 1;
+          if (existingSeqTasks && existingSeqTasks.length > 0 && existingSeqTasks[0].task_id) {
+            const lastId = existingSeqTasks[0].task_id;
+            const lastSeqStr = lastId.split('-').pop();
+            if (lastSeqStr) {
+              const lastSeqNum = parseInt(lastSeqStr, 10);
+              if (!isNaN(lastSeqNum)) {
+                nextSeq = lastSeqNum + 1;
+              }
+            }
+          }
+          const seqStr = String(nextSeq).padStart(3, '0');
+          taskIdToUse = `${prefix}${seqStr}`;
+        }
+
         // Update existing tasks for this session
         const { error } = await supabase
           .from('student_task_feedback')
           .update({
             feedback_type: finalTaskType || 'homework',
             task_name: newHomework.task_name,
+            task_id: taskIdToUse,
             task_description: newHomework.task_description || null,
             deadline: newHomework.deadline ? new Date(newHomework.deadline).toISOString() : null,
             earning_amount: Number(newHomework.earning_amount) || 5,
@@ -2073,7 +2165,11 @@ export default function SessionRecording() {
                       </Button>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 bg-muted/40 p-4 rounded-lg">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 bg-muted/40 p-4 rounded-lg">
+                        <div>
+                          <span className="text-xs text-muted-foreground block">Task ID</span>
+                          <span className="font-mono font-bold text-foreground text-sm">{homeworkRecords[0].task_id || '-'}</span>
+                        </div>
                         <div>
                           <span className="text-xs text-muted-foreground block">Task Name</span>
                           <span className="font-bold text-foreground text-sm">{homeworkRecords[0].task_name}</span>
@@ -2339,6 +2435,12 @@ export default function SessionRecording() {
                             </div>
 
                             <div className="grid grid-cols-2 gap-3 text-sm">
+                              <div>
+                                <span className="text-muted-foreground">Task ID</span>
+                                <p className="font-mono font-semibold text-xs text-gray-700">
+                                  {homework.task_id || '-'}
+                                </p>
+                              </div>
                               <div>
                                 <span className="text-muted-foreground">Type</span>
                                 <p className="font-medium capitalize">
