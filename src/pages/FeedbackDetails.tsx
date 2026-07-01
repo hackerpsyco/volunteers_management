@@ -430,7 +430,7 @@ export default function FeedbackDetails() {
         <hr className="border-gray-200" />
 
         {/* Present Students Performance - Compact & Styled */}
-        <div className="space-y-2 mt-4">
+        <div className="space-y-2 mt-4 print:break-before-page" style={{ pageBreakBefore: 'always' }}>
           <div className="flex justify-between items-center border-b pb-1">
             <h2 className="text-sm font-bold text-gray-950">Present Students Performance</h2>
             <div className="text-xs font-bold text-gray-700">
