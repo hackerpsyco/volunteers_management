@@ -136,6 +136,7 @@ export default function SessionRecording() {
   const [studentsLoading, setStudentsLoading] = useState(false);
   const [studentSearch, setStudentSearch] = useState('');
   const [studentStatusFilter, setStudentStatusFilter] = useState<'all' | 'Present' | 'Absent'>('all');
+  const [studentDesignationFilter, setStudentDesignationFilter] = useState<string>('all');
   const [studentSortField, setStudentSortField] = useState<'name' | 'rating' | 'questions'>('name');
   const [studentSortDirection, setStudentSortDirection] = useState<'asc' | 'desc'>('asc');
   const [newHomework, setNewHomework] = useState({
@@ -532,7 +533,7 @@ export default function SessionRecording() {
       // Fetch students from that class filtered by selected academic year
       const { data: studentsData, error: studentsError } = await supabase
         .from('students')
-        .select('id, name, student_id')
+        .select('id, name, student_id, designation')
         .eq('class_id', classData.id)
         .eq('academic_year', selectedYear)
         .order('name', { ascending: true });
@@ -605,6 +606,17 @@ export default function SessionRecording() {
     // Attendance status filter
     if (studentStatusFilter !== 'all') {
       filtered = filtered.filter(item => item.perfData.attendance_status === studentStatusFilter);
+    }
+
+    // Designation filter
+    if (studentDesignationFilter !== 'all') {
+      filtered = filtered.filter(item => {
+        const designation = item.student.designation;
+        if (studentDesignationFilter === 'none') {
+          return !designation || designation === 'none';
+        }
+        return designation === studentDesignationFilter;
+      });
     }
 
     // 3. Sort
@@ -1757,6 +1769,25 @@ export default function SessionRecording() {
                               </Select>
                             </div>
 
+                            {/* Designation filter */}
+                            <div className="w-[150px]">
+                              <Select
+                                value={studentDesignationFilter}
+                                onValueChange={(val: string) => setStudentDesignationFilter(val)}
+                              >
+                                <SelectTrigger className="h-8 text-xs">
+                                  <SelectValue placeholder="All Designations" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="all">All Designations</SelectItem>
+                                  <SelectItem value="1. CCC">1. CCC</SelectItem>
+                                  <SelectItem value="2. Junior Fellow">2. Junior Fellow</SelectItem>
+                                  <SelectItem value="3. Senior Fellow">3. Senior Fellow</SelectItem>
+                                  <SelectItem value="none">None</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
                           </div>
                         </div>
 
@@ -1921,7 +1952,7 @@ export default function SessionRecording() {
                           <p>
                             Total Students in Class: <span className="text-foreground">{students.length}</span>
                           </p>
-                          {(studentSearch || studentStatusFilter !== 'all') && (
+                          {(studentSearch || studentStatusFilter !== 'all' || studentDesignationFilter !== 'all') && (
                             <p>
                               Filtered: <span className="text-foreground">{getProcessedStudents().length}</span>
                             </p>

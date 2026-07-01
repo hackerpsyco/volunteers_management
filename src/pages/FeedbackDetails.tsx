@@ -254,76 +254,172 @@ export default function FeedbackDetails() {
     );
   }
 
+  // Get all present students with their calculated finalRating
+  const presentStudentsWithPerformance = (() => {
+    let list: { studentName: string; rating: number; comment: string; id: string }[] = [];
+
+    if (allStudents.length > 0) {
+      allStudents.forEach((student) => {
+        const perfData = studentPerformance.find(
+          (sp) => (sp.student_name || '').trim() === student.name.trim()
+        );
+        if (perfData && perfData.attendance_status !== 'Absent') {
+          const finalRating = Math.max(
+            0,
+            ((perfData.questions_asked ?? 0) +
+              (perfData.performance_rating ?? 0) -
+              (perfData.bad_behaviour_points ?? 0)) /
+              2
+          );
+          list.push({
+            id: student.id,
+            studentName: student.name,
+            rating: finalRating,
+            comment: perfData.performance_comment || '',
+          });
+        }
+      });
+    } else {
+      studentPerformance
+        .filter((s) => s.attendance_status !== 'Absent')
+        .forEach((student) => {
+          const finalRating = Math.max(
+            0,
+            ((student.questions_asked ?? 0) +
+              (student.performance_rating ?? 0) -
+              (student.bad_behaviour_points ?? 0)) /
+              2
+          );
+          list.push({
+            id: student.id,
+            studentName: student.student_name,
+            rating: finalRating,
+            comment: student.performance_comment || '',
+          });
+        });
+    }
+
+    // Sort by rating descending
+    return list.sort((a, b) => b.rating - a.rating);
+  })();
+
   return (
     <DashboardLayout>
       {/* PRINT VIEW - Only visible when printing */}
-      <div className="hidden print:block w-full max-w-none bg-white text-black p-4 space-y-6">
-        <div className="text-[10px] text-gray-500 mb-4 border-b pb-2 break-all">
-          Feedback URL: {window.location.href}
+      <div className="hidden print:block w-full max-w-none bg-white text-black p-4 space-y-4">
+        {/* Wazir Logo Header */}
+        <div className="flex justify-between items-center border-b pb-3 mb-4">
+          <div className="flex items-center gap-3">
+            <img src="/wes-logo.jpg" alt="Wazir Education Society Logo" className="h-12 w-auto object-contain" />
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">Wazir Education Society</h1>
+              <p className="text-[10px] text-gray-500">Session Feedback & Performance Report</p>
+            </div>
+          </div>
+          <div className="text-right text-[10px] text-gray-400">
+            Report Generated: {new Date().toLocaleDateString('en-IN')}
+          </div>
         </div>
         
         {/* Header Info */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold mb-4">{feedback.title}</h1>
-          <div className="grid grid-cols-2 gap-y-2 gap-x-8 text-sm">
-             <p><strong>Date:</strong> {new Date(feedback.session_date).toLocaleDateString()}</p>
+        <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 mb-4">
+          <h2 className="text-sm font-bold text-gray-950 mb-2">{feedback.title}</h2>
+          <div className="grid grid-cols-3 gap-2 text-xs text-gray-700">
+             <p><strong>Date:</strong> {new Date(feedback.session_date).toLocaleDateString('en-IN')}</p>
              <p><strong>Time:</strong> {feedback.session_time}</p>
+             <p><strong>Class:</strong> {feedback.class_batch || '-'}</p>
              <p><strong>Facilitator:</strong> {feedback.facilitator_name || '-'}</p>
              <p><strong>Volunteer:</strong> {feedback.volunteer_name || '-'}</p>
-             <p><strong>Class:</strong> {feedback.class_batch || '-'}</p>
              <p><strong>Coordinator:</strong> {feedback.coordinator_name || '-'}</p>
           </div>
         </div>
 
-        <hr className="border-gray-300" />
-
-        {/* Facilitator Feedback */}
-        <div className="space-y-4">
-          <h2 className="text-lg font-bold">Facilitator Feedback</h2>
-          <div className="grid grid-cols-1 gap-4 text-sm">
+        {/* Feedback Grid - 2 columns for side-by-side printing (Compact) */}
+        <div className="grid grid-cols-2 gap-6 text-xs mb-4">
+          {/* Facilitator Column */}
+          <div className="space-y-3 border-r pr-6 border-gray-200">
+            <h3 className="text-sm font-bold text-gray-950 border-b pb-1">Facilitator Feedback</h3>
             {feedback.session_objective && (
-              <div><h3 className="font-bold text-black text-base mb-1">Session Objective</h3>
-              <div dangerouslySetInnerHTML={{ __html: feedback.session_objective }} className="prose prose-sm text-black" /></div>
+              <div>
+                <span className="font-bold text-gray-800">Session Objective</span>
+                <div 
+                  dangerouslySetInnerHTML={{ __html: feedback.session_objective }} 
+                  className="prose prose-sm text-gray-700 mt-0.5" 
+                  style={{ fontSize: '11px', lineHeight: '1.4' }}
+                />
+              </div>
             )}
             {feedback.practical_activities && (
-              <div><h3 className="font-bold text-black text-base mb-1">Practical Activities</h3>
-              <div dangerouslySetInnerHTML={{ __html: feedback.practical_activities }} className="prose prose-sm text-black" /></div>
+              <div>
+                <span className="font-bold text-gray-800">Practical Activities</span>
+                <div 
+                  dangerouslySetInnerHTML={{ __html: feedback.practical_activities }} 
+                  className="prose prose-sm text-gray-700 mt-0.5" 
+                  style={{ fontSize: '11px', lineHeight: '1.4' }}
+                />
+              </div>
             )}
             {feedback.session_highlights && (
-              <div><h3 className="font-bold text-black text-base mb-1">Session Highlights</h3>
-              <div dangerouslySetInnerHTML={{ __html: feedback.session_highlights }} className="prose prose-sm text-black" /></div>
+              <div>
+                <span className="font-bold text-gray-800">Session Highlights</span>
+                <div 
+                  dangerouslySetInnerHTML={{ __html: feedback.session_highlights }} 
+                  className="prose prose-sm text-gray-700 mt-0.5" 
+                  style={{ fontSize: '11px', lineHeight: '1.4' }}
+                />
+              </div>
             )}
             {feedback.learning_outcomes && (
-              <div><h3 className="font-bold text-black text-base mb-1">Learning Outcomes</h3>
-              <div dangerouslySetInnerHTML={{ __html: feedback.learning_outcomes }} className="prose prose-sm text-black" /></div>
+              <div>
+                <span className="font-bold text-gray-800">Learning Outcomes</span>
+                <div 
+                  dangerouslySetInnerHTML={{ __html: feedback.learning_outcomes }} 
+                  className="prose prose-sm text-gray-700 mt-0.5" 
+                  style={{ fontSize: '11px', lineHeight: '1.4' }}
+                />
+              </div>
             )}
             {feedback.facilitator_reflection && (
-              <div><h3 className="font-bold text-black text-base mb-1">Facilitator Reflection</h3>
-              <div dangerouslySetInnerHTML={{ __html: feedback.facilitator_reflection }} className="prose prose-sm text-black" /></div>
+              <div>
+                <span className="font-bold text-gray-800">Facilitator Reflection</span>
+                <div 
+                  dangerouslySetInnerHTML={{ __html: feedback.facilitator_reflection }} 
+                  className="prose prose-sm text-gray-700 mt-0.5" 
+                  style={{ fontSize: '11px', lineHeight: '1.4' }}
+                />
+              </div>
             )}
-            <div className="flex gap-8 mt-2">
+            <div className="flex justify-between bg-gray-50 p-2 rounded border border-gray-200 text-[10px]">
                {feedback.mic_sound_rating && <p><strong>Mic/Sound:</strong> {feedback.mic_sound_rating}/10</p>}
                {feedback.seating_view_rating && <p><strong>Seating/View:</strong> {feedback.seating_view_rating}/10</p>}
                {feedback.session_strength && <p><strong>Strength:</strong> {feedback.session_strength}/10</p>}
             </div>
           </div>
-        </div>
 
-        <hr className="border-gray-300" />
-
-        {/* Coordinator Feedback */}
-        <div className="space-y-4">
-          <h2 className="text-lg font-bold">Coordinator Feedback</h2>
-          <div className="grid grid-cols-1 gap-4 text-sm">
+          {/* Coordinator Column */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-bold text-gray-950 border-b pb-1">Coordinator Feedback</h3>
             {feedback.guest_teacher_feedback && (
-              <div><h3 className="font-bold text-black text-base mb-1">Guest Teacher Feedback</h3>
-              <div dangerouslySetInnerHTML={{ __html: feedback.guest_teacher_feedback }} className="prose prose-sm text-black" /></div>
+              <div>
+                <span className="font-bold text-gray-800">Guest Teacher Feedback</span>
+                <div 
+                  dangerouslySetInnerHTML={{ __html: feedback.guest_teacher_feedback }} 
+                  className="prose prose-sm text-gray-700 mt-0.5" 
+                  style={{ fontSize: '11px', lineHeight: '1.4' }}
+                />
+              </div>
             )}
             {feedback.incharge_reviewer_feedback && (
-              <div><h3 className="font-bold text-black text-base mb-1">Incharge/Reviewer Feedback</h3>
-              <div dangerouslySetInnerHTML={{ __html: feedback.incharge_reviewer_feedback }} className="prose prose-sm text-black" /></div>
+              <div>
+                <span className="font-bold text-gray-800">Incharge/Reviewer Feedback</span>
+                <div 
+                  dangerouslySetInnerHTML={{ __html: feedback.incharge_reviewer_feedback }} 
+                  className="prose prose-sm text-gray-700 mt-0.5" 
+                  style={{ fontSize: '11px', lineHeight: '1.4' }}
+                />
+              </div>
             )}
-            <div className="flex gap-8 mt-2">
+            <div className="flex justify-between bg-gray-50 p-2 rounded border border-gray-200 text-[10px]">
                {feedback.coordinator_mic_sound_rating && <p><strong>Mic/Sound:</strong> {feedback.coordinator_mic_sound_rating}/10</p>}
                {feedback.coordinator_seating_view_rating && <p><strong>Seating/View:</strong> {feedback.coordinator_seating_view_rating}/10</p>}
                {feedback.coordinator_session_strength && <p><strong>Strength:</strong> {feedback.coordinator_session_strength}/10</p>}
@@ -331,59 +427,53 @@ export default function FeedbackDetails() {
           </div>
         </div>
 
-        <hr className="border-gray-300" />
+        <hr className="border-gray-200" />
 
-        {/* Present Students Simple List */}
-        <div className="space-y-4 print:break-before-page">
-          <h2 className="text-lg font-bold">Present Students Performance</h2>
-          <table className="w-full text-sm border-collapse border border-gray-300">
+        {/* Present Students Performance - Compact & Styled */}
+        <div className="space-y-2 mt-4">
+          <div className="flex justify-between items-center border-b pb-1">
+            <h2 className="text-sm font-bold text-gray-950">Present Students Performance</h2>
+            <div className="text-xs font-bold text-gray-700">
+              Total Present: {presentStudentsWithPerformance.length}
+            </div>
+          </div>
+          <table className="w-full text-xs border-collapse border border-gray-200">
             <thead>
-              <tr className="bg-gray-100">
-                <th className="border border-gray-300 text-left px-2 py-1">Student Name</th>
-                <th className="border border-gray-300 text-center px-2 py-1">Rating/10</th>
-                <th className="border border-gray-300 text-left px-2 py-1">Comment</th>
+              <tr className="bg-[#0f172a] text-white">
+                <th className="border border-gray-200 text-center px-2 py-1.5 w-12">#</th>
+                <th className="border border-gray-200 text-left px-3 py-1.5">Student Name</th>
+                <th className="border border-gray-200 text-center px-2 py-1.5 w-24">Rating / 5</th>
+                <th className="border border-gray-200 text-left px-3 py-1.5">Comment / Notes</th>
               </tr>
             </thead>
             <tbody>
-              {allStudents.length > 0 ? (
-                allStudents.map((student) => {
-                  const perfData = studentPerformance.find(sp => (sp.student_name || '').trim() === student.name.trim());
-                  if (!perfData || perfData.attendance_status === 'Absent') return null;
-
-                  const finalRating = Math.max(0, ((perfData.questions_asked ?? 0) + (perfData.performance_rating ?? 0) - (perfData.bad_behaviour_points ?? 0)) / 2);
-                  
-                  return (
-                    <tr key={student.id}>
-                      <td className="border border-gray-300 px-2 py-1">{student.name}</td>
-                      <td className="border border-gray-300 px-2 py-1 text-center">{finalRating}</td>
-                      <td className="border border-gray-300 px-2 py-1">{perfData.performance_comment || '-'}</td>
-                    </tr>
-                  );
-                })
+              {presentStudentsWithPerformance.length > 0 ? (
+                presentStudentsWithPerformance.map((student, idx) => (
+                  <tr key={student.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
+                    <td className="border border-gray-200 px-2 py-1 text-center font-medium text-gray-500">{idx + 1}</td>
+                    <td className="border border-gray-200 px-3 py-1 font-semibold text-gray-800">{student.studentName}</td>
+                    <td className="border border-gray-200 px-2 py-1 text-center">
+                      <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                        student.rating >= 4 ? 'bg-green-100 text-green-800' :
+                        student.rating >= 2.5 ? 'bg-blue-100 text-blue-800' :
+                        student.rating > 0 ? 'bg-orange-100 text-orange-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {student.rating} ★
+                      </span>
+                    </td>
+                    <td className="border border-gray-200 px-3 py-1 text-gray-600">{student.comment || '-'}</td>
+                  </tr>
+                ))
               ) : (
-                studentPerformance.filter(s => s.attendance_status !== 'Absent').map((student) => {
-                  const finalRating = Math.max(0, ((student.questions_asked ?? 0) + (student.performance_rating ?? 0) - (student.bad_behaviour_points ?? 0)) / 2);
-                  return (
-                    <tr key={student.id}>
-                      <td className="border border-gray-300 px-2 py-1">{student.student_name}</td>
-                      <td className="border border-gray-300 px-2 py-1 text-center">{finalRating}</td>
-                      <td className="border border-gray-300 px-2 py-1">{student.performance_comment || '-'}</td>
-                    </tr>
-                  )
-                })
+                <tr>
+                  <td colSpan={4} className="border border-gray-200 px-3 py-4 text-center text-gray-400 italic">
+                    No performance records found
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>
-          <div className="text-right font-bold mt-2">
-            Total Present Students: {
-              allStudents.length > 0 
-                ? allStudents.filter(s => {
-                    const pd = studentPerformance.find(sp => (sp.student_name || '').trim() === s.name.trim());
-                    return pd && pd.attendance_status !== 'Absent';
-                  }).length 
-                : studentPerformance.filter(s => s.attendance_status !== 'Absent').length
-            }
-          </div>
         </div>
       </div>
 

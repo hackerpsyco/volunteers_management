@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, CheckCircle2, Clock, CalendarDays,
-  BookOpen, Link2, Trophy, AlertCircle, ExternalLink, Loader2, X
+  BookOpen, Link2, Trophy, AlertCircle, ExternalLink, Loader2, X, Upload
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
@@ -148,10 +148,18 @@ export default function StudentTaskDetail() {
     if (!files || files.length === 0 || !task) return;
     
     const allowedTypes = task.submission_types || ['code'];
+    const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB limit
     
     // Validate all files
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
+      
+      // Check file size
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error(`File "${file.name}" is too large (${(file.size / (1024 * 1024)).toFixed(1)} MB). Maximum size allowed is 25 MB.`);
+        return;
+      }
+      
       const isPdf = file.type === 'application/pdf';
       const isDoc = file.type.includes('word') || file.name.endsWith('.doc') || file.name.endsWith('.docx');
       const isPpt = file.type.includes('presentation') || file.name.endsWith('.ppt') || file.name.endsWith('.pptx');
@@ -194,24 +202,39 @@ export default function StudentTaskDetail() {
         formData.append('file', file);
         formData.append('folderPath', JSON.stringify(folderPath));
         
-        const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-to-gdrive`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${session?.access_token}`
-          },
-          body: formData
-        });
-        
-        const result = await res.json();
-        if (!res.ok) throw new Error(result.error || `Upload failed for ${file.name}`);
-        newLinks.push(result.webViewLink);
+        // Timeout handling (60 seconds)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+        try {
+          const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-to-gdrive`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${session?.access_token}`
+            },
+            body: formData,
+            signal: controller.signal
+          });
+          
+          clearTimeout(timeoutId);
+          const result = await res.json();
+          if (!res.ok) throw new Error(result.error || `Upload failed for ${file.name}`);
+          newLinks.push(result.webViewLink);
+        } catch (err: any) {
+          clearTimeout(timeoutId);
+          throw err;
+        }
       }
       
       setSubmissionLink(prev => prev ? `${prev},${newLinks.join(',')}` : newLinks.join(','));
       toast.success(files.length > 1 ? 'Files uploaded successfully!' : 'File uploaded successfully!');
     } catch (err: any) {
       console.error(err);
-      toast.error('Failed to upload file: ' + err.message);
+      if (err.name === 'AbortError') {
+        toast.error('Upload timed out. Please check your internet connection or try a smaller file.');
+      } else {
+        toast.error('Failed to upload file: ' + err.message);
+      }
     } finally {
       setUploadingFile(false);
       event.target.value = ''; 
@@ -454,26 +477,55 @@ export default function StudentTaskDetail() {
               <div className="space-y-4">
                 
                 {task.submission_types?.some(t => ['video', 'pdf', 'doc', 'ppt', 'excel', 'image', 'code'].includes(t)) && (
-                  <div className="space-y-1.5 p-4 border rounded-md bg-muted/20">
-                    <Label htmlFor="file_upload">Upload File ({task.submission_types.filter(t => t !== 'link').join(', ')})</Label>
-                    <Input
-                      id="file_upload"
-                      type="file"
-                      multiple
-                      onChange={handleFileUpload}
-                      disabled={isSubmissionClosed || !canSubmit || uploadingFile}
-                      accept={task.submission_types.map(t => {
-                        if (t === 'pdf') return '.pdf';
-                        if (t === 'doc') return '.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-                        if (t === 'ppt') return '.ppt,.pptx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation';
-                        if (t === 'excel') return '.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-                        if (t === 'image') return 'image/*';
-                        if (t === 'video') return 'video/*';
-                        if (t === 'code') return '.js,.ts,.jsx,.tsx,.html,.css,.py,.java,.cpp,.c,.txt,.json,.zip';
-                        return '';
-                      }).filter(Boolean).join(',')}
-                    />
-                    {uploadingFile && <p className="text-sm text-primary animate-pulse">Uploading file to Google Drive...</p>}
+                  <div className="space-y-3">
+                    <Label className="text-sm font-semibold">Upload File ({task.submission_types.filter(t => t !== 'link').join(', ')})</Label>
+                    
+                    <label 
+                      htmlFor="file_upload"
+                      className={cn(
+                        "flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all bg-card shadow-sm hover:bg-accent/40 border-border hover:border-primary/50 group",
+                        (isSubmissionClosed || !canSubmit || uploadingFile) && "opacity-60 cursor-not-allowed hover:bg-card hover:border-border"
+                      )}
+                    >
+                      <input
+                        id="file_upload"
+                        type="file"
+                        multiple
+                        onChange={handleFileUpload}
+                        disabled={isSubmissionClosed || !canSubmit || uploadingFile}
+                        className="hidden"
+                        accept={task.submission_types.map(t => {
+                          if (t === 'pdf') return '.pdf';
+                          if (t === 'doc') return '.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+                          if (t === 'ppt') return '.ppt,.pptx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation';
+                          if (t === 'excel') return '.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+                          if (t === 'image') return 'image/*';
+                          if (t === 'video') return 'video/*';
+                          if (t === 'code') return '.js,.ts,.jsx,.tsx,.html,.css,.py,.java,.cpp,.c,.txt,.json,.zip';
+                          return '';
+                        }).filter(Boolean).join(',')}
+                      />
+                      
+                      {uploadingFile ? (
+                        <div className="flex flex-col items-center gap-2 py-4">
+                          <Loader2 className="h-10 w-10 text-primary animate-spin" />
+                          <p className="text-sm font-semibold text-primary animate-pulse">Uploading file to Google Drive...</p>
+                          <p className="text-xs text-muted-foreground">Please do not close this window</p>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="p-3 bg-primary/10 text-primary rounded-full group-hover:bg-primary/20 transition-colors">
+                            <Upload className="h-6 w-6" />
+                          </div>
+                          <div>
+                            <span className="font-semibold text-sm text-primary group-hover:underline">Click to upload</span> or drag and drop
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Supported: {task.submission_types.filter(t => t !== 'link').join(', ')} (Max size: 25 MB)
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </label>
                     {!uploadingFile && submissionLink?.includes('drive.google.com/file') && (
                       <div className="mt-2 flex flex-col gap-2 bg-green-50/50 p-2 rounded-md border border-green-200">
                         <span className="text-xs text-green-700 flex items-center gap-1.5">

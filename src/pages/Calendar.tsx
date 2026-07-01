@@ -35,7 +35,7 @@ import { AddSessionDialog } from '@/components/sessions/AddSessionDialog';
 import { EditSessionDialog } from '@/components/sessions/EditSessionDialog';
 import { SessionTypeDialog } from '@/components/sessions/SessionTypeDialog';
 
-interface Volunteer {
+interface Facilitator {
   id: string;
   name: string;
 }
@@ -96,9 +96,9 @@ export default function Calendar() {
   const navigate = useNavigate();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
+  const [facilitators, setFacilitators] = useState<Facilitator[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
-  const [selectedVolunteer, setSelectedVolunteer] = useState<string>('all');
+  const [selectedFacilitator, setSelectedFacilitator] = useState<string>('all');
   const [selectedClass, setSelectedClass] = useState<string>('all');
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<string>('all');
@@ -115,11 +115,12 @@ export default function Calendar() {
   const [userRole, setUserRole] = useState<number | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [calendarView, setCalendarView] = useState<'month' | '1-week' | '3-day' | '1-day'>('month');
 
   useEffect(() => {
     if (user?.id) {
       loadUserRoleAndClass();
-      fetchVolunteers();
+      fetchFacilitators();
       fetchClasses();
       fetchSubjects();
       fetchSessions();
@@ -162,21 +163,21 @@ export default function Calendar() {
 
   useEffect(() => {
     generateCalendar();
-  }, [currentDate, sessions, selectedVolunteer, selectedClass, sessionTypeFilter, selectedSubject]);
+  }, [currentDate, sessions, selectedFacilitator, selectedClass, sessionTypeFilter, selectedSubject, calendarView]);
 
-  const fetchVolunteers = async () => {
+  const fetchFacilitators = async () => {
     try {
       const { data, error } = await supabase
-        .from('volunteers')
+        .from('facilitators')
         .select('id, name')
-        .eq('is_active', true)
+        .eq('status', 'active')
         .order('name', { ascending: true });
 
       if (error) throw error;
-      setVolunteers(data || []);
+      setFacilitators(data || []);
     } catch (error) {
-      console.error('Error fetching volunteers:', error);
-      toast.error('Failed to load volunteers');
+      console.error('Error fetching facilitators:', error);
+      toast.error('Failed to load facilitators');
     }
   };
 
@@ -256,18 +257,11 @@ export default function Calendar() {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
-
-    const days: CalendarDay[] = [];
-
-    // Filter sessions based on selected volunteer and class
+    // Filter sessions based on selected facilitator and class
     let filteredSessions = sessions;
     
-    if (selectedVolunteer !== 'all') {
-      filteredSessions = filteredSessions.filter(s => s.facilitator_name === selectedVolunteer);
+    if (selectedFacilitator !== 'all') {
+      filteredSessions = filteredSessions.filter(s => s.facilitator_name === selectedFacilitator);
     }
     
     if (selectedClass !== 'all') {
@@ -282,39 +276,90 @@ export default function Calendar() {
       filteredSessions = filteredSessions.filter(s => s.subject_name === selectedSubject);
     }
 
-    // Previous month days
-    const prevMonthLastDay = new Date(year, month, 0).getDate();
-    for (let i = startingDayOfWeek - 1; i >= 0; i--) {
-      const date = new Date(year, month - 1, prevMonthLastDay - i);
-      days.push({
-        date,
-        sessions: [],
-        isCurrentMonth: false,
-      });
-    }
+    const days: CalendarDay[] = [];
 
-    // Current month days
-    for (let i = 1; i <= daysInMonth; i++) {
-      const date = new Date(year, month, i);
-      // Format date as YYYY-MM-DD without timezone conversion
-      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+    if (calendarView === 'month') {
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      const daysInMonth = lastDay.getDate();
+      const startingDayOfWeek = firstDay.getDay();
+
+      // Previous month days
+      const prevMonthLastDay = new Date(year, month, 0).getDate();
+      for (let i = startingDayOfWeek - 1; i >= 0; i--) {
+        const date = new Date(year, month - 1, prevMonthLastDay - i);
+        days.push({
+          date,
+          sessions: [],
+          isCurrentMonth: false,
+        });
+      }
+
+      // Current month days
+      for (let i = 1; i <= daysInMonth; i++) {
+        const date = new Date(year, month, i);
+        // Format date as YYYY-MM-DD without timezone conversion
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+        const daySessions = filteredSessions.filter(s => s.session_date === dateStr);
+        
+        days.push({
+          date,
+          sessions: daySessions,
+          isCurrentMonth: true,
+        });
+      }
+
+      // Next month days
+      const remainingDays = 42 - days.length;
+      for (let i = 1; i <= remainingDays; i++) {
+        const date = new Date(year, month + 1, i);
+        days.push({
+          date,
+          sessions: [],
+          isCurrentMonth: false,
+        });
+      }
+    } else if (calendarView === '1-week') {
+      // 1-week view starting from the start of the week of currentDate
+      const dayOfWeek = currentDate.getDay();
+      const startOfWeek = new Date(currentDate);
+      startOfWeek.setDate(currentDate.getDate() - dayOfWeek);
+
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(startOfWeek);
+        date.setDate(startOfWeek.getDate() + i);
+        const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        const daySessions = filteredSessions.filter(s => s.session_date === dateStr);
+
+        days.push({
+          date,
+          sessions: daySessions,
+          isCurrentMonth: true,
+        });
+      }
+    } else if (calendarView === '3-day') {
+      // 3-day view starting from currentDate
+      for (let i = 0; i < 3; i++) {
+        const date = new Date(currentDate);
+        date.setDate(currentDate.getDate() + i);
+        const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        const daySessions = filteredSessions.filter(s => s.session_date === dateStr);
+
+        days.push({
+          date,
+          sessions: daySessions,
+          isCurrentMonth: true,
+        });
+      }
+    } else if (calendarView === '1-day') {
+      // 1-day view for currentDate
+      const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
       const daySessions = filteredSessions.filter(s => s.session_date === dateStr);
-      
+
       days.push({
-        date,
+        date: currentDate,
         sessions: daySessions,
         isCurrentMonth: true,
-      });
-    }
-
-    // Next month days
-    const remainingDays = 42 - days.length;
-    for (let i = 1; i <= remainingDays; i++) {
-      const date = new Date(year, month + 1, i);
-      days.push({
-        date,
-        sessions: [],
-        isCurrentMonth: false,
       });
     }
 
@@ -459,12 +504,40 @@ export default function Calendar() {
     }
   };
 
-  const previousMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
+  const previousPeriod = () => {
+    if (calendarView === 'month') {
+      setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+    } else if (calendarView === '1-week') {
+      const d = new Date(currentDate);
+      d.setDate(currentDate.getDate() - 7);
+      setCurrentDate(d);
+    } else if (calendarView === '3-day') {
+      const d = new Date(currentDate);
+      d.setDate(currentDate.getDate() - 3);
+      setCurrentDate(d);
+    } else if (calendarView === '1-day') {
+      const d = new Date(currentDate);
+      d.setDate(currentDate.getDate() - 1);
+      setCurrentDate(d);
+    }
   };
 
-  const nextMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1));
+  const nextPeriod = () => {
+    if (calendarView === 'month') {
+      setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+    } else if (calendarView === '1-week') {
+      const d = new Date(currentDate);
+      d.setDate(currentDate.getDate() + 7);
+      setCurrentDate(d);
+    } else if (calendarView === '3-day') {
+      const d = new Date(currentDate);
+      d.setDate(currentDate.getDate() + 3);
+      setCurrentDate(d);
+    } else if (calendarView === '1-day') {
+      const d = new Date(currentDate);
+      d.setDate(currentDate.getDate() + 1);
+      setCurrentDate(d);
+    }
   };
 
   const handleDateClick = (date: Date) => {
@@ -472,7 +545,77 @@ export default function Calendar() {
     setIsAddSessionOpen(true);
   };
 
-  const monthName = currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+  const getHeaderTitle = () => {
+    if (calendarView === 'month') {
+      return currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+    }
+    if (calendarView === '1-week') {
+      const dayOfWeek = currentDate.getDay();
+      const startOfWeek = new Date(currentDate);
+      startOfWeek.setDate(currentDate.getDate() - dayOfWeek);
+      const endOfWeek = new Date(startOfWeek);
+      endOfWeek.setDate(startOfWeek.getDate() + 6);
+      
+      const startStr = startOfWeek.toLocaleDateString('default', { day: 'numeric', month: 'short' });
+      const endStr = endOfWeek.toLocaleDateString('default', { day: 'numeric', month: 'short', year: 'numeric' });
+      return `${startStr} – ${endStr}`;
+    }
+    if (calendarView === '3-day') {
+      const endDate = new Date(currentDate);
+      endDate.setDate(currentDate.getDate() + 2);
+      
+      const startStr = currentDate.toLocaleDateString('default', { day: 'numeric', month: 'short' });
+      const endStr = endDate.toLocaleDateString('default', { day: 'numeric', month: 'short', year: 'numeric' });
+      return `${startStr} – ${endStr}`;
+    }
+    if (calendarView === '1-day') {
+      return currentDate.toLocaleDateString('default', { day: 'numeric', month: 'long', year: 'numeric' });
+    }
+    return '';
+  };
+
+  const getGridColsClass = () => {
+    if (calendarView === 'month' || calendarView === '1-week') return 'grid-cols-7';
+    if (calendarView === '3-day') return 'grid-cols-3';
+    if (calendarView === '1-day') return 'grid-cols-1';
+    return 'grid-cols-7';
+  };
+
+  const renderDayHeaders = () => {
+    if (calendarView === 'month' || calendarView === '1-week') {
+      return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+        <div key={day} className="text-center font-semibold text-sm text-muted-foreground py-2">
+          {day}
+        </div>
+      ));
+    }
+    
+    if (calendarView === '3-day') {
+      const headers = [];
+      for (let i = 0; i < 3; i++) {
+        const d = new Date(currentDate);
+        d.setDate(currentDate.getDate() + i);
+        const dayStr = d.toLocaleDateString('default', { weekday: 'short', day: 'numeric' });
+        headers.push(
+          <div key={i} className="text-center font-semibold text-sm text-muted-foreground py-2">
+            {dayStr}
+          </div>
+        );
+      }
+      return headers;
+    }
+    
+    if (calendarView === '1-day') {
+      const dayStr = currentDate.toLocaleDateString('default', { weekday: 'long', day: 'numeric' });
+      return (
+        <div className="text-center font-semibold text-sm text-muted-foreground py-2">
+          {dayStr}
+        </div>
+      );
+    }
+    
+    return null;
+  };
 
   const isToday = (date: Date) => {
     const today = new Date();
@@ -516,20 +659,20 @@ export default function Calendar() {
         {userRole !== 5 && (
           <div className="bg-card border border-border rounded-lg p-4 space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              {/* Volunteer Filter */}
+              {/* Facilitator Filter */}
               <div>
                 <label className="text-sm font-medium text-foreground block mb-2">
-                  Filter by Volunteer
+                  Filter by Facilitator
                 </label>
-                <Select value={selectedVolunteer} onValueChange={setSelectedVolunteer}>
+                <Select value={selectedFacilitator} onValueChange={setSelectedFacilitator}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select a Volunteer" />
+                    <SelectValue placeholder="Select a Facilitator" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Volunteers</SelectItem>
-                    {volunteers.map((volunteer) => (
-                      <SelectItem key={volunteer.id} value={volunteer.name}>
-                        {volunteer.name}
+                    <SelectItem value="all">All Facilitators</SelectItem>
+                    {facilitators.map((facilitator) => (
+                      <SelectItem key={facilitator.id} value={facilitator.name}>
+                        {facilitator.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -612,50 +755,75 @@ export default function Calendar() {
         <div className="grid grid-cols-1 gap-6">
           {/* Calendar */}
           <div className="bg-card border border-border rounded-lg p-6">
-            {/* Month Navigation */}
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold">{monthName}</h2>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={previousMonth}>
-                   <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <Button size="sm" variant="outline" onClick={nextMonth}>
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
+            {/* Month Navigation & View Selector */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6 pb-4 border-b">
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg md:text-xl font-bold">{getHeaderTitle()}</h2>
+                <div className="flex gap-1.5">
+                  <Button size="icon" variant="outline" className="h-8 w-8" onClick={previousPeriod}>
+                     <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button size="icon" variant="outline" className="h-8 w-8" onClick={nextPeriod}>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button size="sm" variant="outline" className="h-8 text-xs font-semibold px-2.5" onClick={() => setCurrentDate(new Date())}>
+                    Today
+                  </Button>
+                </div>
+              </div>
+              <div className="flex bg-muted/60 p-1 rounded-lg border">
+                {(['month', '1-week', '3-day', '1-day'] as const).map((view) => (
+                  <button
+                    key={view}
+                    onClick={() => setCalendarView(view)}
+                    className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${
+                      calendarView === view
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {view === 'month' ? 'Month' : view === '1-week' ? '1 Week' : view === '3-day' ? '3 Day' : '1 Day'}
+                  </button>
+                ))}
               </div>
             </div>
 
             {/* Day Headers */}
-            <div className="grid grid-cols-7 gap-2 mb-2">
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                <div key={day} className="text-center font-semibold text-sm text-muted-foreground py-2">
-                  {day}
-                </div>
-              ))}
+            <div className={`grid ${getGridColsClass()} gap-2 mb-2`}>
+              {renderDayHeaders()}
             </div>
 
             {/* Calendar Days */}
-            <div className="grid grid-cols-7 gap-2">
+            <div className={`grid ${getGridColsClass()} gap-2`}>
               {calendarDays.map((day, idx) => {
                 const todayFlag = isToday(day.date);
                 return (
                   <div
                     key={idx}
-                    onClick={() => day.isCurrentMonth && handleDateClick(day.date)}
-                    className={`min-h-24 p-2 border rounded-lg cursor-pointer transition-colors ${
+                    onClick={() => (calendarView === 'month' ? day.isCurrentMonth : true) && handleDateClick(day.date)}
+                    className={`min-h-24 p-2 border rounded-lg cursor-pointer transition-all ${
                       todayFlag
-                        ? 'bg-primary/10 border-primary border-2 hover:bg-primary/20'
+                        ? 'bg-primary/5 border-primary border-2 hover:bg-primary/10 shadow-sm'
                         : day.isCurrentMonth
                         ? 'bg-background border-border hover:bg-accent hover:border-primary'
-                        : 'bg-muted border-muted-foreground/20'
+                        : 'bg-muted/40 border-muted-foreground/10 text-muted-foreground/60'
                     }`}
                   >
-                    <div className={`text-sm font-semibold mb-1 ${
-                      todayFlag
-                        ? 'text-primary'
-                        : day.isCurrentMonth ? 'text-foreground' : 'text-muted-foreground'
-                    }`}>
-                      {day.date.getDate()}
+                    <div className="flex justify-between items-center mb-1.5">
+                      <span
+                        className={`text-xs font-bold flex items-center justify-center h-6 w-6 rounded-full ${
+                          todayFlag
+                            ? 'bg-primary text-primary-foreground font-black'
+                            : 'text-foreground font-semibold'
+                        }`}
+                      >
+                        {day.date.getDate()}
+                      </span>
+                      {calendarView !== 'month' && (
+                        <span className="text-[10px] font-semibold text-muted-foreground uppercase">
+                          {day.date.toLocaleDateString('default', { weekday: 'short' })}
+                        </span>
+                      )}
                     </div>
                     <div className="space-y-1">
                       {(() => {
