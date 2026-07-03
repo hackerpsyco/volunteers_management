@@ -116,6 +116,7 @@ export default function Calendar() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [calendarView, setCalendarView] = useState<'month' | '1-week' | '3-day' | '1-day'>('month');
+  const [selectedActiveDate, setSelectedActiveDate] = useState<Date>(() => new Date());
 
   useEffect(() => {
     if (user?.id) {
@@ -491,6 +492,15 @@ export default function Calendar() {
     }
   };
 
+  const getSessionTypeDotColor = (sessionType?: string) => {
+    switch (sessionType) {
+      case 'guest_teacher': return 'bg-cyan-500';
+      case 'guest_speaker': return 'bg-violet-500';
+      case 'local_teacher': return 'bg-pink-500';
+      default: return 'bg-blue-500';
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'completed':
@@ -583,8 +593,16 @@ export default function Calendar() {
 
   const renderDayHeaders = () => {
     if (calendarView === 'month' || calendarView === '1-week') {
-      return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-        <div key={day} className="text-center font-semibold text-sm text-muted-foreground py-2">
+      const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const selectedDayIndex = selectedActiveDate ? selectedActiveDate.getDay() : -1;
+      
+      return daysOfWeek.map((day, idx) => (
+        <div 
+          key={day} 
+          className={`text-center font-bold text-[11px] md:text-xs py-2 uppercase tracking-wider ${
+            idx === selectedDayIndex ? 'text-primary' : 'text-muted-foreground'
+          }`}
+        >
           {day}
         </div>
       ));
@@ -638,123 +656,118 @@ export default function Calendar() {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-2xl md:text-3xl font-bold text-foreground">Session Calendar</h1>
-            <p className="text-sm md:text-base text-muted-foreground mt-1">Plan and track session progress</p>
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground">Session Calendar</h1>
+            <p className="hidden sm:block text-sm md:text-base text-muted-foreground mt-1 font-normal">Plan and track session progress</p>
           </div>
           {userRole !== 5 && (
             <Button
               onClick={() => setIsSessionTypeOpen(true)}
-              className="w-full sm:w-auto gap-2"
+              size="sm"
+              className="shrink-0 gap-1 px-3 h-8 text-xs font-semibold"
             >
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Add Session</span>
-              <span className="sm:hidden">Add</span>
+              <Plus className="h-3.5 w-3.5" />
+              <span>Add</span>
             </Button>
           )}
         </div>
 
-        {/* Volunteer and Class Filters - Only show for non-students */}
-        {userRole !== 5 && (
-          <div className="bg-card border border-border rounded-lg p-4 space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              {/* Facilitator Filter */}
-              <div>
-                <label className="text-sm font-medium text-foreground block mb-2">
-                  Filter by Facilitator
-                </label>
-                <Select value={selectedFacilitator} onValueChange={setSelectedFacilitator}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select a Facilitator" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Facilitators</SelectItem>
-                    {facilitators.map((facilitator) => (
-                      <SelectItem key={facilitator.id} value={facilitator.name}>
-                        {facilitator.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Class Filter */}
-              <div>
-                <label className="text-sm font-medium text-foreground block mb-2">
-                  Filter by Class
-                </label>
-                <Select value={selectedClass} onValueChange={setSelectedClass}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select a Class" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Classes</SelectItem>
-                    {classes.map((cls) => (
-                      <SelectItem key={cls.id} value={cls.name}>
-                        {cls.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Session Type Filter */}
-              <div>
-                <label className="text-sm font-medium text-foreground block mb-2">
-                  Filter by Type
-                </label>
-                <Select value={sessionTypeFilter} onValueChange={setSessionTypeFilter}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Types</SelectItem>
-                    <SelectItem value="guest_teacher">Guest Teacher (GT)</SelectItem>
-                    <SelectItem value="guest_speaker">Guest Speaker (GS)</SelectItem>
-                    <SelectItem value="local_teacher">Local Teacher (LT)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Subject Filter */}
-              <div>
-                <label className="text-sm font-medium text-foreground block mb-2">
-                  Filter by Subject
-                </label>
-                <Select value={selectedSubject} onValueChange={setSelectedSubject}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select subject" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Subjects</SelectItem>
-                    {subjects.map((subject) => (
-                      <SelectItem key={subject.id} value={subject.name}>
-                        {subject.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Student Class Display */}
-        {userRole === 5 && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <p className="text-sm text-blue-800">
-              <strong>Your Class:</strong> {selectedClass !== 'all' ? selectedClass : 'Loading...'}
-            </p>
-            <p className="text-xs text-blue-700 mt-1">
-              Showing sessions for your class only
-            </p>
-          </div>
-        )}
-
         <div className="grid grid-cols-1 gap-6">
           {/* Calendar */}
-          <div className="bg-card border border-border rounded-lg p-6">
+          <div className="bg-card border border-border rounded-lg p-4 md:p-6">
+            {/* Volunteer and Class Filters - Only show for non-students */}
+            {userRole !== 5 && (
+              <div className="border-b border-border/80 pb-4 mb-6">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+                  {/* Facilitator Filter */}
+                  <div>
+                    <label className="text-[10px] md:text-xs font-semibold text-muted-foreground uppercase block mb-1.5">
+                      Facilitator
+                    </label>
+                    <Select value={selectedFacilitator} onValueChange={setSelectedFacilitator}>
+                      <SelectTrigger className="w-full h-8 md:h-9 text-xs">
+                        <SelectValue placeholder="All Facilitators" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Facilitators</SelectItem>
+                        {facilitators.map((facilitator) => (
+                          <SelectItem key={facilitator.id} value={facilitator.name}>
+                            {facilitator.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Class Filter */}
+                  <div>
+                    <label className="text-[10px] md:text-xs font-semibold text-muted-foreground uppercase block mb-1.5">
+                      Class
+                    </label>
+                    <Select value={selectedClass} onValueChange={setSelectedClass}>
+                      <SelectTrigger className="w-full h-8 md:h-9 text-xs">
+                        <SelectValue placeholder="All Classes" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Classes</SelectItem>
+                        {classes.map((cls) => (
+                          <SelectItem key={cls.id} value={cls.name}>
+                            {cls.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Session Type Filter */}
+                  <div>
+                    <label className="text-[10px] md:text-xs font-semibold text-muted-foreground uppercase block mb-1.5">
+                      Type
+                    </label>
+                    <Select value={sessionTypeFilter} onValueChange={setSessionTypeFilter}>
+                      <SelectTrigger className="w-full h-8 md:h-9 text-xs">
+                        <SelectValue placeholder="All Types" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Types</SelectItem>
+                        <SelectItem value="guest_teacher">Guest Teacher</SelectItem>
+                        <SelectItem value="guest_speaker">Guest Speaker</SelectItem>
+                        <SelectItem value="local_teacher">Local Teacher</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Subject Filter */}
+                  <div>
+                    <label className="text-[10px] md:text-xs font-semibold text-muted-foreground uppercase block mb-1.5">
+                      Subject
+                    </label>
+                    <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+                      <SelectTrigger className="w-full h-8 md:h-9 text-xs">
+                        <SelectValue placeholder="All Subjects" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Subjects</SelectItem>
+                        {subjects.map((subject) => (
+                          <SelectItem key={subject.id} value={subject.name}>
+                            {subject.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Student Class Display */}
+            {userRole === 5 && (
+              <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-3 text-xs text-blue-800 mb-6 flex justify-between items-center">
+                <span><strong>Your Class:</strong> {selectedClass !== 'all' ? selectedClass : 'Loading...'}</span>
+                <span className="text-[10px] text-blue-700/80">Showing sessions for your class only</span>
+              </div>
+            )}
             {/* Month Navigation & View Selector */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6 pb-4 border-b">
               <div className="flex items-center gap-3">
@@ -792,28 +805,45 @@ export default function Calendar() {
             <div className={`grid ${getGridColsClass()} gap-2 mb-2`}>
               {renderDayHeaders()}
             </div>
-
             {/* Calendar Days */}
-            <div className={`grid ${getGridColsClass()} gap-2`}>
+            <div className={`grid ${getGridColsClass()} gap-1.5 md:gap-2`}>
               {calendarDays.map((day, idx) => {
                 const todayFlag = isToday(day.date);
+                const isSelected = selectedActiveDate &&
+                  day.date.getDate() === selectedActiveDate.getDate() &&
+                  day.date.getMonth() === selectedActiveDate.getMonth() &&
+                  day.date.getFullYear() === selectedActiveDate.getFullYear();
+                
+                // If in Month View, hide previous/next month padding days completely to make current month very clear
+                if (calendarView === 'month' && !day.isCurrentMonth) {
+                  return (
+                    <div key={idx} className="bg-transparent border border-transparent min-h-[56px] md:min-h-[96px]" />
+                  );
+                }
+                  
                 return (
                   <div
                     key={idx}
-                    onClick={() => (calendarView === 'month' ? day.isCurrentMonth : true) && handleDateClick(day.date)}
-                    className={`min-h-24 p-2 border rounded-lg cursor-pointer transition-all ${
-                      todayFlag
-                        ? 'bg-primary/5 border-primary border-2 hover:bg-primary/10 shadow-sm'
-                        : day.isCurrentMonth
-                        ? 'bg-background border-border hover:bg-accent hover:border-primary'
-                        : 'bg-muted/40 border-muted-foreground/10 text-muted-foreground/60'
+                    onClick={() => {
+                      if (calendarView === 'month' ? day.isCurrentMonth : true) {
+                        setSelectedActiveDate(day.date);
+                      }
+                    }}
+                    className={`min-h-[56px] md:min-h-[96px] p-1 md:p-2 border rounded-lg cursor-pointer transition-all flex flex-col justify-between ${
+                      isSelected
+                        ? 'bg-primary/5 border-primary border-2 shadow-sm'
+                        : todayFlag
+                        ? 'bg-background border-primary/40 hover:bg-accent hover:border-primary'
+                        : 'bg-background border-border hover:bg-accent hover:border-primary'
                     }`}
                   >
-                    <div className="flex justify-between items-center mb-1.5">
+                    <div className="flex justify-between items-center mb-1">
                       <span
-                        className={`text-xs font-bold flex items-center justify-center h-6 w-6 rounded-full ${
-                          todayFlag
-                            ? 'bg-primary text-primary-foreground font-black'
+                        className={`text-xs font-bold flex items-center justify-center h-6 w-6 rounded-full transition-all ${
+                          isSelected
+                            ? 'bg-primary text-primary-foreground font-extrabold shadow-sm scale-110'
+                            : todayFlag
+                            ? 'border border-primary text-primary font-bold'
                             : 'text-foreground font-semibold'
                         }`}
                       >
@@ -825,50 +855,187 @@ export default function Calendar() {
                         </span>
                       )}
                     </div>
-                    <div className="space-y-1">
-                      {(() => {
-                        // Format date as YYYY-MM-DD without timezone conversion
-                        const year = day.date.getFullYear();
-                        const month = day.date.getMonth();
-                        const date = day.date.getDate();
-                        const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
-                        const isExpanded = expandedDateKey === dateKey;
-                        const sessionsToShow = isExpanded ? day.sessions : day.sessions.slice(0, 2);
-                        
-                        return (
-                          <>
-                            {sessionsToShow.map((session, i) => (
-                              <button
-                                key={i}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedSession(session);
-                                }}
-                                className={`text-xs px-2 py-1 rounded w-full text-left hover:opacity-80 whitespace-normal break-words ${getSessionTypeColor(session.session_type)}`}
-                                title={getSessionDisplayTitle(session)}
-                              >
-                                <div className="text-[11px] line-clamp-2 font-medium">{getSessionDisplayTitle(session)}</div>
-                              </button>
-                            ))}
-                            {day.sessions.length > 2 && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setExpandedDateKey(isExpanded ? null : dateKey);
-                                }}
-                                className="text-xs text-primary hover:text-primary/80 px-2 font-medium cursor-pointer transition-colors"
-                              >
-                                {isExpanded ? '−' : '+'}{day.sessions.length - 2} more
-                              </button>
-                            )}
-                          </>
-                        );
-                      })()}
+                    
+                    {/* Session Capsules List (Both Mobile & Desktop) */}
+                    <div className="space-y-1 mt-1.5 w-full overflow-hidden">
+                      {day.sessions.slice(0, 3).map((session, i) => (
+                        <button
+                          key={i}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedSession(session);
+                          }}
+                          className={`text-[9px] md:text-[10px] px-1 md:px-1.5 py-0.5 rounded w-full text-left truncate whitespace-nowrap overflow-hidden block border hover:opacity-85 ${getSessionTypeColor(session.session_type)}`}
+                          title={session.title || getSessionDisplayTitle(session)}
+                        >
+                          {session.title || getSessionDisplayTitle(session)}
+                        </button>
+                      ))}
+                      {day.sessions.length > 3 && (
+                        <div 
+                          className="text-[9px] text-primary font-bold pl-1 mt-0.5 cursor-pointer hover:underline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedActiveDate(day.date);
+                          }}
+                        >
+                          +{day.sessions.length - 3} more
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
               })}
             </div>
+
+            {/* Selected Day's Sessions List (Especially important for mobile) */}
+            <div className="mt-6 pt-6 border-t border-border">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-base font-bold text-foreground">
+                    Sessions on {selectedActiveDate.toLocaleDateString('default', { weekday: 'long', day: 'numeric', month: 'long' })}
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {(() => {
+                      const year = selectedActiveDate.getFullYear();
+                      const month = selectedActiveDate.getMonth();
+                      const date = selectedActiveDate.getDate();
+                      const dayData = calendarDays.find(d => {
+                        const dy = d.date.getFullYear();
+                        const dm = d.date.getMonth();
+                        const dd = d.date.getDate();
+                        return dy === year && dm === month && dd === date;
+                      });
+                      const count = dayData?.sessions.length || 0;
+                      return `${count} ${count === 1 ? 'session' : 'sessions'} scheduled`;
+                    })()}
+                  </p>
+                </div>
+                {userRole !== 5 && (
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="h-8 text-xs font-semibold gap-1.5"
+                    onClick={() => {
+                      setSelectedDateForNewSession(selectedActiveDate);
+                      setIsAddSessionOpen(true);
+                    }}
+                  >
+                    + Add Session
+                  </Button>
+                )}
+              </div>
+
+              {/* Sessions List */}
+              {(() => {
+                const year = selectedActiveDate.getFullYear();
+                const month = selectedActiveDate.getMonth();
+                const date = selectedActiveDate.getDate();
+                const dayData = calendarDays.find(d => {
+                  const dy = d.date.getFullYear();
+                  const dm = d.date.getMonth();
+                  const dd = d.date.getDate();
+                  return dy === year && dm === month && dd === date;
+                });
+                const daySessions = dayData?.sessions || [];
+
+                if (daySessions.length === 0) {
+                  return (
+                    <div className="bg-muted/30 border border-dashed border-border rounded-xl p-6 text-center">
+                      <p className="text-sm text-muted-foreground">No sessions scheduled for this day.</p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {daySessions.map((session, i) => (
+                      <div 
+                        key={i}
+                        onClick={() => setSelectedSession(session)}
+                        className="bg-card hover:bg-accent/40 border border-border/60 hover:border-primary/40 rounded-xl p-4 transition-all cursor-pointer shadow-sm flex flex-col justify-between gap-3 group relative overflow-hidden"
+                      >
+                        {/* Colored border indicator on left */}
+                        <div className={`absolute left-0 top-0 bottom-0 w-1 ${
+                          session.session_type === 'guest_teacher' ? 'bg-cyan-500' :
+                          session.session_type === 'guest_speaker' ? 'bg-violet-500' :
+                          session.session_type === 'local_teacher' ? 'bg-pink-500' :
+                          'bg-blue-500'
+                        }`} />
+                        
+                        <div className="pl-1">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                              {session.session_type === 'guest_teacher' ? 'Guest Teacher' :
+                               session.session_type === 'guest_speaker' ? 'Guest Speaker' :
+                               session.session_type === 'local_teacher' ? 'Local Teacher' :
+                               'Regular Session'}
+                            </span>
+                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                              session.status === 'completed' ? 'bg-green-50 text-green-700 border border-green-200' :
+                              session.status === 'committed' ? 'bg-purple-50 text-purple-700 border border-purple-200' :
+                              session.status === 'available' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                              'bg-amber-50 text-amber-700 border border-amber-200'
+                            }`}>
+                              {session.status.toUpperCase()}
+                            </span>
+                          </div>
+                          
+                          <h4 className="font-bold text-sm text-foreground mt-2 group-hover:text-primary transition-colors line-clamp-2">
+                            {session.title || 'Untitled Session'}
+                          </h4>
+                          
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mt-3 text-xs text-muted-foreground">
+                            <div>
+                              <span className="font-medium text-foreground block text-[10px] uppercase text-muted-foreground/80">Class</span>
+                              {session.class_batch || '-'}
+                            </div>
+                            <div>
+                              <span className="font-medium text-foreground block text-[10px] uppercase text-muted-foreground/80">Volunteer</span>
+                              {session.volunteer_name || '-'}
+                            </div>
+                            {session.facilitator_name && (
+                              <div className="col-span-2">
+                                <span className="font-medium text-foreground block text-[10px] uppercase text-muted-foreground/80">Facilitator</span>
+                                {session.facilitator_name}
+                              </div>
+                            )}
+                            {session.modules && (
+                              <div>
+                                <span className="font-medium text-foreground block text-[10px] uppercase text-muted-foreground/80">Module</span>
+                                {session.modules}
+                              </div>
+                            )}
+                            {session.topics_covered && (
+                              <div className={session.modules ? "col-span-1" : "col-span-2"}>
+                                <span className="font-medium text-foreground block text-[10px] uppercase text-muted-foreground/80">Topic</span>
+                                {session.topics_covered}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Mobile Floating Action Button (FAB) */}
+            {userRole !== 5 && (
+              <div className="fixed bottom-6 right-6 md:hidden z-50">
+                <Button
+                  size="icon"
+                  className="h-14 w-14 rounded-full shadow-lg bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center border-none"
+                  onClick={() => {
+                    setSelectedDateForNewSession(selectedActiveDate);
+                    setIsAddSessionOpen(true);
+                  }}
+                >
+                  <Plus className="h-6 w-6" />
+                </Button>
+              </div>
+            )}
           </div>
         </div>
 
