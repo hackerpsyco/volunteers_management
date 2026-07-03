@@ -64,6 +64,7 @@ export default function Dashboard() {
   const [curriculumCategories, setCurriculumCategories] = useState<CurriculumCategory[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<string>('all');
+  const [selectedSessionType, setSelectedSessionType] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<number | null>(null);
   const { getDateRange, selectedYear } = useAcademicYear();
@@ -287,11 +288,15 @@ export default function Dashboard() {
         // FILTER SESSIONS BY DATE RANGE
         const { data: allSessions } = await supabase
           .from('sessions')
-          .select('id, status, facilitator_name, recorded_at')
+          .select('id, status, facilitator_name, recorded_at, session_type')
           .gte('session_date', startDate.toISOString().split('T')[0])
           .lte('session_date', endDate.toISOString().split('T')[0]);
         
         let userSessions = allSessions || [];
+
+        if (selectedSessionType !== 'all') {
+          userSessions = userSessions.filter(s => s.session_type === selectedSessionType);
+        }
         
         if (isFacilitator && (targetName || facilName)) {
            userSessions = userSessions.filter(s => {
@@ -347,7 +352,7 @@ export default function Dashboard() {
     }
 
     fetchDashboardData();
-  }, [user?.id, selectedYear, customStartDate, customEndDate]);
+  }, [user?.id, selectedYear, customStartDate, customEndDate, selectedSessionType]);
 
   useEffect(() => {
     async function fetchCurriculumData() {
@@ -417,6 +422,25 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
+            {/* Session Type Filter */}
+            <div className="flex flex-col bg-card border border-border px-3 py-1.5 rounded-lg justify-center h-[58px] min-w-[150px]">
+              <label className="text-[10px] text-muted-foreground font-semibold">SESSION TYPE</label>
+              <Select 
+                value={selectedSessionType} 
+                onValueChange={setSelectedSessionType}
+              >
+                <SelectTrigger className="h-7 border-none bg-transparent focus:ring-0 text-sm font-semibold p-0 shadow-none hover:bg-transparent">
+                  <SelectValue placeholder="All Types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="guest_teacher">Guest Teacher</SelectItem>
+                  <SelectItem value="guest_speaker">Guest Speaker</SelectItem>
+                  <SelectItem value="local_teacher">Local Teacher</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Month Filter */}
             <div className="flex flex-col bg-card border border-border px-3 py-1.5 rounded-lg justify-center h-[58px] min-w-[140px]">
               <label className="text-[10px] text-muted-foreground font-semibold">MONTH</label>
@@ -495,10 +519,15 @@ export default function Dashboard() {
         {/* Status, Volunteer Stats, and Curriculum Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
           {/* 1. Volunteer Session Stats */}
-          {userRole !== 4 && <VolunteerSessionStats />}
+          {userRole !== 4 && <VolunteerSessionStats sessionType={selectedSessionType} />}
 
           {/* 2. Top Facilitators */}
-          <TopFacilitatorsWidget startDate={customStartDate || getDateRange().startDate} endDate={customEndDate || getDateRange().endDate} academicYear={selectedYear} />
+          <TopFacilitatorsWidget 
+            startDate={customStartDate || getDateRange().startDate} 
+            endDate={customEndDate || getDateRange().endDate} 
+            academicYear={selectedYear} 
+            sessionType={selectedSessionType}
+          />
 
           {/* 3. Session Status */}
           <div className="bg-card border border-border rounded-lg p-3 md:p-4">
@@ -523,7 +552,12 @@ export default function Dashboard() {
           <TodayClassAttendanceWidget />
 
           {/* 6. Top Performers */}
-          <TopStudentsWidget startDate={customStartDate || getDateRange().startDate} endDate={customEndDate || getDateRange().endDate} academicYear={selectedYear} />
+          <TopStudentsWidget 
+            startDate={customStartDate || getDateRange().startDate} 
+            endDate={customEndDate || getDateRange().endDate} 
+            academicYear={selectedYear} 
+            sessionType={selectedSessionType}
+          />
 
           {/* 7. Curriculum */}
           <div className="bg-card border border-border rounded-lg p-3 md:p-4 flex flex-col">

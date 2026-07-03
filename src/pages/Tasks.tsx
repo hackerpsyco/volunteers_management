@@ -64,6 +64,8 @@ interface TaskItem {
   academic_year?: string;
   volunteer_name?: string;
   facilitator_name?: string;
+  incharge_name?: string;
+  created_by_name?: string;
   task_id?: string;
 }
 
@@ -77,6 +79,7 @@ interface TaskGroup {
   session_title: string;
   volunteer_name: string;
   facilitator_name: string;
+  incharge_name: string;
   academic_year: string;
   reward: number;
   latestCompletionDate: string | null;
@@ -114,6 +117,8 @@ export default function Tasks() {
   const [filterSession, setFilterSession] = useState('all');
   const [filterSubject, setFilterSubject] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [filterIncharge, setFilterIncharge] = useState('all');
+  const [inchargeOptions, setInchargeOptions] = useState<string[]>([]);
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -146,6 +151,12 @@ export default function Tasks() {
     if (filterSubject !== 'all') {
       filtered = filtered.filter((t) => t.subject_name === filterSubject);
     }
+    if (filterIncharge !== 'all') {
+      filtered = filtered.filter((t) => 
+        t.facilitator_name === filterIncharge || 
+        t.created_by_name === filterIncharge
+      );
+    }
     // Status filtering is applied after grouping to maintain correct denominator counts
     if (filterDateFrom || filterDateTo) {
       filtered = filtered.filter((t) => {
@@ -165,7 +176,8 @@ export default function Tasks() {
           t.student_name?.toLowerCase().includes(q) ||
           t.session_title?.toLowerCase().includes(q) ||
           t.class_name?.toLowerCase().includes(q) ||
-          t.status?.toLowerCase().includes(q)
+          t.status?.toLowerCase().includes(q) ||
+          t.incharge_name?.toLowerCase().includes(q)
       );
     }
     setFilteredTasks(filtered);
@@ -186,6 +198,7 @@ export default function Tasks() {
           session_title: task.session_title && task.session_title !== '-' ? task.session_title : '-',
           volunteer_name: task.volunteer_name && task.volunteer_name !== '-' ? task.volunteer_name : '-',
           facilitator_name: task.facilitator_name && task.facilitator_name !== '-' ? task.facilitator_name : '-',
+          incharge_name: task.incharge_name || '-',
           academic_year: task.academic_year || '-',
           reward: (task as any).earning_amount || 0,
           latestCompletionDate: null,
@@ -238,11 +251,13 @@ export default function Tasks() {
       }
     });
     let finalGroups = Array.from(grouped.values());
-    if (filterStatus !== 'all') {
-      finalGroups = finalGroups.filter((g) => g.tasks.some((t) => t.status === filterStatus));
+    if (filterStatus === 'to_verify') {
+      finalGroups = finalGroups.filter((g) => g.completedCount !== g.submittedCount);
+    } else if (filterStatus === 'verified') {
+      finalGroups = finalGroups.filter((g) => g.completedCount === g.submittedCount);
     }
     setTaskGroups(finalGroups);
-  }, [tasks, filterClass, filterSession, filterSubject, filterStatus, filterDateFrom, filterDateTo, searchQuery, classes]);
+  }, [tasks, filterClass, filterSession, filterSubject, filterStatus, filterIncharge, filterDateFrom, filterDateTo, searchQuery, classes]);
 
   const fetchClasses = async () => {
     try {
@@ -304,6 +319,12 @@ export default function Tasks() {
       setLoading(true);
       const { startDate, endDate } = getDateRange();
       
+      // Fetch user profiles first to map created_by to name
+      const { data: profilesData } = await supabase
+        .from('user_profiles')
+        .select('id, full_name');
+      const profilesMap = new Map((profilesData || []).map(p => [p.id, p.full_name]));
+
       const { data, error } = await supabase
         .from('student_task_feedback')
         .select(`
@@ -320,6 +341,7 @@ export default function Tasks() {
           updated_at,
           academic_year,
           earning_amount,
+          created_by,
           students:student_id(
             name,
             classes(name)
@@ -337,31 +359,40 @@ export default function Tasks() {
 
       if (error) throw error;
 
-      const enriched: TaskItem[] = (data || []).map((task: any) => ({
-        id: task.id,
-        title: task.task_name || '',
-        task_id: task.task_id || '',
-        description: task.task_description || '',
-        class_id: '',
-        session_id: task.session_id || '',
-        student_id: task.student_id || '',
-        status: task.status || 'pending',
-        submission_link: task.submission_link || '',
-        due_date: task.deadline || '',
-        created_at: task.created_at || '',
-        updated_at: task.updated_at || '',
-        academic_year: task.academic_year || '',
-        earning_amount: task.earning_amount || 0,
-        student_name: task.students?.name || '-',
-        session_title: task.sessions?.title || '-',
-        volunteer_name: task.sessions?.volunteer_name || '-',
-        facilitator_name: task.sessions?.facilitator_name || '-',
-        class_name: task.sessions?.class_batch || 
-                   (task.students?.classes && !Array.isArray(task.students.classes) ? task.students.classes.name : 
-                    Array.isArray(task.students?.classes) && task.students.classes.length > 0 ? task.students.classes[0].name : '-'),
-        subject_name: (task.sessions?.subjects && !Array.isArray(task.sessions.subjects) ? task.sessions.subjects.name : 
-                       Array.isArray(task.sessions?.subjects) && task.sessions.subjects.length > 0 ? task.sessions.subjects[0].name : '-'),
-      }));
+      const enriched: TaskItem[] = (data || []).map((task: any) => {
+        const creatorName = profilesMap.get(task.created_by) || '';
+        const volName = task.sessions?.volunteer_name && task.sessions.volunteer_name !== '-' ? task.sessions.volunteer_name : '';
+        const facName = task.sessions?.facilitator_name && task.sessions.facilitator_name !== '-' ? task.sessions.facilitator_name : '';
+        const inchargeName = facName || volName || creatorName || '-';
+
+        return {
+          id: task.id,
+          title: task.task_name || '',
+          task_id: task.task_id || '',
+          description: task.task_description || '',
+          class_id: '',
+          session_id: task.session_id || '',
+          student_id: task.student_id || '',
+          status: task.status || 'pending',
+          submission_link: task.submission_link || '',
+          due_date: task.deadline || '',
+          created_at: task.created_at || '',
+          updated_at: task.updated_at || '',
+          academic_year: task.academic_year || '',
+          earning_amount: task.earning_amount || 0,
+          student_name: task.students?.name || '-',
+          session_title: task.sessions?.title || '-',
+          volunteer_name: task.sessions?.volunteer_name || '-',
+          facilitator_name: task.sessions?.facilitator_name || '-',
+          incharge_name: inchargeName,
+          created_by_name: creatorName || '-',
+          class_name: task.sessions?.class_batch || 
+                     (task.students?.classes && !Array.isArray(task.students.classes) ? task.students.classes.name : 
+                      Array.isArray(task.students?.classes) && task.students.classes.length > 0 ? task.students.classes[0].name : '-'),
+          subject_name: (task.sessions?.subjects && !Array.isArray(task.sessions.subjects) ? task.sessions.subjects.name : 
+                         Array.isArray(task.sessions?.subjects) && task.sessions.subjects.length > 0 ? task.sessions.subjects[0].name : '-'),
+        };
+      });
 
       setTasks(enriched);
     } catch (e) {
@@ -371,6 +402,15 @@ export default function Tasks() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const names = new Set<string>();
+    tasks.forEach(t => {
+      if (t.facilitator_name && t.facilitator_name !== '-') names.add(t.facilitator_name);
+      if (t.created_by_name && t.created_by_name !== '-') names.add(t.created_by_name);
+    });
+    setInchargeOptions(Array.from(names).sort());
+  }, [tasks]);
 
 
   useEffect(() => {
@@ -494,6 +534,35 @@ export default function Tasks() {
             </div>
           </div>
 
+          <div className="w-full sm:w-40">
+            <label className="text-sm font-medium text-foreground mb-2 block">Status</label>
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger>
+                <SelectValue placeholder="All" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="to_verify">To Verify</SelectItem>
+                <SelectItem value="verified">Verified</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="w-full sm:w-48">
+            <label className="text-sm font-medium text-foreground mb-2 block">Filter by Incharge</label>
+            <Select value={filterIncharge} onValueChange={setFilterIncharge}>
+              <SelectTrigger>
+                <SelectValue placeholder="All Incharges" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Incharges</SelectItem>
+                {inchargeOptions.map((name) => (
+                  <SelectItem key={name} value={name}>{name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="w-full sm:w-48">
             <label className="text-sm font-medium text-foreground mb-2 block">Filter by Class</label>
             <Select value={filterClass} onValueChange={setFilterClass}>
@@ -539,23 +608,6 @@ export default function Tasks() {
             </Select>
           </div>
 
-          <div className="w-full sm:w-40">
-            <label className="text-sm font-medium text-foreground mb-2 block">Status</label>
-            <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger>
-                <SelectValue placeholder="All" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="in_progress">In Progress</SelectItem>
-                <SelectItem value="submitted">Submitted</SelectItem>
-                <SelectItem value="completed">Approved</SelectItem>
-                <SelectItem value="rejected">Rejected</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
           <div className="w-full sm:w-48">
             <label className="text-sm font-medium text-foreground mb-2 block">Filter by Date</label>
             <div className="flex gap-2">
@@ -576,7 +628,7 @@ export default function Tasks() {
             </div>
           </div>
 
-          {(filterClass !== 'all' || filterSession !== 'all' || filterStatus !== 'all' || searchQuery.trim() || filterDateFrom || filterDateTo) && (
+          {(filterClass !== 'all' || filterSession !== 'all' || filterStatus !== 'all' || filterIncharge !== 'all' || searchQuery.trim() || filterDateFrom || filterDateTo) && (
             <div className="text-sm text-muted-foreground">
               Showing {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''}
             </div>

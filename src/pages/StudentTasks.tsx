@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ListTodo, Search, Clock, CheckCircle2, History, ArrowRight } from 'lucide-react';
+import { ListTodo, Search, Clock, CheckCircle2, History, ArrowRight, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
@@ -23,7 +23,7 @@ interface StudentTask {
   submission_link?: string;
   created_at: string;
   earning_amount?: number;
-  rejection_comment?: string;
+  rejection_comment?: string | null;
 }
 
 export default function StudentTasks() {
@@ -84,14 +84,15 @@ export default function StudentTasks() {
     const matchesSearch = task.task_name.toLowerCase().includes(searchQuery.toLowerCase());
 
     if (filter === 'submitted') return matchesSearch && task.status === 'submitted';
-    if (filter === 'completed') return matchesSearch && task.status === 'completed';
+    if (filter === 'completed') return matchesSearch && (task.status === 'completed' || task.status === 'approved');
+    if (filter === 'rejected') return matchesSearch && task.status === 'rejected';
     if (filter === 'pending') {
-      const isPending = task.status === 'pending';
+      const isPending = task.status === 'pending' || task.status === 'rejected';
       const isUpcoming = !task.deadline || new Date(task.deadline) >= new Date();
       return matchesSearch && isPending && isUpcoming;
     }
     if (filter === 'overdue') {
-      const isPending = task.status === 'pending';
+      const isPending = task.status === 'pending' || task.status === 'rejected';
       const isOverdue = task.deadline && new Date(task.deadline) < new Date();
       return matchesSearch && isPending && isOverdue;
     }
@@ -100,7 +101,8 @@ export default function StudentTasks() {
 
   const statusBadgeVariant = (status: string) => {
     if (status === 'submitted') return 'secondary';
-    if (status === 'approved' || status === 'reviewed') return 'default';
+    if (status === 'approved' || status === 'reviewed' || status === 'completed') return 'default';
+    if (status === 'rejected') return 'destructive';
     return 'outline';
   };
 
@@ -135,6 +137,9 @@ export default function StudentTasks() {
             </Button>
             <Button variant={filter === 'completed' ? 'default' : 'ghost'} onClick={() => setFilter('completed')} size="sm" className="gap-1.5 text-green-600 hover:text-green-700 hover:bg-green-50">
               <CheckCircle2 className="h-4 w-4" /> Approved
+            </Button>
+            <Button variant={filter === 'rejected' ? 'default' : 'ghost'} onClick={() => setFilter('rejected')} size="sm" className="gap-1.5 text-amber-600 hover:text-amber-700 hover:bg-amber-50">
+              <AlertCircle className="h-4 w-4" /> Rejected
             </Button>
             <Button variant={filter === 'overdue' ? 'default' : 'ghost'} onClick={() => setFilter('overdue')} size="sm" className="gap-1.5 text-red-600 hover:text-red-700 hover:bg-red-50">
               <Clock className="h-4 w-4" /> Overdue

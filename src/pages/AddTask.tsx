@@ -185,7 +185,7 @@ export default function AddTask() {
       const yearStr = d.getFullYear();
       const monthStr = String(d.getMonth() + 1).padStart(2, '0');
       const selectedClass = classes.find(c => c.id === formData.class_id);
-      const classNameStr = selectedClass ? selectedClass.name.replace(/\s+/g, '') : 'Class';
+      const classNameStr = selectedClass ? selectedClass.name.replace(/[\s\/]+/g, '') : 'Class';
       const prefix = `${yearStr}-${monthStr}-${classNameStr}-`;
       
       const { data: existingTasks } = await supabase

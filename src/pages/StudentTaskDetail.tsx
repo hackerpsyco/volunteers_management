@@ -76,7 +76,11 @@ export default function StudentTaskDetail() {
         .select(`
           *,
           task_id,
-          students (name, roll_number),
+          students (
+            name, 
+            roll_number,
+            classes (name)
+          ),
           sessions (class_batch)
         `)
         .eq('id', taskId)
@@ -253,11 +257,15 @@ export default function StudentTaskDetail() {
       const { data: { session } } = await supabase.auth.getSession();
       
       const year = task.academic_year || 'Unknown Year';
-      const className = (task as any).sessions?.class_batch || 'Unassigned';
+      const className = (task as any).sessions?.class_batch || 
+                        (task as any).students?.classes?.name || 
+                        'Unassigned';
       const studentName = (task as any).students?.name || 'Unknown Student';
       const rollNum = (task as any).students?.roll_number || 'No Roll';
       const studentFolder = `${studentName} - ${rollNum}`;
-      const taskFolder = task.task_id || task.task_name;
+      const taskFolder = (task.task_id && task.task_id !== '-') 
+        ? task.task_id 
+        : task.task_name.replace(/^["']|["']$/g, '');
       const folderPath = ["FELLOW", year, className, taskFolder, studentFolder];
 
       for (let i = 0; i < files.length; i++) {

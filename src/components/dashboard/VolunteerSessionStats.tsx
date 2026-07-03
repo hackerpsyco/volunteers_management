@@ -21,7 +21,11 @@ interface VolunteerSessionStatsData {
   availableSessions: number;
 }
 
-export function VolunteerSessionStats() {
+interface VolunteerSessionStatsProps {
+  sessionType?: string;
+}
+
+export function VolunteerSessionStats({ sessionType }: VolunteerSessionStatsProps) {
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
   const [filteredVolunteers, setFilteredVolunteers] = useState<Volunteer[]>([]);
   const [selectedVolunteer, setSelectedVolunteer] = useState<Volunteer | null>(null);
@@ -39,10 +43,10 @@ export function VolunteerSessionStats() {
   const [loading, setLoading] = useState(false);
   const { selectedYear, getDateRange } = useAcademicYear();
 
-  // Fetch volunteers and rankings on mount
+  // Fetch volunteers and rankings on mount / sessionType change
   useEffect(() => {
     fetchVolunteersAndRankings();
-  }, [selectedYear]);
+  }, [selectedYear, sessionType]);
 
   // Filter volunteers based on search input
   useEffect(() => {
@@ -56,7 +60,7 @@ export function VolunteerSessionStats() {
     }
   }, [searchInput, volunteers]);
 
-  // Fetch stats and rank when volunteer is selected
+  // Fetch stats and rank when volunteer is selected / sessionType change
   useEffect(() => {
     if (selectedVolunteer) {
       fetchVolunteerStats(selectedVolunteer.id);
@@ -73,7 +77,7 @@ export function VolunteerSessionStats() {
       });
       setSelectedVolunteerRank(null);
     }
-  }, [selectedVolunteer, rankings]);
+  }, [selectedVolunteer, rankings, sessionType]);
 
   const fetchVolunteersAndRankings = async () => {
     try {
@@ -88,13 +92,19 @@ export function VolunteerSessionStats() {
       setVolunteers(volData || []);
       setFilteredVolunteers(volData || []);
 
-      // Fetch session counts for rankings filtered by academic year
+      // Fetch session counts for rankings filtered by academic year and session type
       const { startDate, endDate } = getDateRange();
-      const { data: sessData, error: sessError } = await supabase
+      let sessQuery = supabase
         .from('sessions')
         .select('volunteer_id')
         .gte('session_date', startDate.toISOString().split('T')[0])
         .lte('session_date', endDate.toISOString().split('T')[0]);
+
+      if (sessionType && sessionType !== 'all') {
+        sessQuery = sessQuery.eq('session_type', sessionType);
+      }
+
+      const { data: sessData, error: sessError } = await sessQuery;
 
       if (sessError) throw sessError;
 
@@ -122,14 +132,20 @@ export function VolunteerSessionStats() {
     try {
       setLoading(true);
 
-      // Fetch all sessions for this volunteer filtered by academic year
+      // Fetch all sessions for this volunteer filtered by academic year and session type
       const { startDate, endDate } = getDateRange();
-      const { data: sessions, error } = await supabase
+      let sessionsQuery = supabase
         .from('sessions')
         .select('status')
         .eq('volunteer_id', volunteerId)
         .gte('session_date', startDate.toISOString().split('T')[0])
         .lte('session_date', endDate.toISOString().split('T')[0]);
+
+      if (sessionType && sessionType !== 'all') {
+        sessionsQuery = sessionsQuery.eq('session_type', sessionType);
+      }
+
+      const { data: sessions, error } = await sessionsQuery;
 
       if (error) throw error;
 

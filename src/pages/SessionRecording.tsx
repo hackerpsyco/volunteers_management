@@ -1162,7 +1162,8 @@ export default function SessionRecording() {
               status: 'pending',
               earning_amount: templateTask.earning_amount,
               submission_types: templateTask.submission_types || ['code'],
-              academic_year: templateTask.academic_year || selectedYear
+              academic_year: templateTask.academic_year || selectedYear,
+              created_by: user?.id || null
             }]);
           }
         }
@@ -1383,7 +1384,7 @@ export default function SessionRecording() {
         const d = new Date();
         const yearStr = d.getFullYear();
         const monthStr = String(d.getMonth() + 1).padStart(2, '0');
-        const classNameStr = (session?.class_batch || 'Class').replace(/\s+/g, '');
+        const classNameStr = (session?.class_batch || 'Class').replace(/[\s\/]+/g, '');
         const prefix = `${yearStr}-${monthStr}-${classNameStr}-`;
         
         const { data: existingTasks } = await supabase
@@ -1422,6 +1423,7 @@ export default function SessionRecording() {
           academic_year: selectedYear,
           status: 'pending',
           created_at: new Date().toISOString(),
+          created_by: user?.id || null
         }));
 
         const { error } = await supabase

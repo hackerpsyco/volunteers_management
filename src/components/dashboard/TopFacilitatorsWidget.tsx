@@ -8,6 +8,7 @@ interface TopFacilitatorsWidgetProps {
   startDate?: Date | null;
   endDate?: Date | null;
   academicYear?: string;
+  sessionType?: string;
 }
 
 interface FacilitatorStat {
@@ -18,7 +19,7 @@ interface FacilitatorStat {
   feedbackDone: number;
 }
 
-export function TopFacilitatorsWidget({ startDate, endDate, academicYear }: TopFacilitatorsWidgetProps) {
+export function TopFacilitatorsWidget({ startDate, endDate, academicYear, sessionType }: TopFacilitatorsWidgetProps) {
   const [facilitators, setFacilitators] = useState<FacilitatorStat[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -50,7 +51,8 @@ export function TopFacilitatorsWidget({ startDate, endDate, academicYear }: TopF
           .select(`
             id,
             facilitator_name,
-            session_date
+            session_date,
+            session_type
           `)
           .in('status', ['completed', 'Completed']);
           
@@ -59,6 +61,9 @@ export function TopFacilitatorsWidget({ startDate, endDate, academicYear }: TopF
         }
         if (endDate) {
           sessionsQuery = sessionsQuery.lte('session_date', endDate.toISOString().split('T')[0]);
+        }
+        if (sessionType && sessionType !== 'all') {
+          sessionsQuery = sessionsQuery.eq('session_type', sessionType);
         }
 
         const { data: sessionsData, error: sessionsError } = await sessionsQuery;
@@ -107,7 +112,7 @@ export function TopFacilitatorsWidget({ startDate, endDate, academicYear }: TopF
         try {
           let createdQuery = supabase
             .from('student_task_feedback')
-            .select('created_by, created_at');
+            .select('created_by, created_at, sessions!inner(session_type)');
 
           if (academicYear) {
             createdQuery = createdQuery.eq('academic_year', academicYear);
@@ -119,6 +124,9 @@ export function TopFacilitatorsWidget({ startDate, endDate, academicYear }: TopF
             const end = new Date(endDate);
             end.setDate(end.getDate() + 1);
             createdQuery = createdQuery.lt('created_at', end.toISOString());
+          }
+          if (sessionType && sessionType !== 'all') {
+            createdQuery = createdQuery.eq('sessions.session_type', sessionType);
           }
 
           const { data: createdData, error: createdError } = await createdQuery;
@@ -145,7 +153,7 @@ export function TopFacilitatorsWidget({ startDate, endDate, academicYear }: TopF
         try {
           let reviewedQuery = supabase
             .from('student_task_feedback')
-            .select('verified_by, updated_at')
+            .select('verified_by, updated_at, sessions!inner(session_type)')
             .not('verified_by', 'is', null);
 
           if (academicYear) {
@@ -158,6 +166,9 @@ export function TopFacilitatorsWidget({ startDate, endDate, academicYear }: TopF
             const end = new Date(endDate);
             end.setDate(end.getDate() + 1);
             reviewedQuery = reviewedQuery.lt('updated_at', end.toISOString());
+          }
+          if (sessionType && sessionType !== 'all') {
+            reviewedQuery = reviewedQuery.eq('sessions.session_type', sessionType);
           }
 
           const { data: reviewedData, error: reviewedError } = await reviewedQuery;
@@ -189,7 +200,7 @@ export function TopFacilitatorsWidget({ startDate, endDate, academicYear }: TopF
     }
 
     fetchTopFacilitators();
-  }, [startDate, endDate]);
+  }, [startDate, endDate, academicYear, sessionType]);
 
   const topSessions = [...facilitators].sort((a, b) => b.sessionsDone - a.sessionsDone).filter(f => f.sessionsDone > 0).slice(0, 5);
   const topTasks = [...facilitators].sort((a, b) => b.tasksCreated - a.tasksCreated).filter(f => f.tasksCreated > 0).slice(0, 5);

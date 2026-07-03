@@ -9,6 +9,7 @@ interface TopStudentsWidgetProps {
   startDate: Date | null;
   endDate: Date | null;
   academicYear: string;
+  sessionType?: string;
 }
 
 interface StudentStat {
@@ -18,7 +19,7 @@ interface StudentStat {
   attendance: number;
 }
 
-export function TopStudentsWidget({ startDate, endDate, academicYear }: TopStudentsWidgetProps) {
+export function TopStudentsWidget({ startDate, endDate, academicYear, sessionType }: TopStudentsWidgetProps) {
   const [students, setStudents] = useState<StudentStat[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -38,12 +39,23 @@ export function TopStudentsWidget({ startDate, endDate, academicYear }: TopStude
           studentIdMap.set(s.id, s);
         });
 
+        // Fetch matching task IDs for the selected session type
+        let matchingTaskIds = new Set<string>();
+        if (sessionType && sessionType !== 'all') {
+          const { data: matchingTasks } = await supabase
+            .from('student_task_feedback')
+            .select('id, sessions!inner(session_type)')
+            .eq('sessions.session_type', sessionType);
+          matchingTasks?.forEach(t => matchingTaskIds.add(t.id));
+        }
+
         // Query 1: Earnings
         let earningsQuery = supabase
           .from('student_earnings')
           .select(`
             amount,
-            student_id
+            student_id,
+            task_id
           `);
         
         if (startDate) {
@@ -73,6 +85,9 @@ export function TopStudentsWidget({ startDate, endDate, academicYear }: TopStude
         }
         if (endDate) {
           sessionsQuery = sessionsQuery.lte('session_date', endDate.toISOString().split('T')[0]);
+        }
+        if (sessionType && sessionType !== 'all') {
+          sessionsQuery = sessionsQuery.eq('session_type', sessionType);
         }
 
         const { data: sessionsData, error: sessionsError } = await sessionsQuery;
@@ -105,6 +120,8 @@ export function TopStudentsWidget({ startDate, endDate, academicYear }: TopStude
 
         // Process Earnings
         earningsData?.forEach((record: any) => {
+          if (sessionType && sessionType !== 'all' && (!record.task_id || !matchingTaskIds.has(record.task_id))) return;
+          
           const s = studentIdMap.get(record.student_id);
           if (!s) return;
           if (academicYear && academicYear !== 'All' && s.academic_year && s.academic_year !== academicYear) return;
@@ -139,7 +156,7 @@ export function TopStudentsWidget({ startDate, endDate, academicYear }: TopStude
     }
 
     fetchTopStudents();
-  }, [startDate, endDate, academicYear]);
+  }, [startDate, endDate, academicYear, sessionType]);
 
   const topEarners = [...students].sort((a, b) => b.earnings - a.earnings).slice(0, earnersLimit);
   const topAttendees = [...students].sort((a, b) => b.attendance - a.attendance).slice(0, attendeesLimit);

@@ -71,6 +71,7 @@ interface TaskGroup {
   class_name: string;
   volunteer_name?: string;
   facilitator_name?: string;
+  task_id?: string;
   tasks: TaskItem[];
 }
 
@@ -112,6 +113,7 @@ export default function TaskDetail() {
         .select(`
           id,
           task_name,
+          task_id,
           task_description,
           deadline,
           submission_link,
@@ -174,6 +176,8 @@ export default function TaskDetail() {
           facilitator_name: task.sessions?.facilitator_name || '-',
         }));
 
+        const firstValidTaskId = data.find((t: any) => t.task_id && t.task_id !== '-')?.task_id || '-';
+
         setTaskGroup({
           title: data[0].task_name,
           description: data[0].task_description || '',
@@ -183,6 +187,7 @@ export default function TaskDetail() {
           class_name: data[0].sessions?.class_batch || '-',
           volunteer_name: data[0].sessions?.volunteer_name || '-',
           facilitator_name: data[0].sessions?.facilitator_name || '-',
+          task_id: firstValidTaskId,
           tasks: enriched,
         });
       }
@@ -503,6 +508,7 @@ export default function TaskDetail() {
         <div className="mb-6">
           <h1 className="text-2xl font-bold mb-4">{taskGroup.title}</h1>
           <div className="grid grid-cols-2 gap-y-2 gap-x-8 text-sm">
+             <p><strong>Task ID:</strong> {taskGroup.task_id || '-'}</p>
              <p><strong>Class:</strong> {taskGroup.class_name || '-'}</p>
              <p><strong>Volunteer:</strong> {taskGroup.volunteer_name || '-'}</p>
              <p><strong>Facilitator:</strong> {taskGroup.facilitator_name || '-'}</p>
@@ -646,7 +652,11 @@ export default function TaskDetail() {
         {/* Task Summary */}
         <Card className="bg-muted/50">
           <CardContent className="pt-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 lg:grid-cols-9 gap-4">
+              <div>
+                <span className="text-sm text-muted-foreground">Task ID</span>
+                <p className="font-mono text-sm font-semibold">{taskGroup.task_id || '-'}</p>
+              </div>
               <div>
                 <span className="text-sm text-muted-foreground">Class</span>
                 <p className="font-medium">{taskGroup.class_name}</p>
