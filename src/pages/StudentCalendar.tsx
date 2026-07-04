@@ -66,8 +66,15 @@ export default function StudentCalendar() {
   const [loading, setLoading] = useState(true);
   const [calendarDays, setCalendarDays] = useState<CalendarDay[]>([]);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
-  const [expandedDateKey, setExpandedDateKey] = useState<string | null>(null);
   const [studentClass, setStudentClass] = useState<string>('');
+  
+  const [calendarView, setCalendarView] = useState<'month' | '1-week' | '3-day' | '1-day'>(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      return '3-day';
+    }
+    return 'month';
+  });
+  const [selectedActiveDate, setSelectedActiveDate] = useState<Date>(() => new Date());
 
   useEffect(() => {
     if (user?.id) {
@@ -77,7 +84,7 @@ export default function StudentCalendar() {
 
   useEffect(() => {
     generateCalendar();
-  }, [currentDate, sessions]);
+  }, [currentDate, sessions, calendarView]);
 
   const loadStudentClassAndSessions = async () => {
     try {
@@ -150,48 +157,93 @@ export default function StudentCalendar() {
   const generateCalendar = () => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
-
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
-
     const days: CalendarDay[] = [];
 
-    // Previous month days
-    const prevMonthLastDay = new Date(year, month, 0).getDate();
-    for (let i = startingDayOfWeek - 1; i >= 0; i--) {
-      const date = new Date(year, month - 1, prevMonthLastDay - i);
-      days.push({
-        date,
-        sessions: [],
-        isCurrentMonth: false,
-      });
-    }
+    if (calendarView === 'month') {
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      const daysInMonth = lastDay.getDate();
+      const startingDayOfWeek = firstDay.getDay();
 
-    // Current month days
-    for (let i = 1; i <= daysInMonth; i++) {
-      const date = new Date(year, month, i);
-      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+      // Previous month days
+      const prevMonthLastDay = new Date(year, month, 0).getDate();
+      for (let i = startingDayOfWeek - 1; i >= 0; i--) {
+        const date = new Date(year, month - 1, prevMonthLastDay - i);
+        days.push({
+          date,
+          sessions: [],
+          isCurrentMonth: false,
+        });
+      }
+
+      // Current month days
+      for (let i = 1; i <= daysInMonth; i++) {
+        const date = new Date(year, month, i);
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+        const daySessions = sessions.filter(s => s.session_date === dateStr);
+        
+        days.push({
+          date,
+          sessions: daySessions,
+          isCurrentMonth: true,
+        });
+      }
+
+      // Next month days
+      const remainingDays = 42 - days.length;
+      for (let i = 1; i <= remainingDays; i++) {
+        const date = new Date(year, month + 1, i);
+        days.push({
+          date,
+          sessions: [],
+          isCurrentMonth: false,
+        });
+      }
+    } else if (calendarView === '1-week') {
+      const dayOfWeek = currentDate.getDay();
+      const startOfWeek = new Date(currentDate);
+      startOfWeek.setDate(currentDate.getDate() - dayOfWeek);
+
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(startOfWeek);
+        date.setDate(startOfWeek.getDate() + i);
+        const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        const daySessions = sessions.filter(s => s.session_date === dateStr);
+
+        days.push({
+          date,
+          sessions: daySessions,
+          isCurrentMonth: true,
+        });
+      }
+    } else if (calendarView === '3-day') {
+      for (let i = 0; i < 3; i++) {
+        const date = new Date(currentDate);
+        date.setDate(currentDate.getDate() + i);
+        const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        const daySessions = sessions.filter(s => s.session_date === dateStr);
+
+        days.push({
+          date,
+          sessions: daySessions,
+          isCurrentMonth: true,
+        });
+      }
+    } else if (calendarView === '1-day') {
+      const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
       const daySessions = sessions.filter(s => s.session_date === dateStr);
 
       days.push({
-        date,
+        date: currentDate,
         sessions: daySessions,
         isCurrentMonth: true,
       });
     }
 
-    // Next month days
-    const remainingDays = 42 - days.length;
-    for (let i = 1; i <= remainingDays; i++) {
-      const date = new Date(year, month + 1, i);
-      days.push({
-        date,
-        sessions: [],
-        isCurrentMonth: false,
-      });
-    }
+    days.forEach(day => {
+      // Sort day sessions by time
+      day.sessions.sort((a, b) => a.session_time.localeCompare(b.session_time));
+    });
 
     setCalendarDays(days);
   };
@@ -240,15 +292,121 @@ export default function StudentCalendar() {
     }
   };
 
-  const previousMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
+  const previousPeriod = () => {
+    if (calendarView === 'month') {
+      setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+    } else if (calendarView === '1-week') {
+      const d = new Date(currentDate);
+      d.setDate(currentDate.getDate() - 7);
+      setCurrentDate(d);
+    } else if (calendarView === '3-day') {
+      const d = new Date(currentDate);
+      d.setDate(currentDate.getDate() - 3);
+      setCurrentDate(d);
+    } else if (calendarView === '1-day') {
+      const d = new Date(currentDate);
+      d.setDate(currentDate.getDate() - 1);
+      setCurrentDate(d);
+    }
   };
 
-  const nextMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1));
+  const nextPeriod = () => {
+    if (calendarView === 'month') {
+      setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+    } else if (calendarView === '1-week') {
+      const d = new Date(currentDate);
+      d.setDate(currentDate.getDate() + 7);
+      setCurrentDate(d);
+    } else if (calendarView === '3-day') {
+      const d = new Date(currentDate);
+      d.setDate(currentDate.getDate() + 3);
+      setCurrentDate(d);
+    } else if (calendarView === '1-day') {
+      const d = new Date(currentDate);
+      d.setDate(currentDate.getDate() + 1);
+      setCurrentDate(d);
+    }
   };
 
-  const monthName = currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+  const getHeaderTitle = () => {
+    if (calendarView === 'month') {
+      return currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+    }
+    if (calendarView === '1-week') {
+      const dayOfWeek = currentDate.getDay();
+      const startOfWeek = new Date(currentDate);
+      startOfWeek.setDate(currentDate.getDate() - dayOfWeek);
+      const endOfWeek = new Date(startOfWeek);
+      endOfWeek.setDate(startOfWeek.getDate() + 6);
+      
+      const startStr = startOfWeek.toLocaleDateString('default', { day: 'numeric', month: 'short' });
+      const endStr = endOfWeek.toLocaleDateString('default', { day: 'numeric', month: 'short', year: 'numeric' });
+      return `${startStr} – ${endStr}`;
+    }
+    if (calendarView === '3-day') {
+      const endDate = new Date(currentDate);
+      endDate.setDate(currentDate.getDate() + 2);
+      
+      const startStr = currentDate.toLocaleDateString('default', { day: 'numeric', month: 'short' });
+      const endStr = endDate.toLocaleDateString('default', { day: 'numeric', month: 'short', year: 'numeric' });
+      return `${startStr} – ${endStr}`;
+    }
+    if (calendarView === '1-day') {
+      return currentDate.toLocaleDateString('default', { day: 'numeric', month: 'long', year: 'numeric' });
+    }
+    return '';
+  };
+
+  const getGridColsClass = () => {
+    if (calendarView === 'month' || calendarView === '1-week') return 'grid-cols-7';
+    if (calendarView === '3-day') return 'grid-cols-3';
+    if (calendarView === '1-day') return 'grid-cols-1';
+    return 'grid-cols-7';
+  };
+
+  const renderDayHeaders = () => {
+    if (calendarView === 'month' || calendarView === '1-week') {
+      const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const selectedDayIndex = selectedActiveDate ? selectedActiveDate.getDay() : -1;
+      
+      return daysOfWeek.map((day, idx) => (
+        <div 
+          key={day} 
+          className={`text-center font-bold text-[11px] md:text-xs py-2 uppercase tracking-wider ${
+            idx === selectedDayIndex ? 'text-primary' : 'text-muted-foreground'
+          }`}
+        >
+          {day}
+        </div>
+      ));
+    }
+    
+    if (calendarView === '3-day') {
+      const headers = [];
+      for (let i = 0; i < 3; i++) {
+        const d = new Date(currentDate);
+        d.setDate(currentDate.getDate() + i);
+        const dayStr = d.toLocaleDateString('default', { weekday: 'short', day: 'numeric' });
+        headers.push(
+          <div key={i} className="text-center font-semibold text-sm text-muted-foreground py-2">
+            {dayStr}
+          </div>
+        );
+      }
+      return headers;
+    }
+    
+    if (calendarView === '1-day') {
+      const dayStr = currentDate.toLocaleDateString('default', { weekday: 'long', day: 'numeric' });
+      return (
+        <div className="text-center font-semibold text-sm text-muted-foreground py-2">
+          {dayStr}
+        </div>
+      );
+    }
+    
+    return null;
+  };
 
   const isToday = (date: Date) => {
     const today = new Date();
@@ -271,98 +429,258 @@ export default function StudentCalendar() {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-foreground">My Class Calendar</h1>
-          <p className="text-sm md:text-base text-muted-foreground mt-1">
-            {studentClass ? `Class: ${studentClass}` : 'Loading your class...'}
-          </p>
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground">My Class Calendar</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+              {studentClass ? `Class: ${studentClass}` : 'Loading your class...'}
+            </p>
+          </div>
         </div>
 
-        {/* Calendar */}
-        <div className="bg-card border border-border rounded-lg p-6">
-          {/* Month Navigation */}
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold">{monthName}</h2>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={previousMonth}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button size="sm" variant="outline" onClick={nextMonth}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-
-          {/* Day Headers */}
-          <div className="grid grid-cols-7 gap-2 mb-2">
-            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-              <div key={day} className="text-center font-semibold text-sm text-muted-foreground py-2">
-                {day}
-              </div>
-            ))}
-          </div>
-
-          {/* Calendar Days */}
-          <div className="grid grid-cols-7 gap-2">
-            {calendarDays.map((day, idx) => {
-              const todayFlag = isToday(day.date);
-              return (
-                <div
-                  key={idx}
-                  className={`min-h-24 p-2 border rounded-lg transition-colors ${
-                    todayFlag
-                      ? 'bg-primary/10 border-primary border-2 hover:bg-primary/20'
-                      : day.isCurrentMonth
-                      ? 'bg-background border-border hover:bg-accent hover:border-primary'
-                      : 'bg-muted border-muted-foreground/20'
-                  }`}
-                >
-                  <div className={`text-sm font-semibold mb-1 ${
-                    todayFlag
-                      ? 'text-primary'
-                      : day.isCurrentMonth ? 'text-foreground' : 'text-muted-foreground'
-                  }`}>
-                    {day.date.getDate()}
-                  </div>
-                  <div className="space-y-1">
-                    {(() => {
-                      const year = day.date.getFullYear();
-                      const month = day.date.getMonth();
-                      const date = day.date.getDate();
-                      const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
-                      const isExpanded = expandedDateKey === dateKey;
-                      const sessionsToShow = isExpanded ? day.sessions : day.sessions.slice(0, 2);
-
-                      return (
-                        <>
-                          {sessionsToShow.map((session, i) => (
-                            <button
-                              key={i}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedSession(session);
-                              }}
-                              className={`text-xs px-2 py-1 rounded w-full text-left hover:opacity-80 whitespace-normal break-words ${getSessionTypeColor(session.session_type)}`}
-                              title={getSessionDisplayTitle(session)}
-                            >
-                              <div className="text-[11px] line-clamp-2 font-medium">{getSessionDisplayTitle(session)}</div>
-                            </button>
-                          ))}
-                          {day.sessions.length > 2 && (
-                            <button
-                              onClick={() => setExpandedDateKey(isExpanded ? null : dateKey)}
-                              className="text-xs text-primary hover:text-primary/80 px-2 font-medium cursor-pointer transition-colors"
-                            >
-                              {isExpanded ? '−' : '+'}{day.sessions.length - 2} more
-                            </button>
-                          )}
-                        </>
-                      );
-                    })()}
-                  </div>
+        <div className="grid grid-cols-1 gap-6">
+          {/* Calendar */}
+          <div className="bg-card border border-border rounded-lg p-4 md:p-6">
+            {/* Month Navigation & View Selector */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6 pb-4 border-b">
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg md:text-xl font-bold">{getHeaderTitle()}</h2>
+                <div className="flex gap-1.5">
+                  <Button size="icon" variant="outline" className="h-8 w-8" onClick={previousPeriod}>
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button size="icon" variant="outline" className="h-8 w-8" onClick={nextPeriod}>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button size="sm" variant="outline" className="h-8 text-xs font-semibold px-2.5" onClick={() => setCurrentDate(new Date())}>
+                    Today
+                  </Button>
                 </div>
-              );
-            })}
+              </div>
+              <div className="flex bg-muted/60 p-1 rounded-lg border">
+                {(['month', '1-week', '3-day', '1-day'] as const).map((view) => (
+                  <button
+                    key={view}
+                    onClick={() => setCalendarView(view)}
+                    className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${
+                      calendarView === view
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {view === 'month' ? 'Month' : view === '1-week' ? '1 Week' : view === '3-day' ? '3 Day' : '1 Day'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Day Headers */}
+            <div className={`grid ${getGridColsClass()} gap-2 mb-2`}>
+              {renderDayHeaders()}
+            </div>
+
+            {/* Calendar Days */}
+            <div className={`grid ${getGridColsClass()} gap-1.5 md:gap-2`}>
+              {calendarDays.map((day, idx) => {
+                const todayFlag = isToday(day.date);
+                const isSelected = selectedActiveDate &&
+                  day.date.getDate() === selectedActiveDate.getDate() &&
+                  day.date.getMonth() === selectedActiveDate.getMonth() &&
+                  day.date.getFullYear() === selectedActiveDate.getFullYear();
+                
+                // If in Month View, hide previous/next month padding days completely to make current month very clear
+                if (calendarView === 'month' && !day.isCurrentMonth) {
+                  return (
+                    <div key={idx} className="bg-transparent border border-transparent min-h-[56px] md:min-h-[96px]" />
+                  );
+                }
+                  
+                return (
+                  <div
+                    key={idx}
+                    onClick={() => {
+                      if (calendarView === 'month' ? day.isCurrentMonth : true) {
+                        setSelectedActiveDate(day.date);
+                      }
+                    }}
+                    className={`min-h-[56px] md:min-h-[96px] p-1 md:p-2 border rounded-lg cursor-pointer transition-all flex flex-col justify-between ${
+                      isSelected
+                        ? 'bg-primary/5 border-primary border-2 shadow-sm'
+                        : todayFlag
+                        ? 'bg-background border-primary/40 hover:bg-accent hover:border-primary'
+                        : 'bg-background border-border hover:bg-accent hover:border-primary'
+                    }`}
+                  >
+                    <div className="flex justify-between items-center mb-1">
+                      <span
+                        className={`text-xs font-bold flex items-center justify-center h-6 w-6 rounded-full transition-all ${
+                          isSelected
+                            ? 'bg-primary text-primary-foreground font-extrabold shadow-sm scale-110'
+                            : todayFlag
+                            ? 'border border-primary text-primary font-bold'
+                            : 'text-foreground font-semibold'
+                        }`}
+                      >
+                        {day.date.getDate()}
+                      </span>
+                      {calendarView !== 'month' && (
+                        <span className="text-[10px] font-semibold text-muted-foreground uppercase">
+                          {day.date.toLocaleDateString('default', { weekday: 'short' })}
+                        </span>
+                      )}
+                    </div>
+                    
+                    {/* Session Capsules List (Both Mobile & Desktop) */}
+                    <div className="space-y-1 mt-1.5 w-full overflow-hidden">
+                      {day.sessions.slice(0, 3).map((session, i) => (
+                        <button
+                          key={i}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedSession(session);
+                          }}
+                          className={`text-[9px] md:text-[10px] px-1 md:px-1.5 py-0.5 rounded w-full text-left truncate whitespace-nowrap overflow-hidden block border hover:opacity-85 ${getSessionTypeColor(session.session_type)}`}
+                          title={session.title || getSessionDisplayTitle(session)}
+                        >
+                          {session.title || getSessionDisplayTitle(session)}
+                        </button>
+                      ))}
+                      {day.sessions.length > 3 && (
+                        <div 
+                          className="text-[9px] text-primary font-bold pl-1 mt-0.5 cursor-pointer hover:underline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedActiveDate(day.date);
+                          }}
+                        >
+                          +{day.sessions.length - 3} more
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Selected Day's Sessions List (Especially important for mobile) */}
+            <div className="mt-6 pt-6 border-t border-border">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-base font-bold text-foreground">
+                    Sessions on {selectedActiveDate.toLocaleDateString('default', { weekday: 'long', day: 'numeric', month: 'long' })}
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {(() => {
+                      const year = selectedActiveDate.getFullYear();
+                      const month = selectedActiveDate.getMonth();
+                      const date = selectedActiveDate.getDate();
+                      const dayData = calendarDays.find(d => {
+                        const dy = d.date.getFullYear();
+                        const dm = d.date.getMonth();
+                        const dd = d.date.getDate();
+                        return dy === year && dm === month && dd === date;
+                      });
+                      const count = dayData?.sessions.length || 0;
+                      return `${count} ${count === 1 ? 'session' : 'sessions'} scheduled`;
+                    })()}
+                  </p>
+                </div>
+              </div>
+
+              {/* Sessions List */}
+              {(() => {
+                const year = selectedActiveDate.getFullYear();
+                const month = selectedActiveDate.getMonth();
+                const date = selectedActiveDate.getDate();
+                const dayData = calendarDays.find(d => {
+                  const dy = d.date.getFullYear();
+                  const dm = d.date.getMonth();
+                  const dd = d.date.getDate();
+                  return dy === year && dm === month && dd === date;
+                });
+                const daySessions = dayData?.sessions || [];
+
+                if (daySessions.length === 0) {
+                  return (
+                    <div className="bg-muted/30 border border-dashed border-border rounded-xl p-6 text-center">
+                      <p className="text-sm text-muted-foreground">No sessions scheduled for this day.</p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {daySessions.map((session, i) => (
+                      <div 
+                        key={i}
+                        onClick={() => setSelectedSession(session)}
+                        className="bg-card hover:bg-accent/40 border border-border/60 hover:border-primary/40 rounded-xl p-4 transition-all cursor-pointer shadow-sm flex flex-col justify-between gap-3 group relative overflow-hidden"
+                      >
+                        {/* Colored border indicator on left */}
+                        <div className={`absolute left-0 top-0 bottom-0 w-1 ${
+                          session.session_type === 'guest_teacher' ? 'bg-cyan-500' :
+                          session.session_type === 'guest_speaker' ? 'bg-violet-500' :
+                          session.session_type === 'local_teacher' ? 'bg-pink-500' :
+                          'bg-blue-500'
+                        }`} />
+                        
+                        <div className="pl-1">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                              {session.session_type === 'guest_teacher' ? 'Guest Teacher' :
+                               session.session_type === 'guest_speaker' ? 'Guest Speaker' :
+                               session.session_type === 'local_teacher' ? 'Local Teacher' :
+                               'Regular Session'}
+                            </span>
+                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                              session.status === 'completed' ? 'bg-green-50 text-green-700 border border-green-200' :
+                              session.status === 'committed' ? 'bg-purple-50 text-purple-700 border border-purple-200' :
+                              session.status === 'available' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                              'bg-amber-50 text-amber-700 border border-amber-200'
+                            }`}>
+                              {session.status.toUpperCase()}
+                            </span>
+                          </div>
+                          
+                          <h4 className="font-bold text-sm text-foreground mt-2 group-hover:text-primary transition-colors line-clamp-2">
+                            {session.title || 'Untitled Session'}
+                          </h4>
+                          
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mt-3 text-xs text-muted-foreground">
+                            <div>
+                              <span className="font-medium text-foreground block text-[10px] uppercase text-muted-foreground/80">Class</span>
+                              {session.class_batch || '-'}
+                            </div>
+                            <div>
+                              <span className="font-medium text-foreground block text-[10px] uppercase text-muted-foreground/80">Volunteer</span>
+                              {session.volunteer_name || '-'}
+                            </div>
+                            {session.facilitator_name && (
+                              <div className="col-span-2">
+                                <span className="font-medium text-foreground block text-[10px] uppercase text-muted-foreground/80">Facilitator</span>
+                                {session.facilitator_name}
+                              </div>
+                            )}
+                            {session.module_name && (
+                              <div>
+                                <span className="font-medium text-foreground block text-[10px] uppercase text-muted-foreground/80">Module</span>
+                                {session.module_name}
+                              </div>
+                            )}
+                            {session.topics_covered && (
+                              <div className={session.module_name ? "col-span-1" : "col-span-2"}>
+                                <span className="font-medium text-foreground block text-[10px] uppercase text-muted-foreground/80">Topic</span>
+                                {session.topics_covered}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
           </div>
         </div>
 
@@ -537,12 +855,9 @@ export default function StudentCalendar() {
                       <p className="text-xs text-muted-foreground">🔗 Meeting Link</p>
                       {(() => {
                         let url = selectedSession.meeting_link;
-                        // Fix malformed Google Meet URLs
                         if (url && url.includes('_meet/whoops')) {
-                          // Extract meeting code if embedded, or show raw link
                           url = url.replace('/_meet/whoops', '');
                         }
-                        // Ensure URL has protocol
                         if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
                           url = `https://${url}`;
                         }

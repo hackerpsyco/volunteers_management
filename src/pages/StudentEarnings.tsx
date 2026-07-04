@@ -59,7 +59,9 @@ export default function StudentEarnings() {
   const [subjects, setSubjects] = useState<{id: string, name: string}[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterSubject, setFilterSubject] = useState('all');
-  const [selectedMonth, setSelectedMonth] = useState<string>('all');
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+    return String(new Date().getMonth()); // 0 to 11 (0-indexed matching SelectItem values)
+  });
   const { selectedYear, getDateRange } = useAcademicYear();
 
   useEffect(() => {

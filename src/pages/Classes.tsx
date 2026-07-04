@@ -222,7 +222,12 @@ export default function Classes() {
                   {classes.map((classItem) => (
                     <TableRow key={classItem.id}>
                       <TableCell className="font-medium">
-                        {classItem.name}
+                        <button
+                          onClick={() => handleViewStudents(classItem)}
+                          className="hover:underline text-blue-600 hover:text-blue-800 text-left font-bold transition-colors"
+                        >
+                          {classItem.name}
+                        </button>
                       </TableCell>
 
                       <TableCell>

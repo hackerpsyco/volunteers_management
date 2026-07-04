@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Plus, Trash2, ArrowLeft, MoreVertical, Edit, ArrowUpRight, Info, Key, UserCog, Lock, Unlock } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, MoreVertical, Edit, ArrowUpRight, Info, Key, UserCog, Lock, Unlock, Search } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -92,6 +92,7 @@ export default function ClassStudents() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>(selectedYear);
   const [selectedDesignation, setSelectedDesignation] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   useEffect(() => {
     setSelectedAcademicYear(selectedYear);
@@ -166,6 +167,14 @@ export default function ClassStudents() {
   const filteredStudents = students.filter(student => {
     if (selectedAcademicYear !== 'all' && student.academic_year !== selectedAcademicYear) return false;
     if (selectedDesignation !== 'all' && student.designation !== selectedDesignation) return false;
+    
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      const nameMatch = student.name?.toLowerCase().includes(query);
+      const idMatch = student.student_id?.toLowerCase().includes(query);
+      if (!nameMatch && !idMatch) return false;
+    }
+    
     return true;
   }).sort((a, b) => {
     if (!sortColumn || !sortDirection) return 0;
@@ -360,6 +369,17 @@ export default function ClassStudents() {
               ))}
             </SelectContent>
           </Select>
+
+          <div className="relative flex-1 min-w-[200px] sm:max-w-xs ml-auto">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Search by name or ID..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 h-9 text-xs bg-transparent border-input focus-visible:ring-1"
+            />
+          </div>
         </div>
 
         {/* Students Table */}

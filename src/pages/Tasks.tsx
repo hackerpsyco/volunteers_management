@@ -121,6 +121,26 @@ export default function Tasks() {
   const [inchargeOptions, setInchargeOptions] = useState<string[]>([]);
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
+  const [filterMonth, setFilterMonth] = useState<string>(() => {
+    const currentMonthIndex = new Date().getMonth(); // 0 to 11
+    return String(currentMonthIndex + 1); // "1" to "12"
+  });
+
+  const monthsList = [
+    { value: 'all', label: 'All Months' },
+    { value: '1', label: 'January' },
+    { value: '2', label: 'February' },
+    { value: '3', label: 'March' },
+    { value: '4', label: 'April' },
+    { value: '5', label: 'May' },
+    { value: '6', label: 'June' },
+    { value: '7', label: 'July' },
+    { value: '8', label: 'August' },
+    { value: '9', label: 'September' },
+    { value: '10', label: 'October' },
+    { value: '11', label: 'November' },
+    { value: '12', label: 'December' },
+  ];
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<TaskGroup | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
@@ -157,6 +177,16 @@ export default function Tasks() {
         t.created_by_name === filterIncharge
       );
     }
+    
+    // Month filter
+    if (filterMonth !== 'all') {
+      filtered = filtered.filter((t) => {
+        const dateToUse = t.due_date ? new Date(t.due_date) : new Date(t.created_at);
+        const monthOfDate = dateToUse.getMonth() + 1; // 1 to 12
+        return String(monthOfDate) === filterMonth;
+      });
+    }
+
     // Status filtering is applied after grouping to maintain correct denominator counts
     if (filterDateFrom || filterDateTo) {
       filtered = filtered.filter((t) => {
@@ -257,7 +287,7 @@ export default function Tasks() {
       finalGroups = finalGroups.filter((g) => g.completedCount === g.submittedCount);
     }
     setTaskGroups(finalGroups);
-  }, [tasks, filterClass, filterSession, filterSubject, filterStatus, filterIncharge, filterDateFrom, filterDateTo, searchQuery, classes]);
+  }, [tasks, filterClass, filterSession, filterSubject, filterStatus, filterIncharge, filterDateFrom, filterDateTo, filterMonth, searchQuery, classes]);
 
   const fetchClasses = async () => {
     try {
@@ -608,7 +638,7 @@ export default function Tasks() {
             </Select>
           </div>
 
-          <div className="w-full sm:w-48">
+          <div className="w-full sm:w-72">
             <label className="text-sm font-medium text-foreground mb-2 block">Filter by Date</label>
             <div className="flex gap-2">
               <Input
@@ -617,6 +647,7 @@ export default function Tasks() {
                 onChange={(e) => setFilterDateFrom(e.target.value)}
                 placeholder="From"
                 title="From date"
+                className="h-10 text-xs"
               />
               <Input
                 type="date"
@@ -624,11 +655,28 @@ export default function Tasks() {
                 onChange={(e) => setFilterDateTo(e.target.value)}
                 placeholder="To"
                 title="To date"
+                className="h-10 text-xs"
               />
             </div>
           </div>
 
-          {(filterClass !== 'all' || filterSession !== 'all' || filterStatus !== 'all' || filterIncharge !== 'all' || searchQuery.trim() || filterDateFrom || filterDateTo) && (
+          <div className="w-full sm:w-40">
+            <label className="text-sm font-medium text-foreground mb-2 block">Filter by Month</label>
+            <Select value={filterMonth} onValueChange={setFilterMonth}>
+              <SelectTrigger>
+                <SelectValue placeholder="All Months" />
+              </SelectTrigger>
+              <SelectContent>
+                {monthsList.map(month => (
+                  <SelectItem key={month.value} value={month.value}>
+                    {month.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {(filterClass !== 'all' || filterSession !== 'all' || filterStatus !== 'all' || filterIncharge !== 'all' || searchQuery.trim() || filterDateFrom || filterDateTo || filterMonth !== 'all') && (
             <div className="text-sm text-muted-foreground">
               Showing {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''}
             </div>

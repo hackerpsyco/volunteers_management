@@ -75,11 +75,73 @@ export default function StudentDashboard() {
   const [ownClassId, setOwnClassId] = useState<string>('');
   const [ownType, setOwnType] = useState<string>('Fellow');
 
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+    const currentMonthIndex = new Date().getMonth(); // 0 to 11
+    return String(currentMonthIndex + 1); // "1" to "12"
+  });
+  const [earningsList, setEarningsList] = useState<{ amount: number; earned_at: string }[]>([]);
+  const [ownSessions, setOwnSessions] = useState<any[]>([]);
+  const [studentPerformances, setStudentPerformances] = useState<any[]>([]);
+
+  const monthsList = [
+    { value: 'all', label: 'All Months' },
+    { value: '1', label: 'January' },
+    { value: '2', label: 'February' },
+    { value: '3', label: 'March' },
+    { value: '4', label: 'April' },
+    { value: '5', label: 'May' },
+    { value: '6', label: 'June' },
+    { value: '7', label: 'July' },
+    { value: '8', label: 'August' },
+    { value: '9', label: 'September' },
+    { value: '10', label: 'October' },
+    { value: '11', label: 'November' },
+    { value: '12', label: 'December' },
+  ];
+
   useEffect(() => {
     if (user?.id) {
       loadStudentData();
     }
-  }, [user?.id, selectedYear]);
+  }, [user?.id, selectedMonth, selectedYear]);
+
+  // Reactive Attendance Rate Calculator
+  useEffect(() => {
+    if (!studentName || ownSessions.length === 0) {
+      setAttendanceRate('100%');
+      setAttendanceDetails('0 sessions');
+      return;
+    }
+
+    const sessionsToUse = ownSessions.filter(s => {
+      if (selectedMonth !== 'all') {
+        const date = new Date(s.session_date);
+        return String(date.getMonth() + 1) === selectedMonth;
+      }
+      return true;
+    });
+
+    let presentCount = 0;
+    let totalCount = 0;
+
+    sessionsToUse.forEach(session => {
+      const perf = studentPerformances.find(p => p.session_id === session.id);
+      if (perf) {
+        totalCount++;
+        if (perf.attendance_status === 'Present') {
+          presentCount++;
+        }
+      }
+    });
+
+    if (totalCount > 0) {
+      setAttendanceRate(`${Math.round((presentCount / totalCount) * 100)}%`);
+      setAttendanceDetails(`${presentCount} of ${totalCount} present`);
+    } else {
+      setAttendanceRate('100%');
+      setAttendanceDetails(selectedMonth === 'all' ? '0 sessions' : '0 sessions this month');
+    }
+  }, [ownSessions, studentPerformances, selectedMonth, studentName]);
 
   // Load class list on mount
   useEffect(() => {
@@ -188,7 +250,7 @@ export default function StudentDashboard() {
           // Earnings for all filtered students
           const { data: earningsData } = await supabase
             .from('student_earnings')
-            .select('student_id, amount')
+            .select('student_id, amount, earned_at')
             .in('student_id', studentIds)
             .gte('earned_at', earningStart.toISOString())
             .lte('earned_at', earningEnd.toISOString());
@@ -196,7 +258,7 @@ export default function StudentDashboard() {
           // Sessions for attendance mapping
           const { data: sessionsForLeaderboard } = await supabase
             .from('sessions')
-            .select('id')
+            .select('id, session_date')
             .eq('class_batch', classDataName)
             .gte('session_date', earningStart.toISOString().split('T')[0])
             .lte('session_date', earningEnd.toISOString().split('T')[0]);
@@ -206,7 +268,7 @@ export default function StudentDashboard() {
             const sessionIds = sessionsForLeaderboard.map(s => s.id);
             const { data: perfData } = await supabase
               .from('student_performance')
-              .select('attendance_status, student_name')
+              .select('session_id, attendance_status, student_name')
               .in('session_id', sessionIds)
               .eq('attendance_status', 'Present');
             if (perfData) {
@@ -223,14 +285,30 @@ export default function StudentDashboard() {
           });
 
           earningsData?.forEach(item => {
+            if (selectedMonth !== 'all') {
+              const date = new Date(item.earned_at);
+              if (String(date.getMonth() + 1) !== selectedMonth) return;
+            }
             const amount = parseFloat(item.amount as any) || 0;
             if (statsMap[item.student_id]) {
               statsMap[item.student_id].earnings += amount;
             }
           });
 
+          const validSessionIds = new Set(
+            (sessionsForLeaderboard || [])
+              .filter(s => {
+                if (selectedMonth !== 'all') {
+                  const date = new Date(s.session_date);
+                  return String(date.getMonth() + 1) === selectedMonth;
+                }
+                return true;
+              })
+              .map(s => s.id)
+          );
+
           attendanceData?.forEach(record => {
-            if (!record.student_name) return;
+            if (!record.student_name || !record.session_id || !validSessionIds.has(record.session_id)) return;
             const nameKey = record.student_name.toLowerCase().trim();
             const sId = studentNameMap[nameKey];
             if (sId && statsMap[sId]) {
@@ -267,7 +345,7 @@ export default function StudentDashboard() {
     }
 
     loadBatchData();
-  }, [selectedClassId, selectedType, selectedYear]);
+  }, [selectedClassId, selectedType, selectedMonth, selectedYear]);
 
   const loadStudentData = async () => {
     try {
@@ -366,18 +444,17 @@ export default function StudentDashboard() {
         const { startDate: earningStart, endDate: earningEnd } = getDateRange();
         const { data: earningsData } = await supabase
           .from('student_earnings')
-          .select('amount')
+          .select('amount, earned_at')
           .in('student_id', studentIds)
           .gte('earned_at', earningStart.toISOString())
           .lte('earned_at', earningEnd.toISOString());
         
-        const total = (earningsData || []).reduce((sum, item) => sum + parseFloat(item.amount as any), 0);
-        setTotalEarnings(total);
+        setEarningsList(earningsData || []);
       }
 
-      // Calculate personal attendance rate
-      let ownSessionsList: SessionMeeting[] = [];
+      // Fetch personal attendance rate raw data
       const targetClassId = studentClassId || ownClassId;
+      let ownSessionsList: SessionMeeting[] = [];
       if (targetClassId) {
         const { data: ownClassData } = await supabase
           .from('classes')
@@ -395,6 +472,7 @@ export default function StudentDashboard() {
             .lte('session_date', endDate.toISOString().split('T')[0]);
           if (ownSessionsData) {
             ownSessionsList = ownSessionsData as any[];
+            setOwnSessions(ownSessionsList);
           }
         }
       }
@@ -406,39 +484,8 @@ export default function StudentDashboard() {
           .ilike('student_name', activeStudentName.trim());
 
         if (perfData) {
-          const now = new Date();
-          const currentYear = now.getFullYear();
-          const currentMonth = now.getMonth();
-
-          const currentMonthSessions = ownSessionsList.filter(s => {
-            const date = new Date(s.session_date);
-            return date.getFullYear() === currentYear && date.getMonth() === currentMonth;
-          });
-
-          let presentCount = 0;
-          let totalCount = 0;
-
-          currentMonthSessions.forEach(session => {
-            const perf = perfData.find(p => p.session_id === session.id);
-            if (perf) {
-              totalCount++;
-              if (perf.attendance_status === 'Present') {
-                presentCount++;
-              }
-            }
-          });
-
-          if (totalCount > 0) {
-            setAttendanceRate(`${Math.round((presentCount / totalCount) * 100)}%`);
-            setAttendanceDetails(`${presentCount} of ${totalCount} present`);
-          } else {
-            setAttendanceRate('100%');
-            setAttendanceDetails('0 sessions recorded');
-          }
+          setStudentPerformances(perfData);
         }
-      } else {
-        setAttendanceRate('100%');
-        setAttendanceDetails('No sessions');
       }
     } catch (error) {
       console.error('Error loading student data:', error);
@@ -457,7 +504,22 @@ export default function StudentDashboard() {
     );
   }
 
+  const filteredTasks = tasks.filter(task => {
+    if (selectedMonth !== 'all') {
+      const dateToUse = task.deadline ? new Date(task.deadline) : new Date(task.created_at);
+      const monthOfDate = dateToUse.getMonth() + 1; // 1 to 12
+      return String(monthOfDate) === selectedMonth;
+    }
+    return true;
+  });
 
+  const computedTotalEarnings = earningsList.filter(item => {
+    if (selectedMonth !== 'all') {
+      const date = new Date(item.earned_at);
+      return String(date.getMonth() + 1) === selectedMonth;
+    }
+    return true;
+  }).reduce((sum, item) => sum + parseFloat(item.amount as any), 0);
 
   return (
     <DashboardLayout>
@@ -495,6 +557,26 @@ export default function StudentDashboard() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Month Filter */}
+            <div className="flex flex-col bg-card border border-border px-3 py-1.5 rounded-lg justify-center h-[58px] min-w-[150px]">
+              <label className="text-[10px] text-muted-foreground font-semibold">FILTER BY MONTH</label>
+              <Select 
+                value={selectedMonth} 
+                onValueChange={setSelectedMonth}
+              >
+                <SelectTrigger className="h-7 border-none bg-transparent focus:ring-0 text-sm font-semibold p-0 shadow-none hover:bg-transparent">
+                  <SelectValue placeholder="Select Month" />
+                </SelectTrigger>
+                <SelectContent>
+                  {monthsList.map(month => (
+                    <SelectItem key={month.value} value={month.value}>
+                      {month.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
 
@@ -506,7 +588,7 @@ export default function StudentDashboard() {
               <ClipboardCheck className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{tasks.length}</div>
+              <div className="text-2xl font-bold">{filteredTasks.length}</div>
               <p className="text-xs text-muted-foreground mt-1">Assigned to you</p>
             </CardContent>
           </Card>
@@ -517,7 +599,7 @@ export default function StudentDashboard() {
               <Clock className="h-4 w-4 text-yellow-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{tasks.filter(t => t.status === 'pending').length}</div>
+              <div className="text-2xl font-bold">{filteredTasks.filter(t => t.status === 'pending' || t.status === 'rejected').length}</div>
               <p className="text-xs text-muted-foreground mt-1">Action required</p>
             </CardContent>
           </Card>
@@ -528,7 +610,7 @@ export default function StudentDashboard() {
               <CheckCircle2 className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{tasks.filter(t => t.status === 'completed').length}</div>
+              <div className="text-2xl font-bold">{filteredTasks.filter(t => t.status === 'completed' || t.status === 'approved').length}</div>
               <p className="text-xs text-muted-foreground mt-1">Successfully finished</p>
             </CardContent>
           </Card>
@@ -539,7 +621,7 @@ export default function StudentDashboard() {
               <Wallet className="h-4 w-4 text-purple-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">₹{totalEarnings.toLocaleString()}</div>
+              <div className="text-2xl font-bold">₹{computedTotalEarnings.toLocaleString()}</div>
               <p className="text-xs text-muted-foreground mt-1">Tokens earned</p>
             </CardContent>
           </Card>
@@ -551,7 +633,7 @@ export default function StudentDashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{attendanceRate}</div>
-              <p className="text-xs text-muted-foreground mt-1">{attendanceDetails} this month</p>
+              <p className="text-xs text-muted-foreground mt-1">{attendanceDetails}</p>
             </CardContent>
           </Card>
 

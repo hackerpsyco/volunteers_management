@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { useAcademicYear } from '@/contexts/AcademicYearContext';
 import { cn } from '@/lib/utils';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface StudentTask {
   id: string;
@@ -33,6 +34,26 @@ export default function StudentTasks() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'pending' | 'submitted' | 'completed' | 'overdue'>('pending');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+    const currentMonthIndex = new Date().getMonth(); // 0 to 11
+    return String(currentMonthIndex + 1); // "1" to "12"
+  });
+
+  const monthsList = [
+    { value: 'all', label: 'All Months' },
+    { value: '1', label: 'January' },
+    { value: '2', label: 'February' },
+    { value: '3', label: 'March' },
+    { value: '4', label: 'April' },
+    { value: '5', label: 'May' },
+    { value: '6', label: 'June' },
+    { value: '7', label: 'July' },
+    { value: '8', label: 'August' },
+    { value: '9', label: 'September' },
+    { value: '10', label: 'October' },
+    { value: '11', label: 'November' },
+    { value: '12', label: 'December' },
+  ];
 
   const { selectedYear, getDateRange } = useAcademicYear();
 
@@ -82,21 +103,28 @@ export default function StudentTasks() {
 
   const filteredTasks = tasks.filter(task => {
     const matchesSearch = task.task_name.toLowerCase().includes(searchQuery.toLowerCase());
+    if (!matchesSearch) return false;
 
-    if (filter === 'submitted') return matchesSearch && task.status === 'submitted';
-    if (filter === 'completed') return matchesSearch && (task.status === 'completed' || task.status === 'approved');
-    if (filter === 'rejected') return matchesSearch && task.status === 'rejected';
+    if (selectedMonth !== 'all') {
+      const dateToUse = task.deadline ? new Date(task.deadline) : new Date(task.created_at);
+      const monthOfDate = dateToUse.getMonth() + 1; // 1 to 12
+      if (String(monthOfDate) !== selectedMonth) return false;
+    }
+
+    if (filter === 'submitted') return task.status === 'submitted';
+    if (filter === 'completed') return task.status === 'completed' || task.status === 'approved';
+    if (filter === 'rejected') return task.status === 'rejected';
     if (filter === 'pending') {
       const isPending = task.status === 'pending' || task.status === 'rejected';
       const isUpcoming = !task.deadline || new Date(task.deadline) >= new Date();
-      return matchesSearch && isPending && isUpcoming;
+      return isPending && isUpcoming;
     }
     if (filter === 'overdue') {
       const isPending = task.status === 'pending' || task.status === 'rejected';
       const isOverdue = task.deadline && new Date(task.deadline) < new Date();
-      return matchesSearch && isPending && isOverdue;
+      return isPending && isOverdue;
     }
-    return matchesSearch;
+    return true;
   });
 
   const statusBadgeVariant = (status: string) => {
@@ -109,12 +137,29 @@ export default function StudentTasks() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <ListTodo className="h-8 w-8 text-primary" />
-            My Tasks
-          </h1>
-          <p className="text-muted-foreground mt-1">Manage and track your assigned activities</p>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h1 className="text-3xl font-bold flex items-center gap-2">
+              <ListTodo className="h-8 w-8 text-primary" />
+              My Tasks
+            </h1>
+            <p className="text-muted-foreground mt-1">Manage and track your assigned activities</p>
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+              <SelectTrigger className="w-full sm:w-[150px] bg-card border-border">
+                <SelectValue placeholder="Filter by Month" />
+              </SelectTrigger>
+              <SelectContent>
+                {monthsList.map(month => (
+                  <SelectItem key={month.value} value={month.value}>
+                    {month.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* Search & Filter Bar */}

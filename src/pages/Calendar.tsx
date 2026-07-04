@@ -115,7 +115,12 @@ export default function Calendar() {
   const [userRole, setUserRole] = useState<number | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
-  const [calendarView, setCalendarView] = useState<'month' | '1-week' | '3-day' | '1-day'>('month');
+  const [calendarView, setCalendarView] = useState<'month' | '1-week' | '3-day' | '1-day'>(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      return '3-day';
+    }
+    return 'month';
+  });
   const [selectedActiveDate, setSelectedActiveDate] = useState<Date>(() => new Date());
 
   useEffect(() => {

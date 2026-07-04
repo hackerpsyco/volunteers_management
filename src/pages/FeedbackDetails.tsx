@@ -43,6 +43,10 @@ interface FeedbackData {
   record_sheet_link?: string | null;
   recording_url?: string | null;
   coordinator_name?: string | null;
+  session_type?: string | null;
+  content_category?: string | null;
+  module_name?: string | null;
+  topics_covered?: string | null;
 }
 
 interface StudentPerformance {
@@ -71,6 +75,15 @@ export default function FeedbackDetails() {
   const { user } = useAuth();
   const { sessionId } = useParams();
   const [loading, setLoading] = useState(true);
+
+  const getFormattedSessionType = (type?: string | null) => {
+    switch (type) {
+      case 'guest_teacher': return 'Guest Teacher';
+      case 'guest_speaker': return 'Guest Speaker';
+      case 'local_teacher': return 'Local Teacher';
+      default: return type || 'Regular Session';
+    }
+  };
   const [feedback, setFeedback] = useState<FeedbackData | null>(null);
   const [studentPerformance, setStudentPerformance] = useState<StudentPerformance[]>([]);
   const [allStudents, setAllStudents] = useState<any[]>([]);
@@ -307,12 +320,12 @@ export default function FeedbackDetails() {
     <DashboardLayout>
       {/* PRINT VIEW - Only visible when printing */}
       <div className="hidden print:block w-full max-w-none bg-white text-black p-4 space-y-4">
-        {/* Wazir Logo Header */}
+        {/* WES Logo Header */}
         <div className="flex justify-between items-center border-b pb-3 mb-4">
           <div className="flex items-center gap-3">
-            <img src="/wes-logo.jpg" alt="Wazir Education Society Logo" className="h-12 w-auto object-contain" />
+            <img src="/wes-logo.jpg" alt="WES Foundation Logo" className="h-12 w-auto object-contain" />
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Wazir Education Society</h1>
+              <h1 className="text-xl font-bold text-gray-900">WES Foundation</h1>
               <p className="text-[10px] text-gray-500">Session Feedback & Performance Report</p>
             </div>
           </div>
@@ -324,13 +337,17 @@ export default function FeedbackDetails() {
         {/* Header Info */}
         <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 mb-4">
           <h2 className="text-sm font-bold text-gray-950 mb-2">{feedback.title}</h2>
-          <div className="grid grid-cols-3 gap-2 text-xs text-gray-700">
+          <div className="grid grid-cols-3 gap-y-2 gap-x-4 text-xs text-gray-700">
              <p><strong>Date:</strong> {new Date(feedback.session_date).toLocaleDateString('en-IN')}</p>
              <p><strong>Time:</strong> {feedback.session_time}</p>
              <p><strong>Class:</strong> {feedback.class_batch || '-'}</p>
              <p><strong>Facilitator:</strong> {feedback.facilitator_name || '-'}</p>
              <p><strong>Volunteer:</strong> {feedback.volunteer_name || '-'}</p>
              <p><strong>Coordinator:</strong> {feedback.coordinator_name || '-'}</p>
+             <p><strong>Session Type:</strong> {getFormattedSessionType(feedback.session_type)}</p>
+             <p><strong>Category:</strong> {feedback.content_category || '-'}</p>
+             <p><strong>Module:</strong> {feedback.module_name || '-'}</p>
+             <p className="col-span-3"><strong>Topic:</strong> {feedback.topics_covered || '-'}</p>
           </div>
         </div>
 
@@ -515,22 +532,46 @@ export default function FeedbackDetails() {
         {/* Session Info */}
         <Card className="bg-muted/50">
           <CardContent className="pt-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 text-sm">
               <div>
-                <span className="text-muted-foreground">Date</span>
-                <p className="font-medium">{new Date(feedback.session_date).toLocaleDateString()}</p>
+                <span className="text-muted-foreground block text-xs uppercase tracking-wider">Date</span>
+                <p className="font-medium mt-0.5">{new Date(feedback.session_date).toLocaleDateString()}</p>
               </div>
               <div>
-                <span className="text-muted-foreground">Time</span>
-                <p className="font-medium">{feedback.session_time}</p>
+                <span className="text-muted-foreground block text-xs uppercase tracking-wider">Time</span>
+                <p className="font-medium mt-0.5">{feedback.session_time}</p>
               </div>
               <div>
-                <span className="text-muted-foreground">Facilitator</span>
-                <p className="font-medium">{feedback.facilitator_name || '-'}</p>
+                <span className="text-muted-foreground block text-xs uppercase tracking-wider">Class</span>
+                <p className="font-medium mt-0.5">{feedback.class_batch || '-'}</p>
               </div>
               <div>
-                <span className="text-muted-foreground">Volunteer</span>
-                <p className="font-medium">{feedback.volunteer_name || '-'}</p>
+                <span className="text-muted-foreground block text-xs uppercase tracking-wider">Facilitator</span>
+                <p className="font-medium mt-0.5">{feedback.facilitator_name || '-'}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground block text-xs uppercase tracking-wider">Volunteer</span>
+                <p className="font-medium mt-0.5">{feedback.volunteer_name || '-'}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground block text-xs uppercase tracking-wider">Coordinator</span>
+                <p className="font-medium mt-0.5">{feedback.coordinator_name || '-'}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground block text-xs uppercase tracking-wider">Session Type</span>
+                <p className="font-medium mt-0.5">{getFormattedSessionType(feedback.session_type)}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground block text-xs uppercase tracking-wider">Category</span>
+                <p className="font-medium mt-0.5">{feedback.content_category || '-'}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground block text-xs uppercase tracking-wider">Module</span>
+                <p className="font-medium mt-0.5">{feedback.module_name || '-'}</p>
+              </div>
+              <div className="col-span-2 md:col-span-4 lg:col-span-5">
+                <span className="text-muted-foreground block text-xs uppercase tracking-wider">Topic</span>
+                <p className="font-medium mt-0.5">{feedback.topics_covered || '-'}</p>
               </div>
             </div>
           </CardContent>
