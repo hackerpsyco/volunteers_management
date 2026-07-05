@@ -55,6 +55,7 @@ import { AddSessionDialog } from '@/components/sessions/AddSessionDialog';
 import { ImportSessionsDialog } from '@/components/sessions/ImportSessionsDialog';
 import { UpdateRecordingDialog } from '@/components/sessions/UpdateRecordingDialog';
 import { EditSessionDialog } from '@/components/sessions/EditSessionDialog';
+import { DateRangePicker } from '@/components/ui/date-range-picker';
 
 interface Session {
   id: string;
@@ -575,29 +576,14 @@ export default function Sessions() {
                       </Select>
                     </div>
 
-                    {/* Date From Filter */}
-                    <div className="w-full sm:w-48">
-                      <label className="text-sm font-medium text-foreground mb-2 block">
-                        From Date
-                      </label>
-                      <Input
-                        type="date"
-                        value={dateFromFilter}
-                        onChange={(e) => setDateFromFilter(e.target.value)}
-                        className="w-full"
-                      />
-                    </div>
-
-                    {/* Date To Filter */}
-                    <div className="w-full sm:w-48">
-                      <label className="text-sm font-medium text-foreground mb-2 block">
-                        To Date
-                      </label>
-                      <Input
-                        type="date"
-                        value={dateToFilter}
-                        onChange={(e) => setDateToFilter(e.target.value)}
-                        className="w-full"
+                    {/* Date Range Filter */}
+                    <div className="w-full sm:w-56">
+                      <DateRangePicker
+                        label="Date Range"
+                        dateFrom={dateFromFilter}
+                        dateTo={dateToFilter}
+                        onDateFromChange={setDateFromFilter}
+                        onDateToChange={setDateToFilter}
                       />
                     </div>
 

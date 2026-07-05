@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogClose,
+  DialogFooter,
 } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -67,6 +68,7 @@ export default function StudentCalendar() {
   const [calendarDays, setCalendarDays] = useState<CalendarDay[]>([]);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [studentClass, setStudentClass] = useState<string>('');
+  const [sessionsListDate, setSessionsListDate] = useState<Date | null>(null);
   
   const [calendarView, setCalendarView] = useState<'month' | '1-week' | '3-day' | '1-day'>(() => {
     if (typeof window !== 'undefined' && window.innerWidth < 768) {
@@ -121,28 +123,46 @@ export default function StudentCalendar() {
             coordinators:coordinator_id(name, email),
             centres:centre_id(name, location),
             centre_time_slots:centre_time_slot_id(day, start_time, end_time),
-            subjects(name)
+            subjects(name),
+            volunteers:volunteer_id(name, personal_email, work_email)
           `)
           .eq('class_batch', classData?.name)
           .order('session_date', { ascending: true });
 
         if (sessionsError) throw sessionsError;
 
+        // Fetch facilitators list to match names to emails
+        const { data: facilitatorsList } = await supabase
+          .from('facilitators')
+          .select('name, email');
+        
+        const facilitatorEmailMap: Record<string, string> = {};
+        facilitatorsList?.forEach(f => {
+          if (f.name && f.email) {
+            facilitatorEmailMap[f.name.trim().toLowerCase()] = f.email;
+          }
+        });
+
         // Transform data to flatten relationships
-        const transformedData = (sessionsData || []).map((session: any) => ({
-          ...session,
-          facilitator_email: null,
-          volunteer_email: null,
-          coordinator_name: session.coordinators?.name || null,
-          coordinator_email: session.coordinators?.email || null,
-          centre_name: session.centres?.name || null,
-          centre_location: session.centres?.location || null,
-          centre_email: null,
-          slot_day: session.centre_time_slots?.day || null,
-          slot_start_time: session.centre_time_slots?.start_time || null,
-          slot_end_time: session.centre_time_slots?.end_time || null,
-          subject_name: session.subjects?.name || null,
-        }));
+        const transformedData = (sessionsData || []).map((session: any) => {
+          const facNameKey = session.facilitator_name?.trim().toLowerCase();
+          const facilitatorEmail = facNameKey ? facilitatorEmailMap[facNameKey] : null;
+
+          return {
+            ...session,
+            facilitator_email: facilitatorEmail || null,
+            volunteer_email: session.volunteers?.personal_email || session.volunteers?.work_email || null,
+            coordinator_name: session.coordinators?.name || null,
+            coordinator_email: session.coordinators?.email || null,
+            centre_name: session.centres?.name || null,
+            centre_location: session.centres?.location || null,
+            centre_email: null,
+            slot_day: session.centre_time_slots?.day || null,
+            slot_start_time: session.centre_time_slots?.start_time || null,
+            slot_end_time: session.centre_time_slots?.end_time || null,
+            subject_name: session.subjects?.name || null,
+          };
+        });
 
         setSessions(transformedData || []);
       }
@@ -179,7 +199,7 @@ export default function StudentCalendar() {
       // Current month days
       for (let i = 1; i <= daysInMonth; i++) {
         const date = new Date(year, month, i);
-        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+        const dateStr = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(i).padStart(2, '0');
         const daySessions = sessions.filter(s => s.session_date === dateStr);
         
         days.push({
@@ -207,7 +227,7 @@ export default function StudentCalendar() {
       for (let i = 0; i < 7; i++) {
         const date = new Date(startOfWeek);
         date.setDate(startOfWeek.getDate() + i);
-        const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        const dateStr = date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
         const daySessions = sessions.filter(s => s.session_date === dateStr);
 
         days.push({
@@ -220,7 +240,7 @@ export default function StudentCalendar() {
       for (let i = 0; i < 3; i++) {
         const date = new Date(currentDate);
         date.setDate(currentDate.getDate() + i);
-        const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        const dateStr = date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
         const daySessions = sessions.filter(s => s.session_date === dateStr);
 
         days.push({
@@ -230,7 +250,7 @@ export default function StudentCalendar() {
         });
       }
     } else if (calendarView === '1-day') {
-      const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+      const dateStr = currentDate.getFullYear() + '-' + String(currentDate.getMonth() + 1).padStart(2, '0') + '-' + String(currentDate.getDate()).padStart(2, '0');
       const daySessions = sessions.filter(s => s.session_date === dateStr);
 
       days.push({
@@ -273,10 +293,10 @@ export default function StudentCalendar() {
   const getSessionDisplayTitle = (session: Session) => {
     const typeLabel = getSessionTypeLabel(session.session_type);
     const parts: string[] = [];
-    parts.push(`WES ${typeLabel} Session`);
+    parts.push('WES ' + typeLabel + ' Session');
     if (session.class_batch) parts.push(session.class_batch);
     if (session.volunteer_name) {
-      parts.push(`by ${session.volunteer_name}`);
+      parts.push('by ' + session.volunteer_name);
     }
     if (session.module_name) parts.push(session.module_name);
     if (session.topics_covered) parts.push(session.topics_covered);
@@ -341,7 +361,7 @@ export default function StudentCalendar() {
       
       const startStr = startOfWeek.toLocaleDateString('default', { day: 'numeric', month: 'short' });
       const endStr = endOfWeek.toLocaleDateString('default', { day: 'numeric', month: 'short', year: 'numeric' });
-      return `${startStr} – ${endStr}`;
+      return startStr + ' – ' + endStr;
     }
     if (calendarView === '3-day') {
       const endDate = new Date(currentDate);
@@ -349,7 +369,7 @@ export default function StudentCalendar() {
       
       const startStr = currentDate.toLocaleDateString('default', { day: 'numeric', month: 'short' });
       const endStr = endDate.toLocaleDateString('default', { day: 'numeric', month: 'short', year: 'numeric' });
-      return `${startStr} – ${endStr}`;
+      return startStr + ' – ' + endStr;
     }
     if (calendarView === '1-day') {
       return currentDate.toLocaleDateString('default', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -551,6 +571,7 @@ export default function StudentCalendar() {
                           onClick={(e) => {
                             e.stopPropagation();
                             setSelectedActiveDate(day.date);
+                            setSessionsListDate(day.date);
                           }}
                         >
                           +{day.sessions.length - 3} more
@@ -696,6 +717,17 @@ export default function StudentCalendar() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Topic & Basic Info */}
                 <div className="space-y-3">
+                  {selectedSession.session_type && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Session Type</p>
+                      <p className="font-medium capitalize">
+                        {selectedSession.session_type === 'guest_teacher' ? 'Guest Teacher' :
+                         selectedSession.session_type === 'guest_speaker' ? 'Guest Speaker' :
+                         selectedSession.session_type === 'local_teacher' ? 'Local Teacher' :
+                         selectedSession.session_type}
+                      </p>
+                    </div>
+                  )}
                   {selectedSession.content_category && (
                     <div>
                       <p className="text-xs text-muted-foreground">Category</p>
@@ -743,17 +775,6 @@ export default function StudentCalendar() {
                       {selectedSession.status}
                     </span>
                   </div>
-                  {selectedSession.session_type && (
-                    <div>
-                      <p className="text-xs text-muted-foreground">Session Type</p>
-                      <p className="font-medium capitalize">
-                        {selectedSession.session_type === 'guest_teacher' ? 'Guest Teacher' :
-                         selectedSession.session_type === 'guest_speaker' ? 'Guest Speaker' :
-                         selectedSession.session_type === 'local_teacher' ? 'Local Teacher' :
-                         selectedSession.session_type}
-                      </p>
-                    </div>
-                  )}
                   {selectedSession.quiz_content_ppt && (
                     <div>
                       <p className="text-xs text-muted-foreground">Quiz/Content PPT</p>
@@ -804,9 +825,6 @@ export default function StudentCalendar() {
                     <div className="bg-blue-50 border border-blue-200 rounded p-3">
                       <p className="text-xs text-muted-foreground">👤 Facilitator</p>
                       <p className="font-medium text-sm">{selectedSession.facilitator_name}</p>
-                      {selectedSession.facilitator_email && (
-                        <p className="text-xs text-blue-600 mt-1">📧 {selectedSession.facilitator_email}</p>
-                      )}
                     </div>
                   )}
                   
@@ -814,9 +832,6 @@ export default function StudentCalendar() {
                     <div className="bg-purple-50 border border-purple-200 rounded p-3">
                       <p className="text-xs text-muted-foreground">👥 Volunteer</p>
                       <p className="font-medium text-sm">{selectedSession.volunteer_name}</p>
-                      {selectedSession.volunteer_email && (
-                        <p className="text-xs text-purple-600 mt-1">📧 {selectedSession.volunteer_email}</p>
-                      )}
                     </div>
                   )}
                   
@@ -824,9 +839,6 @@ export default function StudentCalendar() {
                     <div className="bg-green-50 border border-green-200 rounded p-3">
                       <p className="text-xs text-muted-foreground">📋 Coordinator</p>
                       <p className="font-medium text-sm">{selectedSession.coordinator_name}</p>
-                      {selectedSession.coordinator_email && (
-                        <p className="text-xs text-green-600 mt-1">📧 {selectedSession.coordinator_email}</p>
-                      )}
                     </div>
                   )}
 
@@ -836,9 +848,6 @@ export default function StudentCalendar() {
                       <p className="font-medium text-sm">{selectedSession.centre_name}</p>
                       {selectedSession.centre_location && (
                         <p className="text-xs text-muted-foreground">{selectedSession.centre_location}</p>
-                      )}
-                      {selectedSession.centre_email && (
-                        <p className="text-xs text-orange-600 mt-1">📧 {selectedSession.centre_email}</p>
                       )}
                     </div>
                   )}
@@ -880,6 +889,64 @@ export default function StudentCalendar() {
                 </div>
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Sessions on Date Dialog */}
+        <Dialog open={!!sessionsListDate} onOpenChange={(open) => !open && setSessionsListDate(null)}>
+          <DialogContent className="max-w-md max-h-[85vh] flex flex-col p-6">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold flex items-center gap-2">
+                <CalendarDays className="h-5 w-5 text-primary" />
+                Sessions on {sessionsListDate?.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="flex-grow overflow-y-auto mt-4 space-y-3">
+              {sessionsListDate && (() => {
+                const dateKey = sessionsListDate.toDateString();
+                const daySessions = calendarDays.find(d => d.date.toDateString() === dateKey)?.sessions || [];
+                
+                return daySessions.map((session, i) => (
+                  <div 
+                    key={i} 
+                    onClick={() => {
+                      setSelectedSession(session);
+                      setSessionsListDate(null);
+                    }}
+                    className="p-3 border border-border/60 rounded-xl cursor-pointer hover:bg-muted/40 transition-colors flex flex-col gap-1.5"
+                  >
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="font-bold text-sm text-foreground hover:text-primary transition-colors line-clamp-2">
+                        {session.title || getSessionDisplayTitle(session)}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold capitalize whitespace-nowrap ${getSessionTypeColor(session.session_type)}`}>
+                        {session.session_type === 'guest_teacher' ? 'Guest Teacher' :
+                         session.session_type === 'guest_speaker' ? 'Guest Speaker' :
+                         session.session_type === 'local_teacher' ? 'Local Teacher' :
+                         session.session_type}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground mt-0.5">
+                      <span className="flex items-center gap-1 font-medium">
+                        ⏰ {session.session_time.split(':').slice(0, 2).join(':')}
+                      </span>
+                      {session.class_batch && (
+                        <span className="font-medium bg-muted px-1.5 py-0.5 rounded text-[10px]">
+                          {session.class_batch}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ));
+              })()}
+            </div>
+            
+            <DialogFooter className="mt-4">
+              <Button onClick={() => setSessionsListDate(null)}>
+                Close
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>

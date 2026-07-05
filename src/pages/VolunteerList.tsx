@@ -126,6 +126,8 @@ export default function VolunteerList() {
   const [remarksDialogOpen, setRemarksDialogOpen] = useState(false);
   const [newRemark, setNewRemark] = useState('');
   const [isSavingRemark, setIsSavingRemark] = useState(false);
+  const [editingRemarkIndex, setEditingRemarkIndex] = useState<number | null>(null);
+  const [editingRemarkText, setEditingRemarkText] = useState<string>('');
   const navigate = useNavigate();
 
   function parseRemarks(remarksStr: string | null): RemarkEntry[] {
@@ -183,6 +185,81 @@ export default function VolunteerList() {
       toast.error('Failed to save remark');
     } finally {
       setIsSavingRemark(false);
+    }
+  };
+
+  const handleEditRemarkStart = (index: number, currentText: string) => {
+    setEditingRemarkIndex(index);
+    setEditingRemarkText(currentText);
+  };
+
+  const handleCancelEditRemark = () => {
+    setEditingRemarkIndex(null);
+    setEditingRemarkText('');
+  };
+
+  const handleUpdateRemark = async (index: number) => {
+    if (!selectedVolunteer || !editingRemarkText.trim()) return;
+
+    try {
+      const currentRemarks = parseRemarks(selectedVolunteer.remarks);
+      if (index < 0 || index >= currentRemarks.length) return;
+
+      currentRemarks[index] = {
+        ...currentRemarks[index],
+        text: editingRemarkText.trim(),
+      };
+
+      const remarksStr = JSON.stringify(currentRemarks);
+
+      const { error } = await supabase
+        .from('volunteers')
+        .update({ remarks: remarksStr })
+        .eq('id', selectedVolunteer.id);
+
+      if (error) throw error;
+
+      setVolunteers(volunteers.map(v =>
+        v.id === selectedVolunteer.id ? { ...v, remarks: remarksStr } : v
+      ));
+
+      setSelectedVolunteer(prev => prev ? { ...prev, remarks: remarksStr } : null);
+      toast.success('Remark updated successfully');
+      setEditingRemarkIndex(null);
+      setEditingRemarkText('');
+    } catch (error) {
+      console.error('Error updating remark:', error);
+      toast.error('Failed to update remark');
+    }
+  };
+
+  const handleDeleteRemark = async (index: number) => {
+    if (!selectedVolunteer) return;
+    if (!window.confirm('Are you sure you want to delete this remark?')) return;
+
+    try {
+      const currentRemarks = parseRemarks(selectedVolunteer.remarks);
+      if (index < 0 || index >= currentRemarks.length) return;
+
+      const updatedRemarks = currentRemarks.filter((_, i) => i !== index);
+      const remarksStr = updatedRemarks.length > 0 ? JSON.stringify(updatedRemarks) : null;
+
+      const { error } = await supabase
+        .from('volunteers')
+        .update({ remarks: remarksStr })
+        .eq('id', selectedVolunteer.id);
+
+      if (error) throw error;
+
+      setVolunteers(volunteers.map(v =>
+        v.id === selectedVolunteer.id ? { ...v, remarks: remarksStr } : v
+      ));
+
+      setSelectedVolunteer(prev => prev ? { ...prev, remarks: remarksStr } : null);
+      toast.success('Remark deleted successfully');
+    } catch (error) {
+      console.error('Error deleting remark:', error);
+      toast.error('Failed to delete remark');
     }
   };
 
@@ -1178,17 +1255,77 @@ export default function VolunteerList() {
               <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">History</h4>
               {selectedVolunteer && parseRemarks(selectedVolunteer.remarks).length > 0 ? (
                 <div className="space-y-3">
-                  {parseRemarks(selectedVolunteer.remarks).map((remark, index) => (
-                    <div key={index} className="p-3 bg-muted/50 rounded-lg border border-border/50 text-sm">
-                      <div className="flex justify-between items-start gap-2 mb-1">
-                        <span className="font-semibold text-foreground">{remark.createdBy}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {remark.createdAt === 'Legacy' ? 'Legacy' : new Date(remark.createdAt).toLocaleString()}
-                        </span>
+                  {parseRemarks(selectedVolunteer.remarks).map((remark, index) => {
+                    const isEditing = editingRemarkIndex === index;
+                    return (
+                      <div key={index} className="p-3 bg-muted/50 rounded-lg border border-border/50 text-sm group/item">
+                        {isEditing ? (
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-start gap-2">
+                              <span className="font-semibold text-foreground">{remark.createdBy}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {remark.createdAt === 'Legacy' ? 'Legacy' : new Date(remark.createdAt).toLocaleString()}
+                              </span>
+                            </div>
+                            <RichTextEditor
+                              value={editingRemarkText}
+                              onChange={(val) => setEditingRemarkText(val)}
+                            />
+                            <div className="flex justify-end gap-2 mt-2">
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={handleCancelEditRemark}
+                                className="h-8 text-xs"
+                              >
+                                Cancel
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                onClick={() => handleUpdateRemark(index)}
+                                disabled={!editingRemarkText.trim() || editingRemarkText === '<p><br></p>'}
+                                className="h-8 text-xs font-semibold"
+                              >
+                                Save
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex justify-between items-start gap-2 mb-1">
+                              <div className="flex flex-col">
+                                <span className="font-semibold text-foreground">{remark.createdBy}</span>
+                                <span className="text-[10px] text-muted-foreground">
+                                  {remark.createdAt === 'Legacy' ? 'Legacy' : new Date(remark.createdAt).toLocaleString()}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted"
+                                  onClick={() => handleEditRemarkStart(index, remark.text)}
+                                  title="Edit remark"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  onClick={() => handleDeleteRemark(index)}
+                                  title="Delete remark"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="text-muted-foreground prose prose-sm max-w-none mt-1" dangerouslySetInnerHTML={{ __html: remark.text }} />
+                          </>
+                        )}
                       </div>
-                      <div className="text-muted-foreground prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: remark.text }} />
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground italic">No remarks history yet.</p>

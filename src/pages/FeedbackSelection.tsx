@@ -41,6 +41,7 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAcademicYear } from '@/contexts/AcademicYearContext';
+import { DateRangePicker } from '@/components/ui/date-range-picker';
 
 interface FeedbackSession {
   id: string;
@@ -393,13 +394,13 @@ export default function FeedbackSelection() {
               </div>
 
               <div>
-                <label className="text-xs font-medium mb-1 block">From Date</label>
-                <Input type="date" value={dateFromFilter} onChange={(e) => setDateFromFilter(e.target.value)} className="h-9" />
-              </div>
-
-              <div>
-                <label className="text-xs font-medium mb-1 block">To Date</label>
-                <Input type="date" value={dateToFilter} onChange={(e) => setDateToFilter(e.target.value)} className="h-9" />
+                <DateRangePicker
+                  label="Date Range"
+                  dateFrom={dateFromFilter}
+                  dateTo={dateToFilter}
+                  onDateFromChange={setDateFromFilter}
+                  onDateToChange={setDateToFilter}
+                />
               </div>
             </div>
 
