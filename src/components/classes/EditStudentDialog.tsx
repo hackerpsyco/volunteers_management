@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Edit } from 'lucide-react';
+import { Edit, Plus, Trash2, Package, Monitor, Tag } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { logActivity } from '@/utils/activityLogger';
@@ -40,6 +41,27 @@ interface Student {
   allow_profile_edit?: boolean;
 }
 
+interface AssignedItem {
+  id?: string;
+  student_id: string;
+  item_type: 'device' | 'other';
+  item_name: string;
+  item_id: string;
+  serial_number: string;
+  condition: string;
+  isNew?: boolean;
+  isDeleted?: boolean;
+}
+
+const EMPTY_ITEM = (): Omit<AssignedItem, 'student_id'> => ({
+  item_type: 'device',
+  item_name: '',
+  item_id: '',
+  serial_number: '',
+  condition: '',
+  isNew: true,
+});
+
 interface EditStudentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -56,6 +78,8 @@ export function EditStudentDialog({
   const [saving, setSaving] = useState(false);
   const [editedStudent, setEditedStudent] = useState<Student | null>(null);
   const [originalEmail, setOriginalEmail] = useState<string | null>(null);
+  const [assignedItems, setAssignedItems] = useState<AssignedItem[]>([]);
+  const [loadingItems, setLoadingItems] = useState(false);
 
   useEffect(() => {
     if (student) {
@@ -63,6 +87,56 @@ export function EditStudentDialog({
       setOriginalEmail(student.email);
     }
   }, [student, open]);
+
+  useEffect(() => {
+    if (open && student) {
+      fetchAssignedItems(student.id);
+    } else {
+      setAssignedItems([]);
+    }
+  }, [open, student]);
+
+  const fetchAssignedItems = async (studentId: string) => {
+    setLoadingItems(true);
+    try {
+      const { data, error } = await (supabase as any)
+        .from('student_assigned_items')
+        .select('*')
+        .eq('student_id', studentId)
+        .order('created_at', { ascending: true });
+      if (error) {
+        // Table may not exist yet — silently ignore
+        console.warn('student_assigned_items table not ready:', error.message);
+        setAssignedItems([]);
+      } else {
+        setAssignedItems(data || []);
+      }
+    } catch {
+      setAssignedItems([]);
+    } finally {
+      setLoadingItems(false);
+    }
+  };
+
+  const addItem = () => {
+    if (!editedStudent) return;
+    setAssignedItems(prev => [
+      ...prev,
+      { ...EMPTY_ITEM(), student_id: editedStudent.id },
+    ]);
+  };
+
+  const updateItem = (index: number, field: keyof AssignedItem, value: string) => {
+    setAssignedItems(prev =>
+      prev.map((item, i) =>
+        i === index ? { ...item, [field]: value } : item
+      )
+    );
+  };
+
+  const removeItem = (index: number) => {
+    setAssignedItems(prev => prev.filter((_, i) => i !== index));
+  };
 
   const handleSave = async () => {
     if (!editedStudent || !editedStudent.name.trim()) {
@@ -84,6 +158,14 @@ export function EditStudentDialog({
       const ifscRegex = /^[A-Za-z]{4}0[A-Za-z0-9]{6}$/;
       if (!ifscRegex.test(editedStudent.ifsc_code.trim())) {
         toast.error('IFSC Code must be an 11-character alphanumeric code (e.g. SBIN0001234)');
+        return;
+      }
+    }
+
+    // Validate assigned items - name required
+    for (const item of assignedItems) {
+      if (!item.item_name.trim()) {
+        toast.error('Item Name is required for all assigned items');
         return;
       }
     }
@@ -111,20 +193,34 @@ export function EditStudentDialog({
 
       if (error) throw error;
 
-      await logActivity('UPDATE', 'Students', `Updated student details: ${editedStudent.name.trim()} (Email: ${editedStudent.email})`);
+      // Save assigned items — delete all existing then re-insert
+      try {
+        await (supabase as any)
+          .from('student_assigned_items')
+          .delete()
+          .eq('student_id', editedStudent.id);
+
+        if (assignedItems.length > 0) {
+          const itemsToInsert = assignedItems.map(item => ({
+            student_id: editedStudent.id,
+            item_type: item.item_type,
+            item_name: item.item_name.trim(),
+            item_id: item.item_id?.trim() || null,
+            serial_number: item.serial_number?.trim() || null,
+            condition: item.condition?.trim() || null,
+          }));
+          await (supabase as any).from('student_assigned_items').insert(itemsToInsert);
+        }
+      } catch (itemError: any) {
+        console.warn('Could not save assigned items (table may not exist):', itemError?.message);
+        toast.warning('Student saved, but assigned items could not be saved. Please run the DB migration first.');
+      }
+
+      await logActivity('UPDATE', 'Students', 'Updated student details: ' + editedStudent.name.trim() + ' (Email: ' + editedStudent.email + ')');
       
       // Automatic account creation/update if email is provided
       if (editedStudent.email) {
         try {
-          // Find the class_id for the student if not already present in editedStudent
-          // In this component, class_id might not be in the student object passed as prop
-          // But we can try to get it from the editedStudent if available or from the student record
-          // Looking at the Student interface, class_id is NOT included.
-          // Let's fetch it if needed, or assume it doesn't change here.
-          // Wait, I should probably include class_id in the Student interface or fetch it.
-          
-          // Let's check if we have class_id. 
-          // If not, we might need to fetch the student's class_id from the database.
           const { data: studentData } = await supabase
             .from('students')
             .select('class_id')
@@ -134,7 +230,6 @@ export function EditStudentDialog({
           const classId = studentData?.class_id;
 
           if (classId) {
-            console.log('Ensuring student account for:', editedStudent.email, 'Old email:', originalEmail);
             const { error: accountError } = await supabase.rpc('ensure_student_account', {
               student_email: editedStudent.email.trim(),
               student_full_name: editedStudent.name.trim(),
@@ -146,7 +241,6 @@ export function EditStudentDialog({
               console.error('Error ensuring student account:', accountError);
               toast.error('Student updated, but account sync failed: ' + accountError.message);
             } else {
-              // Update original email for next potential save without closing dialog
               setOriginalEmail(editedStudent.email.trim());
             }
           }
@@ -168,6 +262,7 @@ export function EditStudentDialog({
 
   const handleClose = () => {
     setEditedStudent(null);
+    setAssignedItems([]);
     onOpenChange(false);
   };
 
@@ -175,7 +270,7 @@ export function EditStudentDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Edit className="h-5 w-5 text-primary" />
@@ -357,8 +452,6 @@ export function EditStudentDialog({
             </div>
           </div>
 
-
-
           {/* Bank Details Section */}
           <div className="border-t pt-4 space-y-3">
             <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">Bank Details</h3>
@@ -394,6 +487,136 @@ export function EditStudentDialog({
                 />
               </div>
             </div>
+          </div>
+
+          {/* ── Assigned Items Section (Admin Only) ────────────────── */}
+          <div className="border-t pt-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Package className="h-4 w-4 text-primary" />
+                <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+                  Assigned Items
+                </h3>
+                {assignedItems.length > 0 && (
+                  <Badge variant="secondary" className="text-xs">
+                    {assignedItems.length}
+                  </Badge>
+                )}
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={addItem}
+                className="h-8 text-xs gap-1.5 border-primary text-primary hover:bg-primary/5"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add Item
+              </Button>
+            </div>
+
+            {loadingItems ? (
+              <p className="text-xs text-muted-foreground">Loading items...</p>
+            ) : assignedItems.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-6 border border-dashed rounded-lg bg-muted/30">
+                <Package className="h-8 w-8 text-muted-foreground/40 mb-2" />
+                <p className="text-xs text-muted-foreground">No items assigned yet.</p>
+                <p className="text-xs text-muted-foreground">Click <strong>Add Item</strong> to assign a device or other item.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {assignedItems.map((item, index) => (
+                  <div
+                    key={index}
+                    className="relative border border-border rounded-xl p-3 bg-muted/20 space-y-3"
+                  >
+                    {/* Item header */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {item.item_type === 'device' ? (
+                          <Monitor className="h-3.5 w-3.5 text-primary" />
+                        ) : (
+                          <Tag className="h-3.5 w-3.5 text-amber-500" />
+                        )}
+                        <span className="text-xs font-semibold text-foreground">
+                          Item {index + 1}
+                        </span>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-destructive hover:bg-destructive/10"
+                        onClick={() => removeItem(index)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+
+                    {/* Row 1: Type + Name */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1 block">Type *</Label>
+                        <Select
+                          value={item.item_type}
+                          onValueChange={(val) => updateItem(index, 'item_type', val as 'device' | 'other')}
+                        >
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="device">Device</SelectItem>
+                            <SelectItem value="other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1 block">Name *</Label>
+                        <Input
+                          className="h-8 text-xs"
+                          placeholder="e.g. Laptop, Book"
+                          value={item.item_name}
+                          onChange={(e) => updateItem(index, 'item_name', e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Row 2: ID + Serial Number */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1 block">Item ID</Label>
+                        <Input
+                          className="h-8 text-xs"
+                          placeholder="e.g. LPT-001"
+                          value={item.item_id}
+                          onChange={(e) => updateItem(index, 'item_id', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1 block">Serial Number</Label>
+                        <Input
+                          className="h-8 text-xs"
+                          placeholder="e.g. SN123456"
+                          value={item.serial_number}
+                          onChange={(e) => updateItem(index, 'serial_number', e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Row 3: Condition */}
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1 block">Condition</Label>
+                      <Input
+                        className="h-8 text-xs"
+                        placeholder="e.g. Good, Fair, Damaged"
+                        value={item.condition}
+                        onChange={(e) => updateItem(index, 'condition', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

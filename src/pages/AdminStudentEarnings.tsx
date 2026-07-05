@@ -471,6 +471,19 @@ export default function AdminStudentEarnings() {
             </Select>
           </div>
           <div className="w-full sm:w-48">
+            <Select value={selectedDesignation} onValueChange={setSelectedDesignation}>
+              <SelectTrigger>
+                <SelectValue placeholder="All Designations" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Designations</SelectItem>
+                <SelectItem value="1. CCC">1. CCC</SelectItem>
+                <SelectItem value="2. Junior Fellow">2. Junior Fellow</SelectItem>
+                <SelectItem value="3. Senior Fellow">3. Senior Fellow</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="w-full sm:w-48">
             <Select value={filterSubject} onValueChange={setFilterSubject}>
               <SelectTrigger>
                 <SelectValue placeholder="All Subjects" />
@@ -480,19 +493,6 @@ export default function AdminStudentEarnings() {
                 {subjects.map((s) => (
                   <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
                 ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="w-full sm:w-48">
-            <Select value={selectedDesignation} onValueChange={setSelectedDesignation}>
-              <SelectTrigger>
-                <SelectValue placeholder="All Types" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="1. CCC">1. CCC</SelectItem>
-                <SelectItem value="2. Junior Fellow">2. Junior Fellow</SelectItem>
-                <SelectItem value="3. Senior Fellow">3. Senior Fellow</SelectItem>
               </SelectContent>
             </Select>
           </div>
