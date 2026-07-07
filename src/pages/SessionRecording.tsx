@@ -154,21 +154,47 @@ export default function SessionRecording() {
 
   const [isListening, setIsListening] = useState(false);
   const [isEditingHomework, setIsEditingHomework] = useState(false);
-  const [isHomeworkSaved, setIsHomeworkSaved] = useState(false);
   const [isBestPerformerManual, setIsBestPerformerManual] = useState(false);
   const [rewardConfigs, setRewardConfigs] = useState<{ task_type: string, rate_per_task: number }[]>([]);
 
-  useEffect(() => {
-    setIsHomeworkSaved(false);
-  }, [
-    newHomework.task_name,
-    newHomework.task_type,
-    newHomework.custom_task_type,
-    newHomework.deadline,
-    newHomework.earning_amount,
-    newHomework.task_description,
-    JSON.stringify(newHomework.submission_types)
-  ]);
+  const isHomeworkSaved = (() => {
+    if (homeworkRecords.length === 0 || homeworkRecords[0].status !== 'draft') {
+      return false;
+    }
+    const draft = homeworkRecords[0];
+    
+    const taskNameMatch = (newHomework.task_name || '').trim().toLowerCase() === (draft.task_name || '').trim().toLowerCase();
+    
+    const resolvedNewType = newHomework.task_type === 'Other' ? (newHomework.custom_task_type || '').trim() : (newHomework.task_type || '').trim();
+    const resolvedDraftType = (draft.feedback_type || '').trim();
+    const taskTypeMatch = resolvedNewType.toLowerCase() === resolvedDraftType.toLowerCase();
+    
+    const newDesc = (newHomework.task_description || '').trim();
+    const draftDesc = (draft.task_description || '').trim();
+    const descMatch = newDesc === draftDesc;
+    
+    // Normalize deadline formats
+    let deadlineMatch = false;
+    if (!newHomework.deadline && !draft.deadline) {
+      deadlineMatch = true;
+    } else if (newHomework.deadline && draft.deadline) {
+      try {
+        const newTime = new Date(newHomework.deadline).getTime();
+        const draftTime = new Date(draft.deadline).getTime();
+        deadlineMatch = Math.abs(newTime - draftTime) < 60000;
+      } catch (e) {
+        deadlineMatch = false;
+      }
+    }
+    
+    const earningMatch = Number(newHomework.earning_amount || 0) === Number(draft.earning_amount || 0);
+    
+    const newTypes = [...(newHomework.submission_types || [])].sort().join(',');
+    const draftTypes = [...(draft.submission_types || [])].sort().join(',');
+    const typesMatch = newTypes === draftTypes;
+
+    return taskNameMatch && taskTypeMatch && descMatch && deadlineMatch && earningMatch && typesMatch;
+  })();
 
   useEffect(() => {
     if (session && rewardConfigs.length > 0 && !newHomework.task_type) {
@@ -541,6 +567,29 @@ export default function SessionRecording() {
       });
 
       setHomeworkRecords(transformedData);
+
+      if (transformedData.length > 0 && transformedData[0].status === 'draft') {
+        const draft = transformedData[0];
+        
+        // Fetch reward configs to determine standard vs custom types
+        const { data: configsData } = await supabase
+          .from('reward_configurations')
+          .select('task_type');
+        const standardTypes = (configsData || []).map((c: any) => c.task_type);
+        const isStandardType = standardTypes.includes(draft.feedback_type);
+        
+        setNewHomework({
+          student_id: draft.student_id || '',
+          task_name: draft.task_name || '',
+          task_type: isStandardType ? draft.feedback_type : 'Other',
+          custom_task_type: isStandardType ? '' : draft.feedback_type,
+          deadline: draft.deadline ? formatDatetimeLocal(draft.deadline) : '',
+          task_description: draft.task_description || '',
+          submission_link: draft.submission_link || '',
+          feedback_notes: draft.feedback_notes || '',
+          earning_amount: draft.earning_amount?.toString() || '5',
+        });
+      }
     } catch (error) {
       console.error('Error fetching homework records:', error);
     } finally {
@@ -1250,7 +1299,9 @@ export default function SessionRecording() {
     }
   };
 
-  const handleSaveTaskSettings = () => {
+
+
+  const handleSaveTaskSettings = async () => {
     if (!newHomework.task_name.trim()) {
       toast.error('Please enter a task name');
       return;
@@ -1266,8 +1317,107 @@ export default function SessionRecording() {
       return;
     }
 
-    setIsHomeworkSaved(true);
-    toast.success('Task settings saved! Click "Assign Task" to distribute it to students.');
+    const finalTaskType = newHomework.task_type === 'Other' ? newHomework.custom_task_type : newHomework.task_type;
+
+    try {
+      setSavingHomework(true);
+
+      // Get all present students in the class
+      const presentStudents = getPresentStudents();
+      if (presentStudents.length === 0) {
+        toast.error('No present students found to save task for. Please mark attendance first.');
+        setSavingHomework(false);
+        return;
+      }
+
+      // Check if we already have records for this session
+      const { data: existingRecords } = await supabase
+        .from('student_task_feedback')
+        .select('id, task_id')
+        .eq('session_id', sessionId);
+
+      let taskIdToUse = existingRecords?.[0]?.task_id;
+
+      if (existingRecords && existingRecords.length > 0) {
+        // Update existing tasks/drafts for this session
+        const { error } = await supabase
+          .from('student_task_feedback')
+          .update({
+            feedback_type: finalTaskType || 'homework',
+            task_name: newHomework.task_name,
+            task_description: newHomework.task_description || null,
+            deadline: newHomework.deadline ? new Date(newHomework.deadline).toISOString() : null,
+            earning_amount: Number(newHomework.earning_amount) || 5,
+            submission_types: newHomework.submission_types && newHomework.submission_types.length > 0 ? newHomework.submission_types : ['code'],
+            updated_at: new Date().toISOString(),
+          })
+          .eq('session_id', sessionId);
+
+        if (error) throw error;
+        toast.success('Task settings updated and saved permanently to database');
+      } else {
+        // Insert new draft records
+        // Generate task ID
+        const d = new Date();
+        const yearStr = d.getFullYear();
+        const monthStr = String(d.getMonth() + 1).padStart(2, '0');
+        const classNameStr = (session?.class_batch || 'Class').replace(/[\s\/]+/g, '');
+        const prefix = `${yearStr}-${monthStr}-${classNameStr}-`;
+        
+        const { data: existingSeqTasks } = await supabase
+          .from('student_task_feedback')
+          .select('task_id')
+          .like('task_id', `${prefix}%`)
+          .order('task_id', { ascending: false })
+          .limit(1);
+        
+        let nextSeq = 1;
+        if (existingSeqTasks && existingSeqTasks.length > 0 && existingSeqTasks[0].task_id) {
+          const lastId = existingSeqTasks[0].task_id;
+          const lastSeqStr = lastId.split('-').pop();
+          if (lastSeqStr) {
+            const lastSeqNum = parseInt(lastSeqStr, 10);
+            if (!isNaN(lastSeqNum)) {
+              nextSeq = lastSeqNum + 1;
+            }
+          }
+        }
+        const seqStr = String(nextSeq).padStart(3, '0');
+        const generatedTaskId = `${prefix}${seqStr}`;
+
+        const homeworkRecords = presentStudents.map(student => ({
+          session_id: sessionId,
+          student_id: student.id,
+          feedback_type: finalTaskType || 'homework',
+          task_name: newHomework.task_name,
+          task_id: generatedTaskId,
+          task_description: newHomework.task_description || null,
+          deadline: newHomework.deadline ? new Date(newHomework.deadline).toISOString() : null,
+          submission_link: newHomework.submission_link || null,
+          feedback_notes: newHomework.feedback_notes || null,
+          earning_amount: Number(newHomework.earning_amount) || 5,
+          submission_types: newHomework.submission_types && newHomework.submission_types.length > 0 ? newHomework.submission_types : ['code'],
+          academic_year: selectedYear,
+          status: 'draft',
+          created_at: new Date().toISOString(),
+          created_by: user?.id || null
+        }));
+
+        const { error } = await supabase
+          .from('student_task_feedback')
+          .insert(homeworkRecords);
+
+        if (error) throw error;
+        toast.success('Task settings saved permanently to database');
+      }
+
+      fetchHomeworkRecords();
+    } catch (error) {
+      console.error('Error saving task settings:', error);
+      toast.error('Failed to save task settings');
+    } finally {
+      setSavingHomework(false);
+    }
   };
 
   const handleSaveHomework = async () => {
@@ -1358,83 +1508,106 @@ export default function SessionRecording() {
         toast.success('Homework updated successfully');
         setIsEditingHomework(false);
       } else {
-        // Create task for each present student — tagged with current academic year
-        const presentStudents = getPresentStudents();
-        if (presentStudents.length === 0) {
-          toast.error('No present students found to assign homework to');
-          setSavingHomework(false);
-          return;
-        }
-
-        // Check if a task with the same name already exists in this academic year
-        const { data: duplicateCheck, error: duplicateCheckError } = await supabase
+        // If there are existing draft records, we just update their status to 'pending'
+        const { data: existingDrafts } = await supabase
           .from('student_task_feedback')
-          .select('id')
-          .eq('task_name', newHomework.task_name)
-          .eq('academic_year', selectedYear)
-          .limit(1);
+          .select('id, task_id')
+          .eq('session_id', sessionId)
+          .eq('status', 'draft');
 
-        if (duplicateCheck && duplicateCheck.length > 0) {
-          toast.error('A task with this title already exists in this academic year. Please use a unique title.');
-          setSavingHomework(false);
-          return;
-        }
+        if (existingDrafts && existingDrafts.length > 0) {
+          const { error } = await supabase
+            .from('student_task_feedback')
+            .update({
+              status: 'pending',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('session_id', sessionId);
 
-        // Generate task ID
-        const d = new Date();
-        const yearStr = d.getFullYear();
-        const monthStr = String(d.getMonth() + 1).padStart(2, '0');
-        const classNameStr = (session?.class_batch || 'Class').replace(/[\s\/]+/g, '');
-        const prefix = `${yearStr}-${monthStr}-${classNameStr}-`;
-        
-        const { data: existingTasks } = await supabase
-          .from('student_task_feedback')
-          .select('task_id')
-          .like('task_id', `${prefix}%`)
-          .order('task_id', { ascending: false })
-          .limit(1);
-        
-        let nextSeq = 1;
-        if (existingTasks && existingTasks.length > 0 && existingTasks[0].task_id) {
-          const lastId = existingTasks[0].task_id;
-          const lastSeqStr = lastId.split('-').pop();
-          if (lastSeqStr) {
-            const lastSeqNum = parseInt(lastSeqStr, 10);
-            if (!isNaN(lastSeqNum)) {
-              nextSeq = lastSeqNum + 1;
+          if (error) throw error;
+
+          const presentStudents = getPresentStudents();
+          await logActivity('CREATE', 'Tasks', `Assigned session homework: "${newHomework.task_name}" (Task ID: ${existingDrafts[0].task_id}) to ${presentStudents.length} present students`);
+          toast.success(`Homework assigned to ${presentStudents.length} present students`);
+        } else {
+          // Create task for each present student — tagged with current academic year
+          const presentStudents = getPresentStudents();
+          if (presentStudents.length === 0) {
+            toast.error('No present students found to assign homework to');
+            setSavingHomework(false);
+            return;
+          }
+
+          // Check if a task with the same name already exists in this academic year
+          const { data: duplicateCheck, error: duplicateCheckError } = await supabase
+            .from('student_task_feedback')
+            .select('id')
+            .eq('task_name', newHomework.task_name)
+            .eq('academic_year', selectedYear)
+            .limit(1);
+
+          if (duplicateCheck && duplicateCheck.length > 0) {
+            toast.error('A task with this title already exists in this academic year. Please use a unique title.');
+            setSavingHomework(false);
+            return;
+          }
+
+          // Generate task ID
+          const d = new Date();
+          const yearStr = d.getFullYear();
+          const monthStr = String(d.getMonth() + 1).padStart(2, '0');
+          const classNameStr = (session?.class_batch || 'Class').replace(/[\s\/]+/g, '');
+          const prefix = `${yearStr}-${monthStr}-${classNameStr}-`;
+          
+          const { data: existingTasks } = await supabase
+            .from('student_task_feedback')
+            .select('task_id')
+            .like('task_id', `${prefix}%`)
+            .order('task_id', { ascending: false })
+            .limit(1);
+          
+          let nextSeq = 1;
+          if (existingTasks && existingTasks.length > 0 && existingTasks[0].task_id) {
+            const lastId = existingTasks[0].task_id;
+            const lastSeqStr = lastId.split('-').pop();
+            if (lastSeqStr) {
+              const lastSeqNum = parseInt(lastSeqStr, 10);
+              if (!isNaN(lastSeqNum)) {
+                nextSeq = lastSeqNum + 1;
+              }
             }
           }
+          const seqStr = String(nextSeq).padStart(3, '0');
+          const generatedTaskId = `${prefix}${seqStr}`;
+
+          const homeworkRecords = presentStudents.map(student => ({
+            session_id: sessionId,
+            student_id: student.id,
+            feedback_type: finalTaskType || 'homework',
+            task_name: newHomework.task_name,
+            task_id: generatedTaskId,
+            task_description: newHomework.task_description || null,
+            deadline: newHomework.deadline ? new Date(newHomework.deadline).toISOString() : null,
+            submission_link: newHomework.submission_link || null,
+            feedback_notes: newHomework.feedback_notes || null,
+            earning_amount: Number(newHomework.earning_amount) || 5,
+            submission_types: newHomework.submission_types && newHomework.submission_types.length > 0 ? newHomework.submission_types : ['code'],
+            academic_year: selectedYear,
+            status: 'pending',
+            created_at: new Date().toISOString(),
+            created_by: user?.id || null
+          }));
+
+          const { error } = await supabase
+            .from('student_task_feedback')
+            .insert(homeworkRecords);
+
+          if (error) throw error;
+          
+          await logActivity('CREATE', 'Tasks', `Assigned session homework: "${newHomework.task_name}" (Task ID: ${generatedTaskId}) to ${presentStudents.length} present students`);
+          
+          toast.success(`Homework assigned to ${presentStudents.length} present students`);
         }
-        const seqStr = String(nextSeq).padStart(3, '0');
-        const generatedTaskId = `${prefix}${seqStr}`;
-
-        const homeworkRecords = presentStudents.map(student => ({
-          session_id: sessionId,
-          student_id: student.id,
-          feedback_type: finalTaskType || 'homework',
-          task_name: newHomework.task_name,
-          task_id: generatedTaskId,
-          task_description: newHomework.task_description || null,
-          deadline: newHomework.deadline ? new Date(newHomework.deadline).toISOString() : null,
-          submission_link: newHomework.submission_link || null,
-          feedback_notes: newHomework.feedback_notes || null,
-          earning_amount: Number(newHomework.earning_amount) || 5,
-          submission_types: newHomework.submission_types && newHomework.submission_types.length > 0 ? newHomework.submission_types : ['code'],
-          academic_year: selectedYear,
-          status: 'pending',
-          created_at: new Date().toISOString(),
-          created_by: user?.id || null
-        }));
-
-        const { error } = await supabase
-          .from('student_task_feedback')
-          .insert(homeworkRecords);
-
-        if (error) throw error;
-        
-        await logActivity('CREATE', 'Tasks', `Assigned session homework: "${newHomework.task_name}" (Task ID: ${generatedTaskId}) to ${presentStudents.length} present students`);
-        
-        toast.success(`Homework assigned to ${presentStudents.length} present students`);
       }
 
       setNewHomework({
@@ -2152,7 +2325,7 @@ export default function SessionRecording() {
             {/* Sub-tab c: Student Homework Feedback */}
             {currentSubTab === 'c' && (
               <div className="space-y-4">
-                {homeworkRecords.length > 0 && !isEditingHomework ? (
+                {homeworkRecords.length > 0 && homeworkRecords[0].status !== 'draft' && !isEditingHomework ? (
                   <Card>
                     <CardHeader className="flex flex-row items-center justify-between pb-3">
                       <CardTitle className="text-base">Assigned Student Homework</CardTitle>
@@ -2372,10 +2545,11 @@ export default function SessionRecording() {
                               type="button"
                               variant={isHomeworkSaved ? "secondary" : "default"}
                               onClick={handleSaveTaskSettings}
+                              disabled={savingHomework}
                               className="flex-1 gap-2"
                             >
                               <Save className="h-4 w-4" />
-                              Save Task
+                              {savingHomework ? 'Saving...' : 'Save Task'}
                             </Button>
                             <Button
                               type="button"
@@ -2394,105 +2568,110 @@ export default function SessionRecording() {
                 )}
 
                 {/* Homework List */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Student Homework Records ({homeworkRecords.length})</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {homeworkLoading ? (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mb-2"></div>
-                        Loading homework records...
-                      </div>
-                    ) : homeworkRecords.length === 0 ? (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <p>No homework records yet</p>
-                        <p className="text-xs mt-2">Add homework feedback above</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {homeworkRecords.map((homework, index) => (
-                          <div
-                            key={homework.id}
-                            className="border border-border rounded-lg p-4 space-y-2"
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex-1">
-                                <h4 className="font-semibold text-foreground">
-                                  {index + 1}. {homework.student_name}
-                                </h4>
-                                <p className="text-sm text-muted-foreground">
-                                  {homework.task_name}
-                                </p>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className={`px-2 py-1 rounded text-xs font-medium ${homework.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                                  homework.status === 'submitted' ? 'bg-blue-100 text-blue-800' :
-                                    homework.status === 'reviewed' ? 'bg-purple-100 text-purple-800' :
-                                      'bg-green-100 text-green-800'
-                                  }`}>
-                                  {homework.status}
-                                </span>
-                              </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-3 text-sm">
-                              <div>
-                                <span className="text-muted-foreground">Task ID</span>
-                                <p className="font-mono font-semibold text-xs text-gray-700">
-                                  {homework.task_id || '-'}
-                                </p>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground">Type</span>
-                                <p className="font-medium capitalize">
-                                  {homework.feedback_type}
-                                </p>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground">Deadline</span>
-                                <p className="font-medium">
-                                  {homework.deadline
-                                    ? new Date(homework.deadline).toLocaleDateString()
-                                    : '-'}
-                                </p>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground">Earning</span>
-                                <p className={cn("font-medium font-bold", homework.status === 'completed' ? "text-green-600" : "text-muted-foreground")}>
-                                  {homework.actual_earning} units
-                                </p>
-                              </div>
-                            </div>
-
-                            {homework.feedback_notes && (
-                              <div className="bg-muted/50 rounded p-2 text-sm">
-                                <p className="text-muted-foreground">Notes:</p>
-                                <p className="text-foreground">{homework.feedback_notes}</p>
-                              </div>
-                            )}
-
-                            {homework.submission_link && (
-                              <div className="pt-2 border-t border-border flex flex-wrap gap-2">
-                                {homework.submission_link.split(',').filter(Boolean).map((link, idx) => (
-                                  <a
-                                    key={idx}
-                                    href={link.trim().startsWith('http') ? link.trim() : `https://${link.trim()}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-primary hover:underline text-sm flex items-center gap-1 bg-primary/5 px-2 py-1 rounded"
-                                  >
-                                    View Submission {homework.submission_link!.split(',').length > 1 ? idx + 1 : ''} <ExternalLink className="h-3 w-3" />
-                                  </a>
-                                ))}
-                              </div>
-                            )}
+                {(() => {
+                  const activeHomeworkRecords = homeworkRecords.filter(hw => hw.status !== 'draft');
+                  return (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base">Student Homework Records ({activeHomeworkRecords.length})</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {homeworkLoading ? (
+                          <div className="text-center py-8 text-muted-foreground">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mb-2"></div>
+                            Loading homework records...
                           </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+                        ) : activeHomeworkRecords.length === 0 ? (
+                          <div className="text-center py-8 text-muted-foreground">
+                            <p>No homework records yet</p>
+                            <p className="text-xs mt-2">Add homework feedback above</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            {activeHomeworkRecords.map((homework, index) => (
+                              <div
+                                key={homework.id}
+                                className="border border-border rounded-lg p-4 space-y-2"
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex-1">
+                                    <h4 className="font-semibold text-foreground">
+                                      {index + 1}. {homework.student_name}
+                                    </h4>
+                                    <p className="text-sm text-muted-foreground">
+                                      {homework.task_name}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className={`px-2 py-1 rounded text-xs font-medium ${homework.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                      homework.status === 'submitted' ? 'bg-blue-100 text-blue-800' :
+                                        homework.status === 'reviewed' ? 'bg-purple-100 text-purple-800' :
+                                          'bg-green-100 text-green-800'
+                                      }`}>
+                                      {homework.status}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3 text-sm">
+                                  <div>
+                                    <span className="text-muted-foreground">Task ID</span>
+                                    <p className="font-mono font-semibold text-xs text-gray-700">
+                                      {homework.task_id || '-'}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground">Type</span>
+                                    <p className="font-medium capitalize">
+                                      {homework.feedback_type}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground">Deadline</span>
+                                    <p className="font-medium">
+                                      {homework.deadline
+                                        ? new Date(homework.deadline).toLocaleDateString()
+                                        : '-'}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground">Earning</span>
+                                    <p className={cn("font-medium font-bold", homework.status === 'completed' ? "text-green-600" : "text-muted-foreground")}>
+                                      {homework.actual_earning} units
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {homework.feedback_notes && (
+                                  <div className="bg-muted/50 rounded p-2 text-sm">
+                                    <p className="text-muted-foreground">Notes:</p>
+                                    <p className="text-foreground">{homework.feedback_notes}</p>
+                                  </div>
+                                )}
+
+                                {homework.submission_link && (
+                                  <div className="pt-2 border-t border-border flex flex-wrap gap-2">
+                                    {homework.submission_link.split(',').filter(Boolean).map((link, idx) => (
+                                      <a
+                                        key={idx}
+                                        href={link.trim().startsWith('http') ? link.trim() : `https://${link.trim()}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-primary hover:underline text-sm flex items-center gap-1 bg-primary/5 px-2 py-1 rounded"
+                                      >
+                                        View Submission {homework.submission_link!.split(',').length > 1 ? idx + 1 : ''} <ExternalLink className="h-3 w-3" />
+                                      </a>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })()}
               </div>
             )}
             {/* Save Button for Page 1 */}

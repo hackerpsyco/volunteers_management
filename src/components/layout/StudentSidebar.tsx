@@ -1,4 +1,4 @@
-import { Home, LogOut, CalendarDays, CheckSquare, Wallet, BookOpen, KeyRound } from 'lucide-react';
+import { Home, LogOut, CalendarDays, CheckSquare, Wallet, BookOpen, KeyRound, MessageCircle } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -14,6 +14,7 @@ const studentNavItems = [
   { title: 'My Earnings', url: '/student-earnings', icon: Wallet },
   { title: 'My Curriculum', url: '/student-curriculum', icon: BookOpen },
   { title: 'Resource Hub', url: '/student-resources', icon: BookOpen },
+  { title: 'Request Support', url: '/student-support', icon: MessageCircle },
 ];
 
 const monitorNavItems = [

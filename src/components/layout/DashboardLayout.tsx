@@ -145,6 +145,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         path.startsWith('/student-') || 
         path === '/class-task-review' || 
         path === '/profile/edit' ||
+        path === '/student-support' ||
         path === '/auth';
 
       // Define allowed paths for staff (admin, coordinator, teacher, etc.)

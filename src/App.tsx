@@ -40,6 +40,8 @@ import ClassLeaders from "./pages/ClassLeaders";
 import AddTask from "./pages/AddTask";
 import ActivityLogs from "./pages/ActivityLogs";
 import ResourceHub from "./pages/ResourceHub";
+import StudentSupport from "./pages/StudentSupport";
+import SupportManagement from "./pages/SupportManagement";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -91,6 +93,8 @@ const App = () => (
               <Route path="/resources" element={<ResourceHub />} />
               <Route path="/admin" element={<AdminPanel />} />
               <Route path="/activity-logs" element={<ActivityLogs />} />
+              <Route path="/student-support" element={<StudentSupport />} />
+              <Route path="/support" element={<SupportManagement />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
