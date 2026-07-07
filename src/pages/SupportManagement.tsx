@@ -634,10 +634,15 @@ export default function SupportManagement() {
             <button
               key={s.key}
               onClick={() => setFilterStatus(filterStatus === s.key ? 'all' : s.key)}
-              className={'rounded-xl overflow-hidden text-left transition-all hover:scale-[1.02] active:scale-100 ' +
+              className={'rounded-xl overflow-hidden text-left transition-all hover:scale-[1.02] active:scale-100 w-full ' +
                 (filterStatus === s.key ? 'ring-2 ring-offset-2 ring-primary' : '')}
             >
-              <div className={'bg-gradient-to-br ' + s.bg + ' text-white p-4'}>
+              <div className={'p-4 ' + (
+                s.key === 'requested' ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white' :
+                s.key === 'in_progress' ? 'bg-gradient-to-br from-amber-500 to-amber-600 text-white' :
+                s.key === 'complete' ? 'bg-gradient-to-br from-green-500 to-green-600 text-white' :
+                'bg-gradient-to-br from-gray-500 to-gray-600 text-white'
+              )}>
                 <div className="text-3xl font-black">{statusCounts[s.key] || 0}</div>
                 <div className="text-xs font-semibold opacity-90 mt-1">{s.icon} {s.label}</div>
                 {filterStatus === s.key && (
