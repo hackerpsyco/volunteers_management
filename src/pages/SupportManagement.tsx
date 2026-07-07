@@ -85,10 +85,10 @@ const statusConfig: Record<string, { label: string; bg: string; text: string; bo
 };
 
 const statCardConfig = [
-  { key: 'requested',   label: 'Requested',   icon: '📋', bg: 'from-blue-500 to-blue-600' },
-  { key: 'in_progress', label: 'In Progress', icon: '⚡', bg: 'from-amber-500 to-amber-600' },
-  { key: 'complete',    label: 'Complete',    icon: '✅', bg: 'from-green-500 to-green-600' },
-  { key: 'closed',      label: 'Closed',      icon: '🔒', bg: 'from-gray-400 to-gray-500' },
+  { key: 'requested',   label: 'Requested',   icon: '📋', bg: 'bg-gradient-to-br from-blue-500 to-blue-400 text-white' },
+  { key: 'in_progress', label: 'In Progress', icon: '⚡', bg: 'bg-gradient-to-br from-amber-500 to-amber-400 text-white' },
+  { key: 'complete',    label: 'Complete',    icon: '✅', bg: 'bg-gradient-to-br from-green-500 to-green-400 text-white' },
+  { key: 'closed',      label: 'Closed',      icon: '🔒', bg: 'bg-gradient-to-br from-gray-400 to-gray-300 text-white' },
 ];
 
 const typeColors: Record<string, string> = {
@@ -637,12 +637,7 @@ export default function SupportManagement() {
               className={'rounded-xl overflow-hidden text-left transition-all hover:scale-[1.02] active:scale-100 w-full ' +
                 (filterStatus === s.key ? 'ring-2 ring-offset-2 ring-primary' : '')}
             >
-              <div className={'p-4 ' + (
-                s.key === 'requested' ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white' :
-                s.key === 'in_progress' ? 'bg-gradient-to-br from-amber-500 to-amber-600 text-white' :
-                s.key === 'complete' ? 'bg-gradient-to-br from-green-500 to-green-600 text-white' :
-                'bg-gradient-to-br from-gray-500 to-gray-600 text-white'
-              )}>
+              <div className={'p-4 ' + s.bg}>
                 <div className="text-3xl font-black">{statusCounts[s.key] || 0}</div>
                 <div className="text-xs font-semibold opacity-90 mt-1">{s.icon} {s.label}</div>
                 {filterStatus === s.key && (
