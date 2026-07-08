@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, MoreVertical, BookOpen } from 'lucide-react';
+import { Plus, Trash2, MoreVertical, BookOpen, Link } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
@@ -43,6 +44,7 @@ interface Facilitator {
   location: string;
   status: string;
   created_at: string;
+  facilitator_classes?: any[];
 }
 
 export default function Facilitators() {
@@ -65,6 +67,13 @@ export default function Facilitators() {
     status: 'active',
   });
 
+  // Class assignment states
+  const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
+  const [assigningFacilitator, setAssigningFacilitator] = useState<Facilitator | null>(null);
+  const [allClasses, setAllClasses] = useState<{ id: string, name: string }[]>([]);
+  const [assignedClasses, setAssignedClasses] = useState<Record<string, { assigned: boolean, link: string }>>({});
+  const [savingAssign, setSavingAssign] = useState(false);
+
   useEffect(() => {
     fetchFacilitators();
   }, []);
@@ -72,13 +81,35 @@ export default function Facilitators() {
   const fetchFacilitators = async () => {
     try {
       setLoading(true);
+      
+      // Try fetching facilitators with their assigned classes
       const { data, error } = await supabase
         .from('facilitators')
-        .select('*')
+        .select(`
+          *,
+          facilitator_classes (
+            classes (
+              name
+            )
+          )
+        `)
         .order('name', { ascending: true });
 
-      if (error) throw error;
-      setFacilitators(data || []);
+      if (error) {
+        // Fallback to simple facilitators query if facilitator_classes doesn't exist yet
+        if (error.code === 'PGRST205' || error.message?.includes('facilitator_classes')) {
+          const { data: fallbackData, error: fallbackError } = await supabase
+            .from('facilitators')
+            .select('*')
+            .order('name', { ascending: true });
+          if (fallbackError) throw fallbackError;
+          setFacilitators(fallbackData || []);
+        } else {
+          throw error;
+        }
+      } else {
+        setFacilitators(data || []);
+      }
     } catch (error) {
       console.error('Error fetching facilitators:', error);
       toast.error('Failed to load facilitators');
@@ -171,6 +202,82 @@ export default function Facilitators() {
   const handleSessionTypeSelect = (type: 'guest_teacher' | 'guest_speaker') => {
     setSelectedSessionType(type);
     setIsFormDialogOpen(true);
+  };
+
+  const handleOpenAssignDialog = async (facil: Facilitator) => {
+    setAssigningFacilitator(facil);
+    setIsAssignDialogOpen(true);
+    
+    // Fetch all classes
+    const { data: classesData } = await supabase
+      .from('classes')
+      .select('id, name')
+      .order('name');
+    setAllClasses(classesData || []);
+
+    // Fetch current assignments
+    const { data: currentAssigned, error: assignmentError } = await supabase
+      .from('facilitator_classes')
+      .select('class_id, class_link')
+      .eq('facilitator_id', facil.id);
+
+    if (assignmentError) {
+      console.warn('Could not fetch facilitator_classes assignments (table might not exist yet):', assignmentError);
+    }
+
+    const initialAssigned: Record<string, { assigned: boolean, link: string }> = {};
+    // Pre-populate
+    (classesData || []).forEach(c => {
+      initialAssigned[c.id] = { assigned: false, link: '' };
+    });
+    (currentAssigned || []).forEach(a => {
+      initialAssigned[a.class_id] = { assigned: true, link: a.class_link || '' };
+    });
+    setAssignedClasses(initialAssigned);
+  };
+
+  const handleSaveAssignments = async () => {
+    if (!assigningFacilitator) return;
+    setSavingAssign(true);
+
+    try {
+      // 1. Delete all current assignments
+      const { error: deleteError } = await supabase
+        .from('facilitator_classes')
+        .delete()
+        .eq('facilitator_id', assigningFacilitator.id);
+
+      if (deleteError) throw deleteError;
+
+      // 2. Insert new selected assignments
+      const inserts = Object.entries(assignedClasses)
+        .filter(([_, value]) => value.assigned)
+        .map(([classId, value]) => ({
+          facilitator_id: assigningFacilitator.id,
+          class_id: classId,
+          class_link: value.link || null
+        }));
+
+      if (inserts.length > 0) {
+        const { error: insertError } = await supabase
+          .from('facilitator_classes')
+          .insert(inserts);
+
+        if (insertError) throw insertError;
+      }
+
+      toast.success('Class assignments updated successfully');
+      setIsAssignDialogOpen(false);
+    } catch (err: any) {
+      console.error(err);
+      if (err.code === 'PGRST205' || err.message?.includes('facilitator_classes') || err.message?.includes('Relation "facilitator_classes" does not exist')) {
+        toast.error("Table 'facilitator_classes' does not exist in database. Please run the SQL migration script in your Supabase SQL Editor!");
+      } else {
+        toast.error('Failed to save class assignments');
+      }
+    } finally {
+      setSavingAssign(false);
+    }
   };
 
   return (
@@ -297,6 +404,7 @@ export default function Facilitators() {
                       <TableRow>
                         <TableHead>Name</TableHead>
                         <TableHead>Email</TableHead>
+                        <TableHead>Assigned Classes</TableHead>
                         <TableHead>Phone</TableHead>
                         <TableHead>Location</TableHead>
                         <TableHead>Status</TableHead>
@@ -308,6 +416,20 @@ export default function Facilitators() {
                         <TableRow key={facilitator.id}>
                           <TableCell className="font-medium">{facilitator.name}</TableCell>
                           <TableCell className="max-w-[200px] truncate">{facilitator.email}</TableCell>
+                          <TableCell className="max-w-[220px]">
+                            <div className="flex flex-wrap gap-1">
+                              {(() => {
+                                const classes = facilitator.facilitator_classes || [];
+                                const names = classes.map((fc: any) => fc.classes?.name).filter(Boolean);
+                                if (names.length === 0) return <span className="text-xs text-muted-foreground">None</span>;
+                                return names.map((name: string) => (
+                                  <Badge key={name} variant="outline" className="bg-primary/5 text-primary border-primary/20 text-[10px] py-0.5 px-1.5 font-medium">
+                                    {name}
+                                  </Badge>
+                                ));
+                              })()}
+                            </div>
+                          </TableCell>
                           <TableCell>{facilitator.phone || '-'}</TableCell>
                           <TableCell>{facilitator.location || '-'}</TableCell>
                           <TableCell>
@@ -334,6 +456,13 @@ export default function Facilitators() {
                                 >
                                   <BookOpen className="h-4 w-4" />
                                   Add Session
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => handleOpenAssignDialog(facilitator)}
+                                  className="gap-2"
+                                >
+                                  <Link className="h-4 w-4" />
+                                  Assign Classes
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={() => {
@@ -373,6 +502,22 @@ export default function Facilitators() {
                         <p className="font-medium break-all text-sm">{facilitator.email}</p>
                       </div>
 
+                      <div className="text-xs">
+                        <span className="text-muted-foreground block">Assigned Classes</span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {(() => {
+                            const classes = facilitator.facilitator_classes || [];
+                            const names = classes.map((fc: any) => fc.classes?.name).filter(Boolean);
+                            if (names.length === 0) return <span className="text-xs text-muted-foreground">None</span>;
+                            return names.map((name: string) => (
+                              <Badge key={name} variant="outline" className="bg-primary/5 text-primary border-primary/20 text-[10px] py-0.5 px-1.5 font-medium">
+                                {name}
+                              </Badge>
+                            ));
+                          })()}
+                        </div>
+                      </div>
+
                       {facilitator.phone && (
                         <div className="text-xs">
                           <span className="text-muted-foreground">Phone</span>
@@ -409,6 +554,13 @@ export default function Facilitators() {
                             >
                               <BookOpen className="h-4 w-4" />
                               Add Session
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleOpenAssignDialog(facilitator)}
+                              className="gap-2"
+                            >
+                              <Link className="h-4 w-4" />
+                              Assign Classes
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() => {
@@ -491,6 +643,65 @@ export default function Facilitators() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Assign Classes Dialog */}
+      <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
+        <DialogContent className="max-w-md bg-popover rounded-xl shadow-lg border border-border">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2">
+              🔗 Assign Classes — {assigningFacilitator?.name}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4 max-h-[350px] overflow-y-auto pr-1 py-2">
+            {allClasses.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center">No classes found in database.</p>
+            ) : (
+              allClasses.map(c => {
+                const config = assignedClasses[c.id] || { assigned: false, link: '' };
+                return (
+                  <div key={c.id} className="flex items-center gap-2.5 p-3 rounded-xl border border-border bg-muted/20">
+                    <input
+                      type="checkbox"
+                      id={`class-${c.id}`}
+                      checked={config.assigned}
+                      onChange={e => {
+                        setAssignedClasses(prev => ({
+                          ...prev,
+                          [c.id]: { ...config, assigned: e.target.checked }
+                        }));
+                      }}
+                      className="rounded border-input text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                    />
+                    <label htmlFor={`class-${c.id}`} className="font-semibold text-sm cursor-pointer select-none flex-1">
+                      {c.name}
+                    </label>
+                  </div>
+                );
+              })
+            )}
+          </div>
+          
+          <div className="flex justify-end gap-2 pt-2 border-t border-border">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsAssignDialogOpen(false)}
+              className="rounded-xl"
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleSaveAssignments}
+              disabled={savingAssign}
+              className="rounded-xl bg-primary hover:bg-primary/95 text-white"
+            >
+              {savingAssign ? 'Saving...' : 'Save Assignments'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

@@ -52,6 +52,7 @@ interface Session {
   class_batch?: string;
   volunteer_id?: string;
   coordinator_id?: string;
+  guest_teacher_id?: string;
   session_type_option?: string;
 }
 
@@ -340,6 +341,11 @@ export function EditSessionDialog({
           centre_id: formData.centre_id,
           centre_time_slot_id: formData.centre_time_slot_id,
           session_type_option: formData.session_type_option,
+          facilitator_name: formData.facilitator_name,
+          guest_teacher_id: formData.guest_teacher_id || null,
+          volunteer_id: formData.volunteer_id || null,
+          volunteer_name: formData.volunteer_name || '',
+          coordinator_id: formData.coordinator_id || null,
           status: 'pending',
         })
         .eq('id', formData.id);
@@ -360,9 +366,10 @@ export function EditSessionDialog({
 
         // Get volunteer, facilitator, coordinator, class, and centre emails
         const volunteerData = volunteers.find(v => v.id === formData.volunteer_id);
-        const facilitatorData = facilitators.find(f => f.name === formData.facilitator_name);
+        const facilitatorData = facilitators.find(f => f.id === formData.guest_teacher_id) || 
+                                 facilitators.find(f => f.name.trim().toLowerCase() === formData.facilitator_name?.trim().toLowerCase());
         const coordinatorData = coordinators.find(c => c.id === formData.coordinator_id);
-        const classData = classes.find(c => c.name === formData.class_batch);
+        const classData = classes.find(c => c.name.trim().toLowerCase() === formData.class_batch?.trim().toLowerCase());
         const centreData = centres.find(c => c.id === formData.centre_id);
 
         await fetch(`${supabaseUrl}/functions/v1/sync-google-calendar`, {
@@ -486,18 +493,25 @@ Session updated with new details.
           {/* Facilitator Selection */}
           <div className="space-y-2">
             <Label htmlFor="facilitator" className="text-sm sm:text-base">Select Facilitator *</Label>
-            <Select value={formData.facilitator_name || ''} onValueChange={(value) => {
-              const facilitator = facilitators.find(f => f.name === value);
-              if (facilitator) {
-                setFormData({ ...formData, facilitator_name: facilitator.name });
-              }
-            }}>
+            <Select 
+              value={formData.guest_teacher_id || facilitators.find(f => f.name.trim().toLowerCase() === formData.facilitator_name?.trim().toLowerCase())?.id || ''} 
+              onValueChange={(value) => {
+                const facilitator = facilitators.find(f => f.id === value);
+                if (facilitator) {
+                  setFormData({ 
+                    ...formData, 
+                    guest_teacher_id: facilitator.id, 
+                    facilitator_name: facilitator.name 
+                  });
+                }
+              }}
+            >
               <SelectTrigger className="text-sm sm:text-base">
                 <SelectValue placeholder="Choose a facilitator" />
               </SelectTrigger>
               <SelectContent>
                 {facilitators.map((facilitator) => (
-                  <SelectItem key={facilitator.id} value={facilitator.name}>
+                  <SelectItem key={facilitator.id} value={facilitator.id}>
                     {facilitator.name} ({facilitator.location})
                   </SelectItem>
                 ))}

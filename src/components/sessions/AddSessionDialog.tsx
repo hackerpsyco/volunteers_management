@@ -792,6 +792,7 @@ export function AddSessionDialog({
       videos: formData.videos,
       quiz_content_ppt: formData.quiz_content_ppt,
       facilitator_name: selectedFacilitatorData?.name || '',
+      guest_teacher_id: selectedFacilitator || null,
       coordinator_id: selectedCoordinator || null,
       volunteer_id: selectedVolunteer || null,
       subject_id: selectedSubject || null,

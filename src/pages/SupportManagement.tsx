@@ -134,7 +134,7 @@ function StatusActions({ req, userRole, onStatusChange }: {
     return (
       <div className="w-48">
         <Select value={s} onValueChange={(val) => onStatusChange(req.id, val)}>
-          <SelectTrigger className="h-9 rounded-xl border border-input bg-background">
+          <SelectTrigger className="h-9 rounded-xl border border-slate-300 dark:border-slate-600 bg-background font-medium">
             <SelectValue placeholder="Select status" />
           </SelectTrigger>
           <SelectContent>
@@ -154,7 +154,7 @@ function StatusActions({ req, userRole, onStatusChange }: {
     return (
       <div className="w-48">
         <Select value={s} onValueChange={(val) => onStatusChange(req.id, val)} disabled={!isAllowed}>
-          <SelectTrigger className="h-9 rounded-xl border border-input bg-background">
+          <SelectTrigger className="h-9 rounded-xl border border-slate-300 dark:border-slate-600 bg-background font-medium">
             <SelectValue placeholder="Select status" />
           </SelectTrigger>
           <SelectContent>
@@ -191,38 +191,36 @@ function PriorityControl({ req, canChange, onPriorityChange }: {
   onPriorityChange: (id: string, priority: string) => void;
 }) {
   const effectivePriority = getEffectivePriority(req);
-  const cfg = priorityConfig[effectivePriority];
 
   if (!canChange) {
     return (
-      <span className={'text-xs font-medium px-2.5 py-1 rounded-full border ' + cfg.bg + ' ' + cfg.text + ' ' + cfg.border}>
-        {cfg.emoji} {cfg.label}
-      </span>
+      <div className="w-48">
+        <Select value={effectivePriority} disabled>
+          <SelectTrigger className="h-9 rounded-xl border border-slate-200 bg-slate-50 text-xs font-medium opacity-60">
+            <SelectValue placeholder="Select priority" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="high">🔴 High</SelectItem>
+            <SelectItem value="medium">🟡 Medium</SelectItem>
+            <SelectItem value="low">🟢 Low</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
     );
   }
 
   return (
-    <div className="flex items-center gap-1">
-      <Flag className="h-3 w-3 text-muted-foreground" />
-      <span className="text-xs text-muted-foreground mr-1">Priority:</span>
-      {['high', 'medium', 'low'].map(p => {
-        const pc = priorityConfig[p];
-        const isActive = effectivePriority === p;
-        return (
-          <button
-            key={p}
-            onClick={() => !isActive && onPriorityChange(req.id, p)}
-            title={'Set ' + pc.label + ' priority'}
-            className={'text-xs px-2.5 py-1 rounded-full border font-medium transition-all ' +
-              (isActive
-                ? pc.bg + ' ' + pc.text + ' ' + pc.border + ' ring-1 ring-offset-1 ' + pc.border
-                : 'bg-muted/40 text-muted-foreground border-border hover:' + pc.bg + ' hover:' + pc.text)
-            }
-          >
-            {pc.emoji} {pc.label}
-          </button>
-        );
-      })}
+    <div className="flex flex-col gap-1 w-48">
+      <Select value={effectivePriority} onValueChange={(val) => onPriorityChange(req.id, val)}>
+        <SelectTrigger className="h-9 rounded-xl border border-slate-300 dark:border-slate-600 bg-background text-xs font-medium">
+          <SelectValue placeholder="Select priority" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="high">🔴 High</SelectItem>
+          <SelectItem value="medium">🟡 Medium</SelectItem>
+          <SelectItem value="low">🟢 Low</SelectItem>
+        </SelectContent>
+      </Select>
       {req.priority_updated_by && (
         <span className="text-[10px] text-muted-foreground ml-1">(manual)</span>
       )}
@@ -289,18 +287,68 @@ export default function SupportManagement() {
 
   // ── Fetch all support requests ──
   const fetchRequests = useCallback(async (showLoading = true) => {
+    if (!user?.email) return;
     if (showLoading) setLoading(true);
-    const { data, error } = await (supabase as any)
-      .from('support_requests')
-      .select('*, students(roll_number, student_id, designation)')
-      .order('created_at', { ascending: false });
-    if (error) {
-      toast.error('Failed to load support requests');
-    } else {
-      setRequests(data || []);
+
+    try {
+      // 1. Fetch user role
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('role_id')
+        .ilike('email', user.email)
+        .limit(1)
+        .maybeSingle();
+
+      const role = profile?.role_id;
+
+      let query = supabase
+        .from('support_requests')
+        .select('*, students(roll_number, student_id, designation)');
+
+      if (role === 4) {
+        // Teacher/Facilitator: only show their assigned classes
+        const { data: facil } = await supabase
+          .from('facilitators')
+          .select('id')
+          .ilike('email', user.email)
+          .limit(1)
+          .maybeSingle();
+
+        if (facil) {
+          const { data: assignments } = await supabase
+            .from('facilitator_classes')
+            .select('class_id')
+            .eq('facilitator_id', facil.id);
+
+          const assignedClassIds = (assignments || []).map(a => a.class_id);
+          if (assignedClassIds.length > 0) {
+            query = query.in('class_id', assignedClassIds);
+          } else {
+            // No classes assigned, return nothing
+            setRequests([]);
+            if (showLoading) setLoading(false);
+            return;
+          }
+        } else {
+          // No facilitator profile found, return nothing
+          setRequests([]);
+          if (showLoading) setLoading(false);
+          return;
+        }
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
+      if (error) {
+        toast.error('Failed to load support requests');
+      } else {
+        setRequests(data || []);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      if (showLoading) setLoading(false);
     }
-    if (showLoading) setLoading(false);
-  }, []);
+  }, [user?.email]);
 
   useEffect(() => {
     fetchRequests(true);
@@ -523,6 +571,16 @@ export default function SupportManagement() {
   };
 
   const handleSaveEdit = async (msgId: string, reqId: string) => {
+    const msg = (messages[reqId] || []).find(m => m.id === msgId);
+    if (!msg) return;
+
+    const elapsed = Date.now() - new Date(msg.created_at).getTime();
+    if (elapsed > 3 * 60 * 1000) {
+      toast.error('Messages can only be edited within 3 minutes of sending');
+      setEditingMessageId(null);
+      return;
+    }
+
     const trimmed = editText.trim();
     if (!trimmed) return;
     const { error } = await (supabase as any)
@@ -545,42 +603,6 @@ export default function SupportManagement() {
     setEditingMessageId(null);
     setEditText('');
     toast.success('Message updated');
-  };
-
-  const handleDeleteForMe = async (msgId: string, reqId: string) => {
-    const { error } = await (supabase as any)
-      .from('support_messages')
-      .update({ deleted_for_admin: true })
-      .eq('id', msgId);
-
-    if (error) {
-      toast.error('Failed to delete message');
-      return;
-    }
-
-    setMessages(prev => ({
-      ...prev,
-      [reqId]: (prev[reqId] || []).map(m => m.id === msgId ? { ...m, deleted_for_admin: true } : m)
-    }));
-    toast.success('Message deleted for you');
-  };
-
-  const handleDeleteForEveryone = async (msgId: string, reqId: string) => {
-    const { error } = await (supabase as any)
-      .from('support_messages')
-      .delete()
-      .eq('id', msgId);
-
-    if (error) {
-      toast.error('Failed to delete message for everyone');
-      return;
-    }
-
-    setMessages(prev => ({
-      ...prev,
-      [reqId]: (prev[reqId] || []).filter(m => m.id !== msgId)
-    }));
-    toast.success('Message deleted for everyone');
   };
 
   const canChangePriority = userRole === 1 || userRole === 3;
@@ -965,6 +987,7 @@ export default function SupportManagement() {
                                 {filteredThreadMsgs.map(msg => {
                                   const isStaff = msg.sender_role !== 'student';
                                   const isEditing = editingMessageId === msg.id;
+                                  const canEdit = isStaff && (Date.now() - new Date(msg.created_at).getTime()) <= 3 * 60 * 1000;
                                   return (
                                     <div key={msg.id} className={'flex ' + (isStaff ? 'justify-end' : 'justify-start')}>
                                       <div className="relative group max-w-[80%]">
@@ -1026,7 +1049,7 @@ export default function SupportManagement() {
                                         </div>
 
                                         {/* Actions menu on hover */}
-                                        {!isEditing && (
+                                        {!isEditing && canEdit && (
                                           <div className={'absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity z-10 ' + (isStaff ? '-left-8' : '-right-8')}>
                                             <DropdownMenu>
                                               <DropdownMenuTrigger asChild>
@@ -1039,31 +1062,13 @@ export default function SupportManagement() {
                                                 </Button>
                                               </DropdownMenuTrigger>
                                               <DropdownMenuContent align={isStaff ? 'end' : 'start'} className="w-40 rounded-xl shadow-lg border border-border">
-                                                {isStaff && (
-                                                  <DropdownMenuItem
-                                                    onClick={() => handleEditMessage(msg.id, msg.message)}
-                                                    className="cursor-pointer text-xs py-1.5 px-2.5 flex items-center gap-2 hover:bg-muted"
-                                                  >
-                                                    <Pencil className="w-3 h-3" />
-                                                    Edit Message
-                                                  </DropdownMenuItem>
-                                                )}
                                                 <DropdownMenuItem
-                                                  onClick={() => handleDeleteForMe(msg.id, selectedRequest.id)}
+                                                  onClick={() => handleEditMessage(msg.id, msg.message)}
                                                   className="cursor-pointer text-xs py-1.5 px-2.5 flex items-center gap-2 hover:bg-muted"
                                                 >
-                                                  <EyeOff className="w-3 h-3" />
-                                                  Delete for Me
+                                                  <Pencil className="w-3 h-3" />
+                                                  Edit Message
                                                 </DropdownMenuItem>
-                                                {isStaff && (
-                                                  <DropdownMenuItem
-                                                    onClick={() => handleDeleteForEveryone(msg.id, selectedRequest.id)}
-                                                    className="cursor-pointer text-xs text-destructive py-1.5 px-2.5 flex items-center gap-2 hover:bg-destructive/10 focus:bg-destructive/10 focus:text-destructive"
-                                                  >
-                                                    <Trash2 className="w-3 h-3" />
-                                                    Delete for Both
-                                                  </DropdownMenuItem>
-                                                )}
                                               </DropdownMenuContent>
                                             </DropdownMenu>
                                           </div>

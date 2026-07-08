@@ -236,22 +236,28 @@ export default function Calendar() {
 
       if (error) throw error;
 
-      // Fetch facilitators list to match names to emails
+      // Fetch facilitators list to match names/IDs to emails
       const { data: facilitatorsList } = await supabase
         .from('facilitators')
-        .select('name, email');
+        .select('id, name, email');
       
       const facilitatorEmailMap: Record<string, string> = {};
+      const facilitatorIdEmailMap: Record<string, string> = {};
       facilitatorsList?.forEach(f => {
         if (f.name && f.email) {
           facilitatorEmailMap[f.name.trim().toLowerCase()] = f.email;
+        }
+        if (f.id && f.email) {
+          facilitatorIdEmailMap[f.id] = f.email;
         }
       });
       
       // Transform data without making individual queries for emails
       const transformedData = (data || []).map((session: any) => {
         const facNameKey = session.facilitator_name?.trim().toLowerCase();
-        const facilitatorEmail = facNameKey ? facilitatorEmailMap[facNameKey] : null;
+        const facilitatorEmail = session.guest_teacher_id
+          ? facilitatorIdEmailMap[session.guest_teacher_id]
+          : (facNameKey ? facilitatorEmailMap[facNameKey] : null);
 
         return {
           ...session,

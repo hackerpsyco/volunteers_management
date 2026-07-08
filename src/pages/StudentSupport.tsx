@@ -342,6 +342,16 @@ export default function StudentSupport() {
   };
 
   const handleSaveEdit = async (msgId: string, reqId: string) => {
+    const msg = (messages[reqId] || []).find(m => m.id === msgId);
+    if (!msg) return;
+
+    const elapsed = Date.now() - new Date(msg.created_at).getTime();
+    if (elapsed > 3 * 60 * 1000) {
+      toast.error('Messages can only be edited within 3 minutes of sending');
+      setEditingMessageId(null);
+      return;
+    }
+
     const trimmed = editText.trim();
     if (!trimmed) return;
     const { error } = await (supabase as any)
@@ -364,42 +374,6 @@ export default function StudentSupport() {
     setEditingMessageId(null);
     setEditText('');
     toast.success('Message updated');
-  };
-
-  const handleDeleteForMe = async (msgId: string, reqId: string) => {
-    const { error } = await (supabase as any)
-      .from('support_messages')
-      .update({ deleted_for_student: true })
-      .eq('id', msgId);
-
-    if (error) {
-      toast.error('Failed to delete message');
-      return;
-    }
-
-    setMessages(prev => ({
-      ...prev,
-      [reqId]: (prev[reqId] || []).map(m => m.id === msgId ? { ...m, deleted_for_student: true } : m)
-    }));
-    toast.success('Message deleted for you');
-  };
-
-  const handleDeleteForEveryone = async (msgId: string, reqId: string) => {
-    const { error } = await (supabase as any)
-      .from('support_messages')
-      .delete()
-      .eq('id', msgId);
-
-    if (error) {
-      toast.error('Failed to delete message for everyone');
-      return;
-    }
-
-    setMessages(prev => ({
-      ...prev,
-      [reqId]: (prev[reqId] || []).filter(m => m.id !== msgId)
-    }));
-    toast.success('Message deleted for everyone');
   };
 
   // ── Create request ──
@@ -628,6 +602,7 @@ export default function StudentSupport() {
                             {threadMessages.map(msg => {
                               const isStudent = msg.sender_role === 'student';
                               const isEditing = editingMessageId === msg.id;
+                              const canEdit = isStudent && (Date.now() - new Date(msg.created_at).getTime()) <= 3 * 60 * 1000;
 
                               return (
                                 <div
@@ -684,6 +659,30 @@ export default function StudentSupport() {
                                       ) : (
                                         <>
                                           <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.message}</p>
+                                          {!isEditing && canEdit && (
+                                            <div className={'absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity z-10 ' + (isStudent ? '-left-8' : '-right-8')}>
+                                              <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                  <Button
+                                                    size="icon"
+                                                    variant="ghost"
+                                                    className="h-6 w-6 rounded-full hover:bg-slate-200/50 p-0 text-slate-400 hover:text-slate-600"
+                                                  >
+                                                    <MoreVertical className="w-4 h-4" />
+                                                  </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align={isStudent ? 'end' : 'start'} className="w-40 rounded-xl shadow-lg border border-slate-100">
+                                                  <DropdownMenuItem
+                                                    onClick={() => handleEditMessage(msg.id, msg.message)}
+                                                    className="cursor-pointer text-sm py-2 px-3 flex items-center gap-2 hover:bg-slate-50"
+                                                  >
+                                                    <Pencil className="w-3.5 h-3.5" />
+                                                    Edit Message
+                                                  </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                              </DropdownMenu>
+                                            </div>
+                                          )}
                                           <p className={'text-xs mt-1 flex items-center gap-1 ' + (isStudent ? 'text-blue-200 justify-end' : 'text-slate-400 justify-start')}>
                                             {formatDate(msg.created_at)} {formatTime(msg.created_at)}
                                             {msg.edited_at && (
@@ -693,48 +692,6 @@ export default function StudentSupport() {
                                         </>
                                       )}
                                     </div>
-                                    {!isEditing && (
-                                      <div className={'absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity z-10 ' + (isStudent ? '-left-8' : '-right-8')}>
-                                        <DropdownMenu>
-                                          <DropdownMenuTrigger asChild>
-                                            <Button
-                                              size="icon"
-                                              variant="ghost"
-                                              className="h-6 w-6 rounded-full hover:bg-slate-200/50 p-0 text-slate-400 hover:text-slate-600"
-                                            >
-                                              <MoreVertical className="w-4 h-4" />
-                                            </Button>
-                                          </DropdownMenuTrigger>
-                                          <DropdownMenuContent align={isStudent ? 'end' : 'start'} className="w-40 rounded-xl shadow-lg border border-slate-100">
-                                            {isStudent && (
-                                              <DropdownMenuItem
-                                                onClick={() => handleEditMessage(msg.id, msg.message)}
-                                                className="cursor-pointer text-sm py-2 px-3 flex items-center gap-2 hover:bg-slate-50"
-                                              >
-                                                <Pencil className="w-3.5 h-3.5" />
-                                                Edit Message
-                                              </DropdownMenuItem>
-                                            )}
-                                            <DropdownMenuItem
-                                              onClick={() => handleDeleteForMe(msg.id, req.id)}
-                                              className="cursor-pointer text-sm py-2 px-3 flex items-center gap-2 hover:bg-slate-50"
-                                            >
-                                              <EyeOff className="w-3.5 h-3.5" />
-                                              Delete for Me
-                                            </DropdownMenuItem>
-                                            {isStudent && (
-                                              <DropdownMenuItem
-                                                onClick={() => handleDeleteForEveryone(msg.id, req.id)}
-                                                className="cursor-pointer text-sm text-red-600 py-2 px-3 flex items-center gap-2 hover:bg-red-50 focus:bg-red-50 focus:text-red-600"
-                                              >
-                                                <Trash2 className="w-3.5 h-3.5" />
-                                                Delete for Both
-                                              </DropdownMenuItem>
-                                            )}
-                                          </DropdownMenuContent>
-                                        </DropdownMenu>
-                                      </div>
-                                    )}
                                   </div>
                                 </div>
                               );
