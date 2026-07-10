@@ -1719,29 +1719,39 @@ export default function SessionRecording() {
     <DashboardLayout>
       <div className="max-w-2xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate('/feedback')}
-            className="h-10 w-10"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Session Feedback</h1>
-            <p className="text-sm text-muted-foreground">
-              {(() => {
-                const sessionData = session as any;
-                const typeLabel = sessionData.session_type === 'guest_speaker' ? 'GS' : sessionData.session_type === 'local_teacher' ? 'LT' : 'GT';
-                const classBatch = sessionData.class_batch || formData.class_batch || '';
-                const volunteerName = sessionData.volunteer_name || '';
-                const modules = sessionData.modules || '';
-                const topics = sessionData.topics_covered || sessionData.title || '';
-                return `WES ${typeLabel} Session${classBatch ? ` - ${classBatch}` : ''}${volunteerName ? ` - by ${volunteerName}` : ''}${modules ? ` - ${modules}` : ''}${topics ? ` - ${topics}` : ''}`;
-              })()}
-            </p>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate('/feedback')}
+              className="h-10 w-10"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">Session Feedback</h1>
+              <p className="text-sm text-muted-foreground">
+                {(() => {
+                  const sessionData = session as any;
+                  const typeLabel = sessionData.session_type === 'guest_speaker' ? 'GS' : sessionData.session_type === 'local_teacher' ? 'LT' : 'GT';
+                  const classBatch = sessionData.class_batch || formData.class_batch || '';
+                  const volunteerName = sessionData.volunteer_name || '';
+                  const modules = sessionData.modules || '';
+                  const topics = sessionData.topics_covered || sessionData.title || '';
+                  return `WES ${typeLabel} Session${classBatch ? ` - ${classBatch}` : ''}${volunteerName ? ` - by ${volunteerName}` : ''}${modules ? ` - ${modules}` : ''}${topics ? ` - ${topics}` : ''}`;
+                })()}
+              </p>
+            </div>
           </div>
+          <Button 
+            variant="outline" 
+            onClick={() => window.open('https://docs.google.com/presentation/d/19QjljocxshsJ5pNr_QhtFI2s7ByK91mHgXsILF3K-3k/mobilepresent?pli=1&slide=id.g3f36f08c6d8_1_6', '_blank')}
+            className="gap-2 border-primary/20 text-primary hover:bg-primary/5 shrink-0"
+          >
+            <ExternalLink className="h-4 w-4" />
+            Guest Teacher Overview
+          </Button>
         </div>
 
         {/* Session Info */}

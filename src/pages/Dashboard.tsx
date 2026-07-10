@@ -66,9 +66,20 @@ export default function Dashboard() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<string>('all');
   const [selectedSessionType, setSelectedSessionType] = useState<string>('all');
+  const [classes, setClasses] = useState<any[]>([]);
+  const [selectedClass, setSelectedClass] = useState<string>('all');
+  const [selectedDesignation, setSelectedDesignation] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<number | null>(null);
   const { getDateRange, selectedYear } = useAcademicYear();
+
+  useEffect(() => {
+    async function fetchClasses() {
+      const { data } = await supabase.from('classes').select('id, name').order('name');
+      if (data) setClasses(data);
+    }
+    fetchClasses();
+  }, []);
 
   const getAcademicYearMonths = (yearStr: string) => {
     const startYear = parseInt(yearStr.split('-')[0]);
@@ -423,6 +434,44 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
+            {/* Class Filter */}
+            <div className="flex flex-col bg-card border border-border px-3 py-1.5 rounded-lg justify-center h-[58px] min-w-[140px]">
+              <label className="text-[10px] text-muted-foreground font-semibold">CLASS</label>
+              <Select 
+                value={selectedClass} 
+                onValueChange={setSelectedClass}
+              >
+                <SelectTrigger className="h-7 border-none bg-transparent focus:ring-0 text-sm font-semibold p-0 shadow-none hover:bg-transparent">
+                  <SelectValue placeholder="All Classes" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Classes</SelectItem>
+                  {classes.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Designation Filter */}
+            <div className="flex flex-col bg-card border border-border px-3 py-1.5 rounded-lg justify-center h-[58px] min-w-[140px]">
+              <label className="text-[10px] text-muted-foreground font-semibold">DESIGNATION</label>
+              <Select 
+                value={selectedDesignation} 
+                onValueChange={setSelectedDesignation}
+              >
+                <SelectTrigger className="h-7 border-none bg-transparent focus:ring-0 text-sm font-semibold p-0 shadow-none hover:bg-transparent">
+                  <SelectValue placeholder="All Designations" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Designations</SelectItem>
+                  <SelectItem value="1. CCC">1. CCC</SelectItem>
+                  <SelectItem value="2. Junior Fellow">2. Junior Fellow</SelectItem>
+                  <SelectItem value="3. Senior Fellow">3. Senior Fellow</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Session Type Filter */}
             <div className="flex flex-col bg-card border border-border px-3 py-1.5 rounded-lg justify-center h-[58px] min-w-[150px]">
               <label className="text-[10px] text-muted-foreground font-semibold">SESSION TYPE</label>
@@ -558,7 +607,11 @@ export default function Dashboard() {
         {/* Top Rankings & Attendance Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
           {/* 5. Today's Attendance */}
-          <TodayClassAttendanceWidget />
+          <TodayClassAttendanceWidget 
+            selectedClass={selectedClass}
+            selectedDesignation={selectedDesignation}
+            classes={classes}
+          />
 
           {/* 6. Top Performers */}
           <TopStudentsWidget 
@@ -566,6 +619,9 @@ export default function Dashboard() {
             endDate={customEndDate || getDateRange().endDate} 
             academicYear={selectedYear} 
             sessionType={selectedSessionType}
+            selectedClass={selectedClass}
+            selectedDesignation={selectedDesignation}
+            classes={classes}
           />
 
           {/* 7. Curriculum */}

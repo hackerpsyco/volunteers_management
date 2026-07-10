@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Wallet, TrendingUp, History, Gift, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
@@ -54,7 +54,6 @@ export default function StudentEarnings() {
   const { user } = useAuth();
   const [earnings, setEarnings] = useState<EarningRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [totalBalance, setTotalBalance] = useState(0);
   const [rewardConfigs, setRewardConfigs] = useState<RewardConfig[]>([]);
   const [subjects, setSubjects] = useState<{id: string, name: string}[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -71,6 +70,22 @@ export default function StudentEarnings() {
       fetchSubjects();
     }
   }, [user?.email, selectedYear]);
+
+  const filteredEarnings = useMemo(() => {
+    return earnings.filter(record => {
+      const matchesSearch = 
+        (record.task_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (record.description || '').toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSubject = filterSubject === 'all' || record.subject_name === filterSubject;
+      const recordDate = new Date(record.earned_at);
+      const matchesMonth = selectedMonth === 'all' || recordDate.getMonth().toString() === selectedMonth;
+      return matchesSearch && matchesSubject && matchesMonth;
+    });
+  }, [earnings, searchQuery, filterSubject, selectedMonth]);
+
+  const totalBalance = useMemo(() => {
+    return filteredEarnings.reduce((sum, item) => sum + item.amount, 0);
+  }, [filteredEarnings]);
 
   const fetchSubjects = async () => {
     const { data } = await supabase.from('subjects').select('id, name').order('name');
@@ -162,8 +177,6 @@ export default function StudentEarnings() {
       });
 
       setEarnings(formatted);
-      const total = formatted.reduce((sum, item) => sum + item.amount, 0);
-      setTotalBalance(total);
     } catch (error) {
       console.error('Error loading earnings:', error);
       toast.error('Failed to load earnings data');
@@ -216,7 +229,7 @@ export default function StudentEarnings() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold flex items-baseline gap-2">
-                {earnings.filter(e => e.task_id).length}
+                {filteredEarnings.filter(e => e.task_id).length}
                 <span className="text-sm font-normal text-muted-foreground">Activities</span>
               </div>
             </CardContent>
@@ -335,17 +348,7 @@ export default function StudentEarnings() {
                   </TableHeader>
                   <TableBody>
                     {(() => {
-                      const filtered = earnings.filter(record => {
-                        const matchesSearch = 
-                          (record.task_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          (record.description || '').toLowerCase().includes(searchQuery.toLowerCase());
-                        const matchesSubject = filterSubject === 'all' || record.subject_name === filterSubject;
-                        const recordDate = new Date(record.earned_at);
-                        const matchesMonth = selectedMonth === 'all' || recordDate.getMonth().toString() === selectedMonth;
-                        return matchesSearch && matchesSubject && matchesMonth;
-                      });
-
-                      if (filtered.length === 0) {
+                      if (filteredEarnings.length === 0) {
                         return (
                           <TableRow>
                             <TableCell colSpan={8} className="text-center py-6 text-muted-foreground">
@@ -355,7 +358,7 @@ export default function StudentEarnings() {
                         );
                       }
 
-                      return filtered.map((record) => (
+                      return filteredEarnings.map((record) => (
                         <TableRow key={record.id} className="hover:bg-muted/30 transition-colors">
                           <TableCell className="font-mono text-xs text-muted-foreground whitespace-nowrap">
                             {record.task_id_code || '-'}

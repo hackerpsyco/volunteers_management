@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Trash2, Upload, MoreVertical, Plus, Search, ListTodo, RefreshCcw } from 'lucide-react';
+import { Trash2, Upload, MoreVertical, Plus, Search, ListTodo, RefreshCcw, ExternalLink } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -48,11 +48,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAcademicYear } from '@/contexts/AcademicYearContext';
 import { UnifiedImportDialog } from '@/components/sessions/UnifiedImportDialog';
-import { Input } from '@/components/ui/input';
-import { EditCurriculumDialog } from '@/components/curriculum/EditCurriculumDialog';
-import { AddTopicDialog } from '@/components/curriculum/AddTopicDialog';
 import { ExportCurriculumDialog } from '@/components/curriculum/ExportCurriculumDialog';
+import { AddTopicDialog } from '@/components/curriculum/AddTopicDialog';
+import { EditCurriculumDialog } from '@/components/curriculum/EditCurriculumDialog';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 interface RawCurriculumData {
   id: string;
@@ -694,6 +697,111 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
     }
   };
 
+  const handlePublicExport = (format: 'csv' | 'xlsx') => {
+    const headers = [
+      'Class Name',
+      'Content Category',
+      'Module No',
+      'Module Name',
+      'Topic Title',
+      'Videos',
+      'Quiz/Content/PPT',
+      'Fresh Session',
+      'Revision Session',
+      'Status',
+      'Session Scheduled Date',
+      'Latest Date',
+      'Volunteer'
+    ];
+
+    const dataRows: string[][] = [];
+    const className = classes.find(c => c.id === selectedClass)?.name || 'Unknown';
+
+    filteredCurriculum.forEach(item => {
+      const info = sessionInfo[item.topic_title];
+      let status = 'Not Started';
+      let latestDate = '-';
+      let sessionScheduledDate = '-';
+      let volunteerName = '-';
+      let userSessions: any[] = [];
+      
+      if (info) {
+        const search = publicVolunteerSearch.toLowerCase().trim();
+        if (search) {
+           const fresh = info.fresh_sessions?.filter((s: any) => s.volunteer.toLowerCase().includes(search)) || [];
+           const revision = info.revision_sessions?.filter((s: any) => s.volunteer.toLowerCase().includes(search)) || [];
+           userSessions = [...fresh, ...revision];
+        } else {
+           userSessions = [...(info.fresh_sessions || []), ...(info.revision_sessions || [])];
+        }
+      }
+
+      if (userSessions.length > 0) {
+        // Sort sessions by date descending
+        userSessions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        const completed = userSessions.find(s => s.status === 'completed');
+        if (completed) {
+          status = 'Completed';
+          latestDate = completed.date;
+          volunteerName = completed.volunteer;
+        } else {
+          const latest = userSessions[0];
+          status = latest.status.charAt(0).toUpperCase() + latest.status.slice(1).replace('_', ' ');
+          sessionScheduledDate = latest.date; // Use as scheduled date
+          volunteerName = latest.volunteer;
+        }
+      }
+
+      dataRows.push([
+        className,
+        item.content_category || '',
+        item.module_code || '',
+        item.module_title || '',
+        item.topic_title || '',
+        item.videos || '',
+        item.quiz_content_ppt || '',
+        item.fresh_session || '',
+        item.revision_session || '',
+        status,
+        sessionScheduledDate,
+        latestDate,
+        volunteerName
+      ]);
+    });
+
+    const volunteerName = publicVolunteerSearch.trim() ? publicVolunteerSearch.trim().replace(/\s+/g, '_') : 'All';
+    const fileName = `My_Progress_${volunteerName}`;
+
+    if (format === 'csv') {
+      const escapeCsv = (val: any) => {
+        if (val === null || val === undefined) return '';
+        const str = String(val);
+        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      };
+
+      const csvRows = [headers.join(','), ...dataRows.map(row => row.map(escapeCsv).join(','))];
+      const csvContent = csvRows.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `${fileName}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else if (format === 'xlsx') {
+      const worksheet = XLSX.utils.aoa_to_sheet([headers, ...dataRows]);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Progress');
+      XLSX.writeFile(workbook, `${fileName}.xlsx`);
+    }
+
+    toast.success(`Progress exported as ${format.toUpperCase()} successfully!`);
+  };
+
   const LayoutWrapper = isPublic ? 
     ({ children }: { children: React.ReactNode }) => (
       <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -701,6 +809,43 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
           <div>
             <h1 className="text-xl font-bold text-primary">Curriculum Completion Tracker</h1>
             <p className="text-sm text-gray-500 mt-1">Search your name to view your progress</p>
+          </div>
+          <div className="flex items-center gap-4 flex-wrap">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleManualSync} 
+              disabled={isSyncing}
+              className="gap-2 border-green-200 hover:bg-green-50 text-green-700 bg-white"
+            >
+              <RefreshCcw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+              {isSyncing ? 'Syncing...' : 'Sync to Sheets'}
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => window.open('https://docs.google.com/spreadsheets/d/1qWIjOraFCWwMLNz2EA_LZjVtrO9iezln_kf5AmO1YKQ/edit?usp=sharing', '_blank')}
+              className="gap-2 border-primary/20 hover:bg-primary/5 text-primary bg-white"
+            >
+              <ExternalLink className="h-4 w-4" />
+              View Format
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2 border-primary/20 hover:bg-primary/5 text-primary bg-white">
+                  <Download className="h-4 w-4" />
+                  Export My Progress
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handlePublicExport('xlsx')} className="cursor-pointer">
+                  Export as Excel (.xlsx)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handlePublicExport('csv')} className="cursor-pointer">
+                  Export as CSV
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
         <main className="flex-1 w-full p-4 md:p-8 max-w-7xl mx-auto overflow-x-hidden">
@@ -731,6 +876,14 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
                 >
                   <RefreshCcw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
                   {isSyncing ? 'Syncing...' : 'Sync to Sheets'}
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => window.open('https://docs.google.com/spreadsheets/d/1qWIjOraFCWwMLNz2EA_LZjVtrO9iezln_kf5AmO1YKQ/edit?usp=sharing', '_blank')}
+                  className="gap-2 shrink-0 h-10 border-primary/20 hover:bg-primary/5"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  View Format
                 </Button>
                 <Button variant="outline" onClick={() => setIsExportOpen(true)} className="gap-2 shrink-0 h-10 border-primary/20 hover:bg-primary/5">
                   <Upload className="h-4 w-4 rotate-180" />

@@ -9,21 +9,21 @@ interface ClassOption {
   name: string;
 }
 
-export function TodayClassAttendanceWidget() {
-  const [classes, setClasses] = useState<ClassOption[]>([]);
-  const [selectedClass, setSelectedClass] = useState<string>('all');
+interface TodayClassAttendanceWidgetProps {
+  selectedClass?: string;
+  selectedDesignation?: string;
+  classes?: ClassOption[];
+}
+
+export function TodayClassAttendanceWidget({ 
+  selectedClass = 'all', 
+  selectedDesignation = 'all',
+  classes = [] 
+}: TodayClassAttendanceWidgetProps) {
   const [selectedDate, setSelectedDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [presentCount, setPresentCount] = useState(0);
   const [absentCount, setAbsentCount] = useState(0);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function fetchClasses() {
-      const { data } = await supabase.from('classes').select('id, name').order('name');
-      if (data) setClasses(data);
-    }
-    fetchClasses();
-  }, []);
 
   useEffect(() => {
     async function fetchTodayAttendance() {
@@ -63,7 +63,7 @@ export function TodayClassAttendanceWidget() {
         // Fetch performance for these sessions
         const { data, error } = await supabase
           .from('student_performance')
-          .select('attendance_status')
+          .select('attendance_status, student_name')
           .in('session_id', sessionIds);
         
         if (error) {
@@ -71,10 +71,27 @@ export function TodayClassAttendanceWidget() {
           return;
         }
 
+        let filteredData = data || [];
+
+        // Apply designation filter if needed
+        if (selectedDesignation !== 'all') {
+          const { data: studentsData } = await supabase
+            .from('students')
+            .select('name, designation')
+            .eq('designation', selectedDesignation);
+          
+          if (studentsData) {
+            const allowedNames = new Set(studentsData.map(s => s.name?.trim().toLowerCase()));
+            filteredData = filteredData.filter(record => allowedNames.has((record.student_name || '').trim().toLowerCase()));
+          } else {
+            filteredData = [];
+          }
+        }
+
         let present = 0;
         let absent = 0;
         
-        data?.forEach((record: any) => {
+        filteredData.forEach((record: any) => {
           if (record.attendance_status === 'Present') present++;
           if (record.attendance_status === 'Absent') absent++;
         });
@@ -89,7 +106,7 @@ export function TodayClassAttendanceWidget() {
     }
 
     fetchTodayAttendance();
-  }, [selectedClass, selectedDate]);
+  }, [selectedClass, selectedDate, selectedDesignation, classes]);
 
   const total = presentCount + absentCount;
   const presentPercent = total > 0 ? Math.round((presentCount / total) * 100) : 0;
@@ -109,17 +126,6 @@ export function TodayClassAttendanceWidget() {
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
           />
-          <Select value={selectedClass} onValueChange={setSelectedClass}>
-            <SelectTrigger className="w-[120px] h-8 text-xs bg-muted/50 border-0">
-              <SelectValue placeholder="All Classes" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Classes</SelectItem>
-              {classes.map(c => (
-                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
         </div>
       </CardHeader>
       <CardContent className="flex-1 flex flex-col justify-center">

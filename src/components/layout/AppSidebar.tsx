@@ -40,6 +40,7 @@ const navGroups: NavGroup[] = [
       { title: 'Record & Feedback', url: '/feedback', icon: FileText, requiredRole: null, studentVisible: false },
       { title: 'Tasks & Projects', url: '/tasks', icon: ClipboardList, requiredRole: null, studentVisible: false },
       { title: 'Student Earnings', url: '/admin-earnings', icon: ClipboardList, requiredRole: null, studentVisible: false },
+      { title: 'Student Attendance', url: '/admin-attendance', icon: ClipboardList, requiredRole: null, studentVisible: false },
       { title: 'Support Requests', url: '/support', icon: MessageCircle, requiredRole: null, studentVisible: false },
     ]
   },

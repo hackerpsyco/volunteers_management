@@ -5,11 +5,19 @@ import { Trophy, CheckCircle, Loader2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from '@/components/ui/button';
 
+interface ClassOption {
+  id: string;
+  name: string;
+}
+
 interface TopStudentsWidgetProps {
   startDate: Date | null;
   endDate: Date | null;
   academicYear: string;
   sessionType?: string;
+  selectedClass?: string;
+  selectedDesignation?: string;
+  classes?: ClassOption[];
 }
 
 interface StudentStat {
@@ -19,7 +27,15 @@ interface StudentStat {
   attendance: number;
 }
 
-export function TopStudentsWidget({ startDate, endDate, academicYear, sessionType }: TopStudentsWidgetProps) {
+export function TopStudentsWidget({ 
+  startDate, 
+  endDate, 
+  academicYear, 
+  sessionType,
+  selectedClass = 'all',
+  selectedDesignation = 'all',
+  classes = []
+}: TopStudentsWidgetProps) {
   const [students, setStudents] = useState<StudentStat[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -31,7 +47,17 @@ export function TopStudentsWidget({ startDate, endDate, academicYear, sessionTyp
       setLoading(true);
       try {
         // Fetch all students for mapping
-        const { data: allStudents } = await supabase.from('students').select('id, name, academic_year');
+        let studentsQuery = supabase.from('students').select('id, name, academic_year, class_id, designation');
+        
+        if (selectedClass !== 'all') {
+          studentsQuery = studentsQuery.eq('class_id', selectedClass);
+        }
+        if (selectedDesignation !== 'all') {
+          studentsQuery = studentsQuery.eq('designation', selectedDesignation);
+        }
+
+        const { data: allStudents } = await studentsQuery;
+        
         const studentNameMap = new Map();
         const studentIdMap = new Map();
         allStudents?.forEach(s => {
@@ -156,7 +182,7 @@ export function TopStudentsWidget({ startDate, endDate, academicYear, sessionTyp
     }
 
     fetchTopStudents();
-  }, [startDate, endDate, academicYear, sessionType]);
+  }, [startDate, endDate, academicYear, sessionType, selectedClass, selectedDesignation, classes]);
 
   const topEarners = [...students].sort((a, b) => b.earnings - a.earnings).slice(0, earnersLimit);
   const topAttendees = [...students].sort((a, b) => b.attendance - a.attendance).slice(0, attendeesLimit);
