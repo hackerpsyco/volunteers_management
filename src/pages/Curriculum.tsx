@@ -247,7 +247,6 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
     }
   }, [selectedClass, selectedYear]);
 
-  // Update categories when subject filter changes
   useEffect(() => {
     let source = curriculum;
     if (selectedSubject && selectedSubject !== 'all') {
@@ -260,6 +259,34 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
       setSelectedCategory('all');
     }
   }, [selectedSubject, curriculum]);
+
+  // Auto-select subject when volunteer searches their name in public mode
+  useEffect(() => {
+    if (isPublic && publicVolunteerSearch.trim()) {
+      const search = publicVolunteerSearch.toLowerCase().trim();
+      const volunteerSubjectIds = new Set<string>();
+      
+      curriculum.forEach(item => {
+        const info = sessionInfo[item.topic_title];
+        if (info) {
+          const hasFresh = info.fresh_sessions?.some(s => s.volunteer.toLowerCase().includes(search));
+          const hasRevision = info.revision_sessions?.some(s => s.volunteer.toLowerCase().includes(search));
+          if (hasFresh || hasRevision) {
+            if (item.subject_id) volunteerSubjectIds.add(item.subject_id);
+          }
+        }
+      });
+
+      // If we found exactly one subject (or more), auto-select the first one
+      if (volunteerSubjectIds.size > 0) {
+        const firstSubject = Array.from(volunteerSubjectIds)[0];
+        // Only auto-select if it's currently on 'all' or empty, so we don't override manual selections
+        if (!selectedSubject || selectedSubject === 'all') {
+           setSelectedSubject(firstSubject);
+        }
+      }
+    }
+  }, [publicVolunteerSearch, isPublic, curriculum, sessionInfo]);
 
   useEffect(() => {
     let filtered = curriculum;
@@ -334,6 +361,32 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
       });
     }
     
+    // Filter by volunteer search (public mode)
+    if (isPublic && publicVolunteerSearch.trim()) {
+      if (!selectedSubject || selectedSubject === 'all') {
+        const search = publicVolunteerSearch.toLowerCase().trim();
+        const volunteerSubjectIds = new Set<string>();
+        
+        // Find all subjects this volunteer teaches
+        filtered.forEach(item => {
+          const info = sessionInfo[item.topic_title];
+          if (info) {
+            const hasFresh = info.fresh_sessions?.some(s => s.volunteer.toLowerCase().includes(search));
+            const hasRevision = info.revision_sessions?.some(s => s.volunteer.toLowerCase().includes(search));
+            if (hasFresh || hasRevision) {
+              if (item.subject_id) volunteerSubjectIds.add(item.subject_id);
+            }
+          }
+        });
+
+        if (volunteerSubjectIds.size > 0) {
+          filtered = filtered.filter(item => item.subject_id && volunteerSubjectIds.has(item.subject_id));
+        } else {
+          filtered = [];
+        }
+      }
+    }
+    
     // Apply column sorting
     if (sortColumn && sortDirection) {
       filtered = [...filtered].sort((a, b) => {
@@ -361,7 +414,7 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
     }
     
     setFilteredCurriculum(filtered);
-  }, [selectedCategory, selectedSubject, selectedModule, selectedTopic, curriculum, searchQuery, sessionInfo, statusFilter, sessionTypeFilter, sortColumn, sortDirection]);
+  }, [selectedCategory, selectedSubject, selectedModule, selectedTopic, curriculum, searchQuery, sessionInfo, statusFilter, sessionTypeFilter, sortColumn, sortDirection, isPublic, publicVolunteerSearch]);
 
   const fetchCurriculum = async (classId?: string) => {
     try {
@@ -1014,7 +1067,7 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
                               <span className="text-[9px] font-normal text-purple-600">{stats.revision}% Complete</span>
                             </div>
                           </TableHead>
-                        {!isStudent && <TableHead className="w-[60px]">Actions</TableHead>}
+                        {!isStudent && !isPublic && <TableHead className="w-[60px]">Actions</TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1166,7 +1219,7 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
                               );
                             })()}
                           </TableCell>
-                          {!isStudent && (
+                          {!isStudent && !isPublic && (
                             <TableCell>
                               <DropdownMenu>
                               <DropdownMenuTrigger asChild>
