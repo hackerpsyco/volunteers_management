@@ -281,7 +281,7 @@ export default function StudentDashboard() {
           const studentNameMap: Record<string, string> = {};
           studentsList.forEach(s => {
             statsMap[s.id] = { id: s.id, name: s.name, earnings: 0, attendance: 0 };
-            studentNameMap[s.name.toLowerCase().trim()] = s.id;
+            studentNameMap[s.name.toLowerCase().trim().replace(/\s+/g, ' ')] = s.id;
           });
 
           earningsData?.forEach(item => {
@@ -309,7 +309,7 @@ export default function StudentDashboard() {
 
           attendanceData?.forEach(record => {
             if (!record.student_name || !record.session_id || !validSessionIds.has(record.session_id)) return;
-            const nameKey = record.student_name.toLowerCase().trim();
+            const nameKey = record.student_name.toLowerCase().trim().replace(/\s+/g, ' ');
             const sId = studentNameMap[nameKey];
             if (sId && statsMap[sId]) {
               statsMap[sId].attendance += 1;
@@ -478,11 +478,13 @@ export default function StudentDashboard() {
       }
 
       if (activeStudentName && ownSessionsList.length > 0) {
+        const normalizedName = activeStudentName.trim().replace(/\s+/g, ' ');
+        const doubleSpacedName = normalizedName.replace(' ', '  ');
         const { data: perfData } = await supabase
           .from('student_performance')
           .select('session_id, attendance_status')
-          .ilike('student_name', activeStudentName.trim());
-
+          .or(`student_name.ilike."${normalizedName}",student_name.ilike."${doubleSpacedName}"`);
+        
         if (perfData) {
           setStudentPerformances(perfData);
         }

@@ -102,22 +102,42 @@ export default function AdminStudentAttendance() {
       // Fetch all student_performance for the selected academic year
       const { startDate, endDate } = getDateRange();
       
-      // Fetch performance with inner join to sessions to filter by academic year dates at the DB level
-      // This avoids fetching the entire student_performance table and hitting limit caps with old data
-      const { data: allPerformance, error: perfError } = await supabase
-        .from('student_performance')
-        .select(`
-          student_name,
-          attendance_status,
-          sessions!inner (
-            session_date
-          )
-        `)
-        .gte('sessions.session_date', startDate.toISOString().split('T')[0])
-        .lte('sessions.session_date', endDate.toISOString().split('T')[0])
-        .limit(15000);
+      // Fetch performance with pagination to bypass the 1000 row limit
+      let allPerformance: any[] = [];
+      let hasMore = true;
+      let offset = 0;
+      const limit = 1000;
 
-      if (perfError) throw perfError;
+      while (hasMore) {
+        const { data, error: perfError } = await supabase
+          .from('student_performance')
+          .select(`
+            id,
+            student_name,
+            attendance_status,
+            sessions!inner (
+              session_date
+            )
+          `)
+          .gte('sessions.session_date', startDate.toISOString().split('T')[0])
+          .lte('sessions.session_date', endDate.toISOString().split('T')[0])
+          .order('id')
+          .range(offset, offset + limit - 1);
+
+        if (perfError) throw perfError;
+
+        if (data && data.length > 0) {
+          allPerformance = [...allPerformance, ...data];
+        }
+        
+        offset += limit;
+        
+        // PostgREST can return fewer rows than the limit if the inner join filters rows out
+        // after the limit is applied. We must only stop when we get exactly 0 rows.
+        if (!data || data.length === 0) {
+          hasMore = false;
+        }
+      }
 
       // Filter by selected month locally
       const filteredPerformance = (allPerformance || []).filter((p: any) => {
@@ -133,10 +153,10 @@ export default function AdminStudentAttendance() {
         return true;
       });
 
-      // Group by student name (case insensitive)
+      // Group by student name (case insensitive, normalized spacing)
       const attendanceMap = new Map();
       filteredPerformance.forEach(p => {
-        const name = (p.student_name || '').trim().toLowerCase();
+        const name = (p.student_name || '').trim().replace(/\s+/g, ' ').toLowerCase();
         if (!attendanceMap.has(name)) {
           attendanceMap.set(name, { present: 0, absent: 0 });
         }
@@ -146,7 +166,7 @@ export default function AdminStudentAttendance() {
       });
 
       const aggregated = (students || []).map((s: any) => {
-        const nameKey = (s.name || '').trim().toLowerCase();
+        const nameKey = (s.name || '').trim().replace(/\s+/g, ' ').toLowerCase();
         const counts = attendanceMap.get(nameKey) || { present: 0, absent: 0 };
         const totalSessions = counts.present + counts.absent;
         const percentage = totalSessions > 0 ? Math.round((counts.present / totalSessions) * 100) : 0;
@@ -176,6 +196,9 @@ export default function AdminStudentAttendance() {
       setLoadingRecords(true);
       const { startDate, endDate } = getDateRange();
       
+      const normalizedName = studentName.trim().replace(/\s+/g, ' ');
+      const doubleSpacedName = normalizedName.replace(' ', '  ');
+
       const { data, error } = await supabase
         .from('student_performance')
         .select(`
@@ -189,7 +212,7 @@ export default function AdminStudentAttendance() {
             session_type
           )
         `)
-        .ilike('student_name', studentName.trim())
+        .or(`student_name.ilike."${normalizedName}",student_name.ilike."${doubleSpacedName}"`)
         .gte('sessions.session_date', startDate.toISOString().split('T')[0])
         .lte('sessions.session_date', endDate.toISOString().split('T')[0]);
 

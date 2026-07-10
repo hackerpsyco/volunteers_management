@@ -81,8 +81,8 @@ export function TodayClassAttendanceWidget({
             .eq('designation', selectedDesignation);
           
           if (studentsData) {
-            const allowedNames = new Set(studentsData.map(s => s.name?.trim().toLowerCase()));
-            filteredData = filteredData.filter(record => allowedNames.has((record.student_name || '').trim().toLowerCase()));
+            const allowedNames = new Set(studentsData.map(s => s.name?.trim().replace(/\s+/g, ' ').toLowerCase()));
+            filteredData = filteredData.filter(record => allowedNames.has((record.student_name || '').trim().replace(/\s+/g, ' ').toLowerCase()));
           } else {
             filteredData = [];
           }

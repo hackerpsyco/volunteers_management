@@ -391,42 +391,47 @@ export default function EditProfile() {
             {/* Bank Details Section for Students */}
             {isStudent && (
               <div className="border-t pt-6 space-y-4">
-                <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">Bank Details</h3>
+                <div className="flex flex-col gap-1">
+                  <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">Bank Details</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Bank details are locked and can only be updated by an administrator. Please contact your coordinator to request changes.
+                  </p>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="bank_name" className="text-sm font-medium">Bank Name</Label>
+                    <Label htmlFor="bank_name" className="text-sm font-medium text-muted-foreground">Bank Name</Label>
                     <Input
                       id="bank_name"
                       type="text"
                       placeholder="e.g. State Bank of India"
                       value={bankName}
                       onChange={(e) => setBankName(e.target.value)}
-                      disabled={isLocked}
-                      className="mt-1"
+                      disabled={true}
+                      className="mt-1 bg-muted/50 text-muted-foreground"
                     />
                   </div>
                   <div>
-                    <Label htmlFor="account_number" className="text-sm font-medium">Account Number</Label>
+                    <Label htmlFor="account_number" className="text-sm font-medium text-muted-foreground">Account Number</Label>
                     <Input
                       id="account_number"
                       type="text"
                       placeholder="e.g. 123456789012"
                       value={accountNumber}
                       onChange={(e) => setAccountNumber(e.target.value)}
-                      disabled={isLocked}
-                      className="mt-1 font-mono"
+                      disabled={true}
+                      className="mt-1 font-mono bg-muted/50 text-muted-foreground"
                     />
                   </div>
                   <div className="md:col-span-2">
-                    <Label htmlFor="ifsc_code" className="text-sm font-medium">IFSC Code</Label>
+                    <Label htmlFor="ifsc_code" className="text-sm font-medium text-muted-foreground">IFSC Code</Label>
                     <Input
                       id="ifsc_code"
                       type="text"
                       placeholder="e.g. SBIN0001234"
                       value={ifscCode}
                       onChange={(e) => setIfscCode(e.target.value)}
-                      disabled={isLocked}
-                      className="mt-1 font-mono"
+                      disabled={true}
+                      className="mt-1 font-mono bg-muted/50 text-muted-foreground"
                     />
                   </div>
                 </div>

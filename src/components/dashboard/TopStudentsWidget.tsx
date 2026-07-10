@@ -61,7 +61,7 @@ export function TopStudentsWidget({
         const studentNameMap = new Map();
         const studentIdMap = new Map();
         allStudents?.forEach(s => {
-          if (s.name) studentNameMap.set(s.name.toLowerCase().trim(), s);
+          if (s.name) studentNameMap.set(s.name.toLowerCase().trim().replace(/\s+/g, ' '), s);
           studentIdMap.set(s.id, s);
         });
 
@@ -162,7 +162,7 @@ export function TopStudentsWidget({
         // Process Attendance
         attendanceData?.forEach((record: any) => {
           if (!record.student_name) return;
-          const s = studentNameMap.get(record.student_name.toLowerCase().trim());
+          const s = studentNameMap.get(record.student_name.toLowerCase().trim().replace(/\s+/g, ' '));
           if (!s) return;
           if (academicYear && academicYear !== 'All' && s.academic_year && s.academic_year !== academicYear) return;
 
