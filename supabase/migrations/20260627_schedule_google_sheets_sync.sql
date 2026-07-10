@@ -15,11 +15,11 @@ SELECT cron.schedule(
   '0 0 * * *',
   $$
   SELECT net.http_post(
-    url := 'https://bkafweywaswykowzrhmx.functions.supabase.co/sync-sessions-to-sheet',
+    url := 'https://bkafweywaswykowzrhmx.supabase.co/functions/v1/sync-sessions-to-sheet',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
       'Authorization', 'Bearer ' || COALESCE(
-        current_setting('app.settings.service_role_key', true),
+        (SELECT secret FROM vault.decrypted_secrets WHERE name = 'service_role_key' LIMIT 1),
         'fallback-placeholder'
       )
     ),

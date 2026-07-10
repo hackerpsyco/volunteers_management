@@ -36,6 +36,7 @@ interface StudentRow {
   gender?: string;
   dob?: string;
   subject?: string;
+  academic_year?: string;
 }
 
 interface Class {
@@ -112,10 +113,13 @@ export function BulkStudentImportDialog({ open, onOpenChange, onSuccess }: BulkS
         const rowNum = index + 2;
 
         const getValue = (keys: string[]): string => {
-          for (const key of keys) {
-            const value = row[key];
-            if (value !== undefined && value !== null && value !== '') {
-              return String(value).trim();
+          const lowerKeys = keys.map(k => k.toLowerCase());
+          for (const key of Object.keys(row)) {
+            if (lowerKeys.includes(key.toLowerCase().trim())) {
+              const value = row[key];
+              if (value !== undefined && value !== null && value !== '') {
+                return String(value).trim();
+              }
             }
           }
           return '';
@@ -129,6 +133,7 @@ export function BulkStudentImportDialog({ open, onOpenChange, onSuccess }: BulkS
         const gender = getValue(['Gender', 'gender', 'GENDER']);
         const dob = getValue(['DOB', 'dob', 'DOB', 'Date of Birth', 'date_of_birth']);
         const subject = getValue(['Subject', 'subject', 'SUBJECT']).toLowerCase();
+        const academicYear = getValue(['Academic Year', 'academic_year', 'ACADEMIC_YEAR', 'Year', 'year']);
 
         // Validate subject if provided
         const validSubjects = ['commerce', 'computer science', 'arts'];
@@ -153,6 +158,7 @@ export function BulkStudentImportDialog({ open, onOpenChange, onSuccess }: BulkS
           gender: gender || undefined,
           dob: dob || undefined,
           subject: normalizedSubject,
+          academic_year: academicYear || undefined,
           class_id: selectedClass,
         });
       });
@@ -184,11 +190,15 @@ export function BulkStudentImportDialog({ open, onOpenChange, onSuccess }: BulkS
     setUploading(true);
 
     try {
-      // Check for existing students in this class
-      const existingEmails = new Set<string>();
+      // Check for existing students
+      const existingEmailsMap = new Map<string, any>();
+      const existingStudentIdsMap = new Map<string, any>();
+      const existingNamesMap = new Map<string, any>();
+      
       const { data: existingStudents, error: fetchError } = await (supabase
         .from('students' as any)
-        .select('email') as any);
+        .select('id, email, student_id, name, academic_year, class_id')
+        .eq('class_id', selectedClass) as any);
 
       if (fetchError) {
         console.error('Error fetching existing students:', fetchError);
@@ -196,25 +206,56 @@ export function BulkStudentImportDialog({ open, onOpenChange, onSuccess }: BulkS
 
       if (existingStudents) {
         existingStudents.forEach((s: any) => {
-          if (s.email) existingEmails.add(s.email.toLowerCase());
+          if (s.email) existingEmailsMap.set(s.email.toLowerCase(), s);
+          if (s.student_id) existingStudentIdsMap.set(s.student_id.toLowerCase(), s);
+          if (s.name) existingNamesMap.set(s.name.toLowerCase().trim(), s);
         });
       }
 
-      // Filter out duplicates
-      const newStudents = previewData.filter(s => {
-        if (s.email && existingEmails.has(s.email.toLowerCase())) {
-          return false;
+      // Filter new students and find duplicates to update
+      const newStudents: StudentRow[] = [];
+      const studentsToUpdate: { id: string, academic_year?: string }[] = [];
+
+      previewData.forEach(s => {
+        let existing = null;
+        
+        // Match globally for exact identifiers, but for Name, only match within the SAME class
+        if (s.email && existingEmailsMap.has(s.email.toLowerCase())) {
+          existing = existingEmailsMap.get(s.email.toLowerCase());
+        } else if (s.student_id && existingStudentIdsMap.has(s.student_id.toLowerCase())) {
+          existing = existingStudentIdsMap.get(s.student_id.toLowerCase());
+        } else if (s.name) {
+          // If matching purely by name, it MUST be in the same class to be considered the same person
+          const nameMatch = existingNamesMap.get(s.name.toLowerCase().trim());
+          if (nameMatch && nameMatch.class_id === selectedClass) {
+            existing = nameMatch;
+          }
         }
-        return true;
+
+        if (existing && existing.class_id === selectedClass) {
+          // Only update if they are already in the target class
+          if (s.academic_year && existing.academic_year !== s.academic_year) {
+            studentsToUpdate.push({
+              id: existing.id,
+              academic_year: s.academic_year
+            });
+          }
+        } else if (existing && existing.class_id !== selectedClass) {
+          // They exist in another class, skip them completely to avoid moving them
+          // We don't push them to newStudents to avoid 23505 constraint errors
+        } else {
+          newStudents.push(s);
+        }
       });
 
-      if (newStudents.length === 0) {
+      if (newStudents.length === 0 && studentsToUpdate.length === 0) {
         toast.error('All students already exist in this class');
         return;
       }
 
-      if (newStudents.length < previewData.length) {
-        toast.warning(`${previewData.length - newStudents.length} duplicate(s) skipped`);
+      if (newStudents.length + studentsToUpdate.length < previewData.length) {
+        const skipped = previewData.length - (newStudents.length + studentsToUpdate.length);
+        toast.warning(`${skipped} duplicate(s) skipped completely`);
       }
 
       // Map the data to match database schema
@@ -228,15 +269,33 @@ export function BulkStudentImportDialog({ open, onOpenChange, onSuccess }: BulkS
         dob: s.dob || null,
         roll_number: s.roll_number || null,
         subject: s.subject || null,
+        academic_year: s.academic_year || null,
       }));
 
-      // Insert students - use type assertion to bypass schema type checking
-      const { error } = await (supabase
-        .from('students' as any)
-        .insert(studentsToInsert) as any);
+      let insertError = null;
+      if (studentsToInsert.length > 0) {
+        const res = await (supabase
+          .from('students' as any)
+          .insert(studentsToInsert) as any);
+        insertError = res.error;
+      }
 
-      if (error) {
-        if (error.code === '23505') {
+      // Process updates
+      let updateCount = 0;
+      if (studentsToUpdate.length > 0) {
+        for (const update of studentsToUpdate) {
+          const { error: err } = await (supabase
+            .from('students' as any)
+            .update({ 
+              academic_year: update.academic_year
+            })
+            .eq('id', update.id) as any);
+          if (!err) updateCount++;
+        }
+      }
+
+      if (insertError) {
+        if (insertError.code === '23505') {
           // Unique constraint violation - try one by one
           let successCount = 0;
           const failedStudents: string[] = [];
@@ -252,19 +311,19 @@ export function BulkStudentImportDialog({ open, onOpenChange, onSuccess }: BulkS
             }
           }
 
-          if (successCount > 0) {
-            toast.success(`Successfully uploaded ${successCount} student(s)`);
+          if (successCount > 0 || updateCount > 0) {
+            toast.success(`Successfully uploaded ${successCount} new student(s)${updateCount > 0 ? ` and updated ${updateCount} existing student(s)` : ''}`);
             if (failedStudents.length > 0) {
-              toast.warning(`${failedStudents.length} student(s) already exist`);
+              toast.warning(`${failedStudents.length} student(s) already exist completely`);
             }
           } else {
             toast.error('All students already exist in this class');
           }
         } else {
-          throw error;
+          throw insertError;
         }
       } else {
-        toast.success(`Successfully uploaded ${newStudents.length} students`);
+        toast.success(`Successfully uploaded ${newStudents.length} new student(s)${updateCount > 0 ? ` and updated ${updateCount} existing student(s)` : ''}`);
       }
 
       onSuccess();
@@ -296,6 +355,7 @@ export function BulkStudentImportDialog({ open, onOpenChange, onSuccess }: BulkS
         'Gender': 'Male',
         'DOB': '2010-01-15',
         'Subject': 'Commerce',
+        'Academic Year': '2026-2027',
       },
       {
         'Name': 'Jane Smith',
@@ -306,6 +366,7 @@ export function BulkStudentImportDialog({ open, onOpenChange, onSuccess }: BulkS
         'Gender': 'Female',
         'DOB': '2010-03-20',
         'Subject': 'Computer Science',
+        'Academic Year': '2026-2027',
       },
       {
         'Name': 'Bob Johnson',
@@ -316,6 +377,7 @@ export function BulkStudentImportDialog({ open, onOpenChange, onSuccess }: BulkS
         'Gender': 'Male',
         'DOB': '2010-05-10',
         'Subject': 'Arts',
+        'Academic Year': '2026-2027',
       },
     ];
 

@@ -15,11 +15,28 @@ serve(async (req) => {
   }
 
   try {
-    // 1. Authenticate Request (must match service role key if service role is set)
+    // 1. Authenticate Request
     const authHeader = req.headers.get('Authorization');
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    let isAuthorized = false;
+
+    if (serviceRoleKey && authHeader === `Bearer ${serviceRoleKey}`) {
+      isAuthorized = true;
+    } else if (authHeader) {
+      // Validate user JWT
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+      const supabase = createClient(supabaseUrl, supabaseAnonKey);
+      
+      const token = authHeader.replace('Bearer ', '');
+      const { data: { user }, error } = await supabase.auth.getUser(token);
+      
+      if (user && !error) {
+        isAuthorized = true;
+      }
+    }
     
-    if (serviceRoleKey && authHeader !== `Bearer ${serviceRoleKey}`) {
+    if (!isAuthorized) {
       console.warn("Unauthorized attempt to trigger Google Sheet sync");
       return new Response(JSON.stringify({ error: "Unauthorized" }), { 
         status: 401, 
@@ -103,6 +120,7 @@ serve(async (req) => {
         'Fresh Session',
         'Revision Session',
         'Status',
+        'Session Schedule Date',
         'Latest Date',
         'Volunteer'
       ]
@@ -129,10 +147,14 @@ serve(async (req) => {
       let status = 'Not Started';
       let volunteerName = '-';
       let latestDate = '-';
+      let scheduleDate = '-';
 
       if (sessions.length > 0) {
         // Sort sessions by date descending
         sessions.sort((a, b) => new Date(b.session_date).getTime() - new Date(a.session_date).getTime());
+        
+        // The earliest session date is the main starting/assigned schedule date
+        scheduleDate = formatDate(sessions[sessions.length - 1].session_date);
         
         // Find if there's any completed session
         const completedSession = sessions.find(s => s.status === 'completed');
@@ -161,18 +183,37 @@ serve(async (req) => {
         item.videos || '',
         item.quiz_content_ppt || '',
         '', // Matches UI manual export placeholders
-        '',
+        '', // Matches UI manual export placeholders
         status,
+        scheduleDate,
         latestDate,
         volunteerName
       ]);
     });
 
     // 9. Authenticate with Google
-    key = key.replace(/\\n/g, '\n');
+    // Robustly reconstruct the PEM key no matter how mangled it got in Supabase Secrets
+    function formatPrivateKey(rawKey: string): string {
+      const cleanBase64 = rawKey
+        .replace(/-----BEGIN PRIVATE KEY-----/g, '')
+        .replace(/-----END PRIVATE KEY-----/g, '')
+        .replace(/^"|"$/g, '')
+        .replace(/\\n/g, '')
+        .replace(/\s+/g, ''); // Removes all newlines and spaces
+
+      const chunks = [];
+      for (let i = 0; i < cleanBase64.length; i += 64) {
+        chunks.push(cleanBase64.substring(i, i + 64));
+      }
+
+      return `-----BEGIN PRIVATE KEY-----\n${chunks.join('\n')}\n-----END PRIVATE KEY-----\n`;
+    }
+
+    const formattedKey = formatPrivateKey(key);
+
     const auth = new JWT({
       email: email,
-      key: key,
+      key: formattedKey,
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 

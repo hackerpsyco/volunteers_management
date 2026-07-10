@@ -992,9 +992,10 @@ export default function SessionRecording() {
       toast.error('Reflection & Feedback & Followup Hours is required and must be 0 or more.');
       return;
     }
-    if (!hoursValidationId || hoursValidationId.trim() === '') {
-      toast.error('Benevity ID is required.');
-      return;
+    // Benevity ID is now optional
+    if (activeSubTab === 'benevity' && !formData.hours_validation_id) {
+      // toast.error('Benevity ID is required.');
+      // return false;
     }
     if (!hoursData.notes || hoursData.notes.trim() === '') {
       toast.error('Notes is required.');
@@ -2962,7 +2963,7 @@ export default function SessionRecording() {
                       </CardHeader>
                       <CardContent className="space-y-4">
                         <div>
-                          <Label htmlFor="hours_validation_id" className="text-sm">Benevity ID <span className="text-destructive">*</span></Label>
+                          <Label htmlFor="hours_validation_id" className="text-sm">Benevity ID <span className="text-muted-foreground text-xs font-normal">(Optional)</span></Label>
                           <Input
                             id="hours_validation_id"
                             type="text"

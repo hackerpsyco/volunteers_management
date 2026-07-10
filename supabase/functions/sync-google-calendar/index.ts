@@ -68,7 +68,9 @@ function pemToDer(pem: string): ArrayBuffer {
   const clean = pem
     .replace("-----BEGIN PRIVATE KEY-----", "")
     .replace("-----END PRIVATE KEY-----", "")
-    .replace(/\n/g, "");
+    .replace(/^"|"$/g, '') // remove surrounding quotes if any
+    .replace(/\\n/g, "") // remove literal \n strings
+    .replace(/\n/g, ""); // remove actual newlines
 
   const binary = atob(clean);
   const bytes = new Uint8Array(binary.length);

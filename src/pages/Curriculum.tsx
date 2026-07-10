@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Trash2, Upload, MoreVertical, Plus, Search, ListTodo } from 'lucide-react';
+import { Trash2, Upload, MoreVertical, Plus, Search, ListTodo, RefreshCcw } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -139,6 +139,7 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
   const [sessionCategoryFilter, setSessionCategoryFilter] = useState<string>('all');
   const [sortColumn, setSortColumn] = useState<keyof CurriculumItem | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc' | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
   const { selectedYear, getDateRange } = useAcademicYear();
 
   // Calculate statistics
@@ -609,6 +610,26 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
     }
   };
 
+  const handleManualSync = async () => {
+    setIsSyncing(true);
+    const toastId = toast.loading('Triggering Google Sheets sync...');
+    try {
+      // Call the edge function directly from the frontend
+      const { data, error } = await supabase.functions.invoke('sync-sessions-to-sheet', {
+        method: 'POST',
+      });
+      
+      if (error) throw error;
+      
+      toast.success('Success! Google Sheets updated successfully.', { id: toastId });
+    } catch (error: any) {
+      console.error('Error triggering sync:', error);
+      toast.error(error.message || 'Failed to trigger sync. Please ensure the edge function is deployed.', { id: toastId });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -623,6 +644,15 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
           {!isStudent && (
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
               <div className="flex flex-col sm:flex-row gap-2 mt-2 sm:mt-0 w-full sm:w-auto">
+                <Button 
+                  variant="outline" 
+                  onClick={handleManualSync} 
+                  disabled={isSyncing}
+                  className="gap-2 shrink-0 h-10 border-green-200 hover:bg-green-50 text-green-700"
+                >
+                  <RefreshCcw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                  {isSyncing ? 'Syncing...' : 'Sync to Sheets'}
+                </Button>
                 <Button variant="outline" onClick={() => setIsExportOpen(true)} className="gap-2 shrink-0 h-10 border-primary/20 hover:bg-primary/5">
                   <Upload className="h-4 w-4 rotate-180" />
                   Export Report

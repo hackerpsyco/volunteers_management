@@ -10,6 +10,7 @@ import { VolunteerReachOutStats } from '@/components/dashboard/VolunteerReachOut
 import { TopStudentsWidget } from '@/components/dashboard/TopStudentsWidget';
 import { TopFacilitatorsWidget } from '@/components/dashboard/TopFacilitatorsWidget';
 import { TodayClassAttendanceWidget } from '@/components/dashboard/TodayClassAttendanceWidget';
+import { FeedbackStatusWidget } from '@/components/dashboard/FeedbackStatusWidget';
 import { useAcademicYear } from '@/contexts/AcademicYearContext';
 import {
   Select,
@@ -517,7 +518,7 @@ export default function Dashboard() {
         </div>
 
         {/* Status, Volunteer Stats, and Curriculum Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 md:gap-6">
           {/* 1. Volunteer Session Stats */}
           {userRole !== 4 && <VolunteerSessionStats sessionType={selectedSessionType} />}
 
@@ -541,6 +542,14 @@ export default function Dashboard() {
               ))}
             </div>
           </div>
+
+          {/* 3.5 Feedback Completion Status */}
+          <FeedbackStatusWidget 
+            startDate={customStartDate || getDateRange().startDate} 
+            endDate={customEndDate || getDateRange().endDate} 
+            academicYear={selectedYear} 
+            sessionType={selectedSessionType}
+          />
 
           {/* 4. Volunteer Reach Out */}
           {userRole !== 4 && <VolunteerReachOutStats />}
