@@ -111,6 +111,10 @@ export default function VolunteerList() {
   const [selectedCity, setSelectedCity] = useState<string>('all');
   const [selectedFrequency, setSelectedFrequency] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [selectedRole, setSelectedRole] = useState<string>('all');
+  const [selectedOrganization, setSelectedOrganization] = useState<string>('all');
+  const [selectedCountry, setSelectedCountry] = useState<string>('all');
+  const [selectedType, setSelectedType] = useState<string>('all');
   const [sortColumn, setSortColumn] = useState<SortColumn>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
   const [preferencesData, setPreferencesData] = useState({
@@ -298,6 +302,27 @@ export default function VolunteerList() {
       filtered = filtered.filter(v => v.volunteer_status === selectedStatus);
     }
 
+    if (selectedRole !== 'all') {
+      filtered = filtered.filter(v => {
+        const prefString = (v as any).preference;
+        if (!prefString) return false;
+        const prefs = prefString.split(',').map((p: string) => p.trim() === 'Speaker' ? 'Guest Speaker' : p.trim()).filter(Boolean);
+        return prefs.includes(selectedRole);
+      });
+    }
+
+    if (selectedOrganization !== 'all') {
+      filtered = filtered.filter(v => getOrganizationDisplay(v) === selectedOrganization);
+    }
+
+    if (selectedCountry !== 'all') {
+      filtered = filtered.filter(v => v.country === selectedCountry);
+    }
+
+    if (selectedType !== 'all') {
+      filtered = filtered.filter(v => v.organization_type === selectedType);
+    }
+
     // Apply sorting
     if (sortColumn && sortDirection) {
       filtered = [...filtered].sort((a, b) => {
@@ -330,12 +355,24 @@ export default function VolunteerList() {
     }
 
     setFilteredVolunteers(filtered);
-  }, [searchQuery, volunteers, selectedCity, selectedFrequency, selectedStatus, sortColumn, sortDirection]);
+  }, [searchQuery, volunteers, selectedCity, selectedFrequency, selectedStatus, sortColumn, sortDirection, selectedRole, selectedOrganization, selectedCountry, selectedType]);
 
   // Derived unique values for filters
   const cities = Array.from(new Set(volunteers.map(v => v.city).filter(Boolean))).sort() as string[];
   const frequencies = Array.from(new Set(volunteers.map(v => v.frequency_per_month).filter(f => f !== null))).sort((a, b) => (a || 0) - (b || 0)) as number[];
   const statuses = ['active', 'inactive', 'on_leave'];
+  
+  const roles = Array.from(new Set(
+    volunteers.flatMap(v => {
+      const prefString = (v as any).preference;
+      if (!prefString) return [];
+      return prefString.split(',').map((p: string) => p.trim() === 'Speaker' ? 'Guest Speaker' : p.trim()).filter(Boolean);
+    })
+  )).sort() as string[];
+  
+  const organizations = Array.from(new Set(volunteers.map(v => getOrganizationDisplay(v)).filter(o => o !== '-'))).sort() as string[];
+  const countries = Array.from(new Set(volunteers.map(v => v.country).filter(Boolean))).sort() as string[];
+  const types = Array.from(new Set(volunteers.map(v => v.organization_type).filter(Boolean))).sort() as string[];
 
   async function fetchVolunteers() {
     try {
@@ -580,6 +617,54 @@ export default function VolunteerList() {
               <SelectItem value="all">All Statuses</SelectItem>
               {statuses.map(status => (
                 <SelectItem key={status} value={status} className="capitalize">{status.replace('_', ' ')}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={selectedRole} onValueChange={setSelectedRole}>
+            <SelectTrigger className="h-9 w-[130px] md:w-[150px] text-xs bg-transparent">
+              <SelectValue placeholder="Role / Session" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Roles</SelectItem>
+              {roles.map(r => (
+                <SelectItem key={r} value={r}>{r}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={selectedType} onValueChange={setSelectedType}>
+            <SelectTrigger className="h-9 w-[130px] md:w-[150px] text-xs bg-transparent capitalize">
+              <SelectValue placeholder="Type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Types</SelectItem>
+              {types.map(t => (
+                <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={selectedOrganization} onValueChange={setSelectedOrganization}>
+            <SelectTrigger className="h-9 w-[130px] md:w-[150px] text-xs bg-transparent">
+              <SelectValue placeholder="Organization" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Organizations</SelectItem>
+              {organizations.map(o => (
+                <SelectItem key={o} value={o}>{o}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={selectedCountry} onValueChange={setSelectedCountry}>
+            <SelectTrigger className="h-9 w-[130px] md:w-[150px] text-xs bg-transparent">
+              <SelectValue placeholder="Country" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Countries</SelectItem>
+              {countries.map(c => (
+                <SelectItem key={c} value={c}>{c}</SelectItem>
               ))}
             </SelectContent>
           </Select>

@@ -137,10 +137,19 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sessionTypeFilter, setSessionTypeFilter] = useState<string>('all');
   const [sessionCategoryFilter, setSessionCategoryFilter] = useState<string>('all');
+  const [publicVolunteerSearch, setPublicVolunteerSearch] = useState('');
   const [sortColumn, setSortColumn] = useState<keyof CurriculumItem | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc' | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const { selectedYear, getDateRange } = useAcademicYear();
+  const isPublic = !user;
+
+  const getFilteredSessions = (sessions?: Array<{ id: string; date: string; volunteer: string; status: string }>) => {
+    if (!sessions) return [];
+    if (!isPublic || !publicVolunteerSearch.trim()) return sessions;
+    const search = publicVolunteerSearch.toLowerCase().trim();
+    return sessions.filter(s => s.volunteer.toLowerCase().includes(search));
+  };
 
   // Calculate statistics
   const stats = (() => {
@@ -152,15 +161,17 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
     filteredCurriculum.forEach(item => {
       const info = sessionInfo[item.topic_title];
       if (info) {
-        if (info.fresh_sessions?.some(s => s.status === 'completed')) freshCompleted++;
-        if (info.revision_sessions?.some(s => s.status === 'completed')) revisionCompleted++;
+        const fresh = getFilteredSessions(info.fresh_sessions);
+        if (fresh.some(s => s.status === 'completed')) freshCompleted++;
+        const revision = getFilteredSessions(info.revision_sessions);
+        if (revision.some(s => s.status === 'completed')) revisionCompleted++;
       }
     });
 
     const total = filteredCurriculum.length;
     return {
-      fresh: total > 0 ? Math.round((freshCompleted / total) * 100) : 0,
-      revision: total > 0 ? Math.round((revisionCompleted / total) * 100) : 0,
+      fresh: total > 0 ? Number(((freshCompleted / total) * 100).toFixed(1)) : 0,
+      revision: total > 0 ? Number(((revisionCompleted / total) * 100).toFixed(1)) : 0,
       total,
       freshCount: freshCompleted,
       revisionCount: revisionCompleted
@@ -189,7 +200,7 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
 
   const currentSubjectName = selectedSubject && selectedSubject !== 'all' 
     ? subjects.find(s => s.id === selectedSubject)?.name || 'Subject' 
-    : 'Overall';
+    : 'All Subjects Included';
 
   const handleColumnSort = (column: keyof CurriculumItem) => {
     if (sortColumn === column) {
@@ -630,8 +641,23 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
     }
   };
 
+  const LayoutWrapper = isPublic ? 
+    ({ children }: { children: React.ReactNode }) => (
+      <div className="min-h-screen bg-gray-50 flex flex-col">
+        <header className="bg-white border-b border-gray-200 px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-bold text-primary">Curriculum Completion Tracker</h1>
+            <p className="text-sm text-gray-500 mt-1">Search your name to view your progress</p>
+          </div>
+        </header>
+        <main className="flex-1 w-full p-4 md:p-8 max-w-7xl mx-auto overflow-x-hidden">
+          {children}
+        </main>
+      </div>
+    ) : DashboardLayout;
+
   return (
-    <DashboardLayout>
+    <LayoutWrapper>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -641,7 +667,7 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
               Manage curriculum content
             </p>
           </div>
-          {!isStudent && (
+          {!isStudent && !isPublic && (
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
               <div className="flex flex-col sm:flex-row gap-2 mt-2 sm:mt-0 w-full sm:w-auto">
                 <Button 
@@ -719,7 +745,7 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
                   <div>
                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Total Topics</p>
                     <h3 className="text-3xl font-black text-slate-900 mt-1">{stats.total}</h3>
-                    <p className="text-[10px] text-slate-400 font-bold mt-1 uppercase">In {currentSubjectName}</p>
+                    <p className="text-[10px] text-slate-400 font-bold mt-1 uppercase">{currentSubjectName === 'All Subjects Included' ? 'Across All Subjects' : `In ${currentSubjectName}`}</p>
                   </div>
                   <div className="h-12 w-12 rounded-full bg-slate-50 flex items-center justify-center">
                     <ListTodo className="h-6 w-6 text-slate-400" />
@@ -732,20 +758,37 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
 
         {/* Filter Section */}
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end flex-wrap">
-          <div className="w-full sm:w-64">
-            <label className="text-sm font-medium text-foreground mb-2 block">
-              Search
-            </label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search all columns..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-              />
+          {isPublic ? (
+            <div className="w-full sm:w-64">
+              <label className="text-sm font-medium text-foreground mb-2 block">
+                Search Volunteer Name
+              </label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Enter your name..."
+                  value={publicVolunteerSearch}
+                  onChange={(e) => setPublicVolunteerSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="w-full sm:w-64">
+              <label className="text-sm font-medium text-foreground mb-2 block">
+                Search
+              </label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search all columns..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+            </div>
+          )}
 
           {!isStudent && (
             <div className="w-full sm:w-64">
@@ -870,10 +913,10 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
                   <SelectValue placeholder="Select session category" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Categories (GT/GS/LT)</SelectItem>
+                  <SelectItem value="all">All Categories (GT/GS{isPublic ? '' : '/LT'})</SelectItem>
                   <SelectItem value="guest_teacher">Guest Teacher (GT)</SelectItem>
                   <SelectItem value="guest_speaker">Guest Speaker (GS)</SelectItem>
-                  <SelectItem value="local_teacher">Local Teacher (LT)</SelectItem>
+                  {!isPublic && <SelectItem value="local_teacher">Local Teacher (LT)</SelectItem>}
                 </SelectContent>
               </Select>
             </div>
@@ -1438,6 +1481,6 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </DashboardLayout>
+    </LayoutWrapper>
   );
 }

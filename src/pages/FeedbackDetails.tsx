@@ -90,6 +90,14 @@ export default function FeedbackDetails() {
   const [hoursTracker, setHoursTracker] = useState<SessionHoursTracker | null>(null);
   const [userRole, setUserRole] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'facilitator' | 'coordinator' | 'supervisor'>('facilitator');
+  const [printMode, setPrintMode] = useState<'standard' | 'supervisor'>('standard');
+
+  const handlePrint = (mode: 'standard' | 'supervisor') => {
+    setPrintMode(mode);
+    setTimeout(() => {
+      window.print();
+    }, 100);
+  };
 
   useEffect(() => {
     if (user?.id) {
@@ -351,8 +359,10 @@ export default function FeedbackDetails() {
           </div>
         </div>
 
-        {/* Feedback Grid - 2 columns for side-by-side printing (Compact) */}
-        <div className="grid grid-cols-2 gap-6 text-xs mb-4">
+        {printMode === 'standard' ? (
+          <>
+            {/* Feedback Grid - 2 columns for side-by-side printing (Compact) */}
+            <div className="grid grid-cols-2 gap-6 text-xs mb-4">
           {/* Facilitator Column */}
           <div className="space-y-3 border-r pr-6 border-gray-200">
             <h3 className="text-sm font-bold text-gray-950 border-b pb-1">Facilitator Feedback</h3>
@@ -492,6 +502,32 @@ export default function FeedbackDetails() {
             </tbody>
           </table>
         </div>
+        </>
+        ) : (
+          <div className="space-y-4 text-xs">
+            <h3 className="text-sm font-bold text-gray-950 border-b pb-1">Supervisor Hours Tracking</h3>
+            {hoursTracker ? (
+              <div className="grid grid-cols-2 gap-y-3 gap-x-6 bg-gray-50 p-4 rounded border border-gray-200">
+                <p><strong>Plan & Coordinate Hours:</strong> {hoursTracker.plan_coordinate_hours} hrs</p>
+                <p><strong>Preparation Hours:</strong> {hoursTracker.preparation_hours} hrs</p>
+                <p><strong>Session Hours:</strong> {hoursTracker.session_hours} hrs</p>
+                <p><strong>Reflection & Feedback Hours:</strong> {hoursTracker.reflection_feedback_followup_hours} hrs</p>
+                <p className="col-span-2 text-blue-800 font-bold text-sm bg-blue-50 p-2 rounded inline-block mt-1">
+                  <strong>Total Volunteering Time:</strong> {hoursTracker.total_volunteering_time} hrs
+                </p>
+                <p className="mt-2"><strong>Logged in Benevity:</strong> {hoursTracker.logged_hours_in_benevity ? '✓ Yes' : 'No'}</p>
+                {hoursTracker.notes && (
+                  <div className="col-span-2 mt-4 pt-3 border-t border-gray-200">
+                    <span className="font-bold text-gray-800">Notes:</span>
+                    <p className="whitespace-pre-wrap mt-1 text-gray-700">{hoursTracker.notes}</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-gray-500 italic">No hours tracked</p>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="max-w-6xl mx-auto space-y-6 print:hidden">
@@ -522,7 +558,13 @@ export default function FeedbackDetails() {
               <Edit className="h-4 w-4" />
               Edit Feedback
             </Button>
-            <Button onClick={() => window.print()} className="gap-2">
+            {userRole === 1 && (
+              <Button onClick={() => handlePrint('supervisor')} className="gap-2 bg-purple-600 hover:bg-purple-700 text-white">
+                <Download className="h-4 w-4" />
+                <span className="hidden sm:inline">Download</span> Supervisor PDF
+              </Button>
+            )}
+            <Button onClick={() => handlePrint('standard')} className="gap-2">
               <Download className="h-4 w-4" />
               Download PDF
             </Button>
