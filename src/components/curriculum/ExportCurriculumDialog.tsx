@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import * as XLSX from 'xlsx';
 import {
   Dialog,
   DialogContent,
@@ -141,7 +142,7 @@ export function ExportCurriculumDialog({
         topicSessions.set(key, existing);
       });
 
-      // 4. Generate CSV
+      // 4. Generate Data Rows by Class
       const headers = [
         'Class Name',
         'Content Category',
@@ -157,16 +158,7 @@ export function ExportCurriculumDialog({
         'Volunteer'
       ];
 
-      const escapeCsv = (val: any) => {
-        if (val === null || val === undefined) return '';
-        const str = String(val);
-        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-          return `"${str.replace(/"/g, '""')}"`;
-        }
-        return str;
-      };
-
-      const csvRows = [headers.join(',')];
+      const classDataMap = new Map<string, any[][]>();
 
       (curriculumData || []).forEach(item => {
         const className = item.classes?.name || (classObj ? classObj.name : 'Unknown');
@@ -226,23 +218,36 @@ export function ExportCurriculumDialog({
           volunteerName
         ];
 
-        csvRows.push(rowData.map(escapeCsv).join(','));
+        if (!classDataMap.has(className)) {
+          classDataMap.set(className, [headers]); // First row is headers
+        }
+        classDataMap.get(className)!.push(rowData);
       });
 
-      const csvContent = csvRows.join('\n');
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.setAttribute('href', url);
-      
+      // 5. Create Workbook and Sheets
+      const wb = XLSX.utils.book_new();
+
+      if (classDataMap.size > 0) {
+        classDataMap.forEach((rows, className) => {
+          // Sheet names must be <= 31 chars and not contain invalid chars
+          let safeSheetName = className.replace(/[\\\/\?\*\[\]]/g, '_').substring(0, 31);
+          // Ensure uniqueness just in case two classes have same 31 char prefix (unlikely but safe)
+          if (wb.SheetNames.includes(safeSheetName)) {
+             safeSheetName = safeSheetName.substring(0, 27) + '_' + Math.floor(Math.random() * 1000);
+          }
+          const ws = XLSX.utils.aoa_to_sheet(rows);
+          XLSX.utils.book_append_sheet(wb, ws, safeSheetName);
+        });
+      } else {
+        const ws = XLSX.utils.aoa_to_sheet([headers]);
+        XLSX.utils.book_append_sheet(wb, ws, "No Data");
+      }
+
       let timeframeStr = timeframe;
       if (timeframe === 'monthly') timeframeStr = selectedMonth;
-      const fileNameClass = selectedClass === 'all' ? 'All_Classes_Mixed' : classObj.name.replace(/\s+/g, '_');
-      link.setAttribute('download', `Curriculum_Report_${fileNameClass}_${timeframeStr}.csv`);
+      const fileNameClass = selectedClass === 'all' ? 'All_Classes' : classObj.name.replace(/\s+/g, '_');
       
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      XLSX.writeFile(wb, `Curriculum_Report_${fileNameClass}_${timeframeStr}.xlsx`);
 
       toast.success('Report downloaded successfully');
       onClose();

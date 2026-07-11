@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FileText, MoreVertical, Eye, Plus, Search, X, GraduationCap, Upload, Check, ChevronsUpDown } from 'lucide-react';
+import { FileText, MoreVertical, Eye, Plus, Search, X, GraduationCap, Upload, Check, ChevronsUpDown, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -324,10 +324,22 @@ export default function FeedbackSelection() {
               View recorded feedback and session results
             </p>
           </div>
-          <Button onClick={handleOpenAddFeedbackDialog}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Feedback to Session
-          </Button>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+            <Button 
+              variant="outline" 
+              onClick={() => window.open('https://docs.google.com/presentation/d/19QjljocxshsJ5pNr_QhtFI2s7ByK91mHgXsILF3K-3k/mobilepresent?pli=1&slide=id.g3f36f08c6d8_1_6', '_blank')}
+              className="w-full sm:w-auto gap-2 border-primary/20 text-primary hover:bg-primary/5"
+            >
+              <ExternalLink className="h-4 w-4" />
+              <span className="hidden sm:inline">Guest Teacher Overview</span>
+              <span className="sm:hidden">GT Overview</span>
+            </Button>
+            <Button onClick={handleOpenAddFeedbackDialog} className="w-full sm:w-auto">
+              <Plus className="h-4 w-4 mr-2" />
+              <span className="hidden sm:inline">Add Feedback to Session</span>
+              <span className="sm:hidden">Add Feedback</span>
+            </Button>
+          </div>
         </div>
 
         {/* Filters */}
