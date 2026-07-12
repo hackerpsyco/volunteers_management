@@ -42,6 +42,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
@@ -301,15 +306,15 @@ export default function Centres() {
               <DialogTrigger asChild>
                 <Button variant="outline" className="gap-2 flex-1 sm:flex-none">
                   <Clock className="h-4 w-4" />
-                  <span className="hidden sm:inline">Add Time Slot</span>
-                  <span className="sm:hidden">Slot</span>
+                  <span className="hidden sm:inline">Manage Time Slots</span>
+                  <span className="sm:hidden">Slots</span>
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Add Time Slot to Centre</DialogTitle>
+                  <DialogTitle>Manage Time Slots</DialogTitle>
                   <DialogDescription>
-                    Select a centre and add a new time slot
+                    Select a centre to view, add, or delete its time slots (IST)
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
@@ -375,6 +380,28 @@ export default function Centres() {
                       Cancel
                     </Button>
                   </div>
+                  
+                  {/* Existing Slots */}
+                  {selectedCentreForSlot && centreSlots[selectedCentreForSlot] && centreSlots[selectedCentreForSlot].length > 0 && (
+                    <div className="pt-4 border-t mt-4">
+                      <h4 className="font-medium text-sm mb-3">Existing Slots (IST)</h4>
+                      <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
+                        {centreSlots[selectedCentreForSlot].map(slot => (
+                          <div key={slot.id} className="flex items-center justify-between bg-muted p-2 rounded text-sm border border-border">
+                            <span className="font-medium">{slot.start_time} - {slot.end_time} IST</span>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleDeleteSlot(slot.id, selectedCentreForSlot)}
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </DialogContent>
             </Dialog>
@@ -573,13 +600,27 @@ export default function Centres() {
                               <div className="space-y-1">
                                 {centreSlots[centre.id].slice(0, 2).map((slot, idx) => (
                                   <div key={idx} className="text-xs">
-                                    {slot.start_time} - {slot.end_time}
+                                    {slot.start_time} - {slot.end_time} IST
                                   </div>
                                 ))}
                                 {centreSlots[centre.id].length > 2 && (
-                                  <div className="text-xs text-muted-foreground">
-                                    +{centreSlots[centre.id].length - 2} more
-                                  </div>
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <button className="text-xs text-primary hover:underline cursor-pointer">
+                                        +{centreSlots[centre.id].length - 2} more
+                                      </button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-48 p-2" align="start">
+                                      <div className="space-y-1 max-h-48 overflow-y-auto">
+                                        <p className="text-xs font-semibold mb-2">All Time Slots (IST)</p>
+                                        {centreSlots[centre.id].map(slot => (
+                                          <div key={slot.id} className="text-xs border-b border-border last:border-0 pb-1 mb-1 last:pb-0 last:mb-0">
+                                            {slot.start_time} - {slot.end_time}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </PopoverContent>
+                                  </Popover>
                                 )}
                               </div>
                             ) : (
@@ -603,6 +644,15 @@ export default function Centres() {
                                   onClick={() => handleEdit(centre)}
                                 >
                                   Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setSelectedCentreForSlot(centre.id);
+                                    setAddSlotDialogOpen(true);
+                                  }}
+                                >
+                                  <Clock className="h-4 w-4 mr-2" />
+                                  Manage Slots
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={() => {
@@ -735,7 +785,7 @@ export default function Centres() {
                           <div className="space-y-2">
                             {centreSlots[centre.id].map(slot => (
                               <div key={slot.id} className="flex items-center justify-between bg-background p-2 rounded text-xs border border-border">
-                                <span className="font-medium">{slot.start_time}-{slot.end_time}</span>
+                                <span className="font-medium">{slot.start_time} - {slot.end_time} IST</span>
                                 <Button
                                   size="sm"
                                   variant="ghost"

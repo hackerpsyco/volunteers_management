@@ -361,7 +361,8 @@ export function EditSessionDialog({
         
         const selectedSlot = centreSlots.find(s => s.id === formData.centre_time_slot_id);
         const sessionTime = selectedSlot?.start_time || formData.session_time;
-        const startDateTime = new Date(`${formData.session_date}T${sessionTime}`);
+        const timePrefix = sessionTime ? sessionTime.substring(0, 5) : '09:00';
+        const startDateTime = new Date(`${formData.session_date}T${timePrefix}:00+05:30`);
         const endDateTime = new Date(startDateTime.getTime() + 60 * 60 * 1000);
 
         // Get volunteer, facilitator, coordinator, class, and centre emails

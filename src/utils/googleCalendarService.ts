@@ -122,7 +122,8 @@ export const googleCalendarService = {
     facilitatorName?: string,
     volunteerName?: string
   ): CalendarEvent {
-    const startDateTime = new Date(`${session.session_date}T${session.session_time}`);
+    const timePrefix = session.session_time ? session.session_time.substring(0, 5) : '09:00';
+    const startDateTime = new Date(`${session.session_date}T${timePrefix}:00+05:30`);
     const endDateTime = new Date(startDateTime.getTime() + 60 * 60 * 1000); // 1 hour duration
 
     const attendees = [];

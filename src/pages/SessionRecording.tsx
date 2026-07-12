@@ -1744,14 +1744,24 @@ export default function SessionRecording() {
               </p>
             </div>
           </div>
-          <Button 
-            variant="outline" 
-            onClick={() => window.open('https://docs.google.com/presentation/d/19QjljocxshsJ5pNr_QhtFI2s7ByK91mHgXsILF3K-3k/mobilepresent?pli=1&slide=id.g3f36f08c6d8_1_6', '_blank')}
-            className="gap-2 border-primary/20 text-primary hover:bg-primary/5 shrink-0"
-          >
-            <ExternalLink className="h-4 w-4" />
-            Guest Teacher Overview
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => window.open('https://docs.google.com/presentation/d/19QjljocxshsJ5pNr_QhtFI2s7ByK91mHgXsILF3K-3k/mobilepresent?pli=1&slide=id.g3f36f08c6d8_1_6', '_blank')}
+              className="gap-2 border-primary/20 text-primary hover:bg-primary/5 shrink-0"
+            >
+              <ExternalLink className="h-4 w-4" />
+              Guest Teacher Overview
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => window.open('https://docs.google.com/presentation/d/12m8A4LNl84soS68Npny-q2Jx6VPbMi6yyAEmfB-eFKA/edit?usp=drivesdk', '_blank')}
+              className="gap-2 border-primary/20 text-primary hover:bg-primary/5 shrink-0"
+            >
+              <ExternalLink className="h-4 w-4" />
+              Guest Speaker Overview
+            </Button>
+          </div>
         </div>
 
         {/* Session Info */}

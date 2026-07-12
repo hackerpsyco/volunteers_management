@@ -41,7 +41,6 @@ const navGroups: NavGroup[] = [
       { title: 'Tasks & Projects', url: '/tasks', icon: ClipboardList, requiredRole: null, studentVisible: false },
       { title: 'Student Earnings', url: '/admin-earnings', icon: ClipboardList, requiredRole: null, studentVisible: false },
       { title: 'Student Attendance', url: '/admin-attendance', icon: ClipboardList, requiredRole: null, studentVisible: false },
-      { title: 'Support Requests', url: '/support', icon: MessageCircle, requiredRole: null, studentVisible: false },
     ]
   },
   {
@@ -61,7 +60,7 @@ const navGroups: NavGroup[] = [
     items: [
       { title: 'Centres & Slots', url: '/centres', icon: MapPin, requiredRole: null, studentVisible: false },
       { title: 'Classes & Students', url: '/classes', icon: GraduationCap, requiredRole: null, studentVisible: false },
-
+      { title: 'Support Requests', url: '/support', icon: MessageCircle, requiredRole: null, studentVisible: false },
     ]
   },
   {

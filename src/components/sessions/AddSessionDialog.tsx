@@ -831,7 +831,8 @@ export function AddSessionDialog({
           const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
           
           // Format session data for calendar
-          const startDateTime = new Date(`${format(selectedDate, 'yyyy-MM-dd')}T${slot?.start_time || '09:00'}`);
+          const timePrefix = (slot?.start_time || '09:00').substring(0, 5);
+          const startDateTime = new Date(`${format(selectedDate, 'yyyy-MM-dd')}T${timePrefix}:00+05:30`);
           const endDateTime = new Date(startDateTime.getTime() + 60 * 60 * 1000); // 1 hour
           
           const calendarEventData = {
@@ -1331,7 +1332,7 @@ For any questions, contact the coordinator.
           {/* Centre & Time Slot Selection - For All Session Types */}
           {(sessionType === 'guest_teacher' || sessionType === 'local_teacher' || sessionType === 'guest_speaker') && (
             <div className="border-t border-border pt-4">
-              <h4 className="font-medium text-sm sm:text-base text-foreground mb-3">Select Centre & Time Slot</h4>
+              <h4 className="font-medium text-sm sm:text-base text-foreground mb-3">Select Centre & Time Slot (IST)</h4>
               
               <div className="space-y-2 mb-4">
                 <Label htmlFor="centre" className="text-sm sm:text-base">Centre *</Label>
@@ -1357,7 +1358,7 @@ For any questions, contact the coordinator.
 
               {selectedCentre && centreSlots.length > 0 && (
                 <div className="space-y-2">
-                  <Label htmlFor="slot" className="text-sm sm:text-base">Time Slot *</Label>
+                  <Label htmlFor="slot" className="text-sm sm:text-base">Time Slot (IST) *</Label>
                   <Select value={selectedSlot} onValueChange={setSelectedSlot}>
                     <SelectTrigger className="text-sm sm:text-base">
                       <SelectValue placeholder="Choose a time slot" />
@@ -1365,7 +1366,7 @@ For any questions, contact the coordinator.
                     <SelectContent>
                       {centreSlots.map((slot) => (
                         <SelectItem key={slot.id} value={slot.id}>
-                          {slot.start_time} to {slot.end_time}
+                          {slot.start_time} to {slot.end_time} IST
                         </SelectItem>
                       ))}
                     </SelectContent>

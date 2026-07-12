@@ -334,6 +334,15 @@ export default function FeedbackSelection() {
               <span className="hidden sm:inline">Guest Teacher Overview</span>
               <span className="sm:hidden">GT Overview</span>
             </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => window.open('https://docs.google.com/presentation/d/12m8A4LNl84soS68Npny-q2Jx6VPbMi6yyAEmfB-eFKA/edit?usp=drivesdk', '_blank')}
+              className="w-full sm:w-auto gap-2 border-primary/20 text-primary hover:bg-primary/5"
+            >
+              <ExternalLink className="h-4 w-4" />
+              <span className="hidden sm:inline">Guest Speaker Overview</span>
+              <span className="sm:hidden">GS Overview</span>
+            </Button>
             <Button onClick={handleOpenAddFeedbackDialog} className="w-full sm:w-auto">
               <Plus className="h-4 w-4 mr-2" />
               <span className="hidden sm:inline">Add Feedback to Session</span>
