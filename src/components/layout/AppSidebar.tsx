@@ -27,6 +27,7 @@ const navGroups: NavGroup[] = [
     studentVisible: false,
     items: [
       { title: 'Dashboard', url: '/dashboard', icon: Home, requiredRole: null, studentVisible: false },
+      { title: 'My Earnings', url: '/facilitator-earnings', icon: ClipboardList, requiredRole: 4, studentVisible: false },
       { title: 'Calendar', url: '/calendar', icon: CalendarDays, requiredRole: null, studentVisible: false },
       { title: 'Resource Hub', url: '/resources', icon: BookOpen, requiredRole: null, studentVisible: false },
     ],
@@ -39,8 +40,16 @@ const navGroups: NavGroup[] = [
       { title: 'Session Planner', url: '/sessions', icon: BookOpen, requiredRole: null, studentVisible: false },
       { title: 'Record & Feedback', url: '/feedback', icon: FileText, requiredRole: null, studentVisible: false },
       { title: 'Tasks & Projects', url: '/tasks', icon: ClipboardList, requiredRole: null, studentVisible: false },
-      { title: 'Student Earnings', url: '/admin-earnings', icon: ClipboardList, requiredRole: null, studentVisible: false },
       { title: 'Student Attendance', url: '/admin-attendance', icon: ClipboardList, requiredRole: null, studentVisible: false },
+    ]
+  },
+  {
+    label: 'Rewards & Earnings',
+    studentVisible: false,
+    hiddenRoles: [4],
+    items: [
+      { title: 'Student Earnings', url: '/admin-earnings', icon: ClipboardList, requiredRole: null, studentVisible: false },
+      { title: 'Facilitator Earnings', url: '/admin-facilitator-earnings', icon: ClipboardList, requiredRole: null, studentVisible: false },
     ]
   },
   {

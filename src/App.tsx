@@ -35,6 +35,8 @@ import StudentTasks from "./pages/StudentTasks";
 import StudentTaskDetail from "./pages/StudentTaskDetail";
 import StudentEarnings from "./pages/StudentEarnings";
 import AdminStudentEarnings from "./pages/AdminStudentEarnings";
+import AdminFacilitatorEarnings from "./pages/AdminFacilitatorEarnings";
+import FacilitatorEarnings from "./pages/FacilitatorEarnings";
 import AdminStudentAttendance from "./pages/AdminStudentAttendance";
 import ClassTaskReview from "@/pages/ClassTaskReview";
 import ClassLeaders from "./pages/ClassLeaders";
@@ -88,6 +90,8 @@ const App = () => (
               <Route path="/student-tasks/:taskId" element={<StudentTaskDetail />} />
               <Route path="/student-earnings" element={<StudentEarnings />} />
               <Route path="/admin-earnings" element={<AdminStudentEarnings />} />
+              <Route path="/admin-facilitator-earnings" element={<AdminFacilitatorEarnings />} />
+              <Route path="/facilitator-earnings" element={<FacilitatorEarnings />} />
               <Route path="/admin-attendance" element={<AdminStudentAttendance />} />
               <Route path="/class-task-review" element={<ClassTaskReview />} />
               <Route path="/class-leaders" element={<ClassLeaders />} />

@@ -112,7 +112,7 @@ export function TopFacilitatorsWidget({ startDate, endDate, academicYear, sessio
         try {
           let createdQuery = supabase
             .from('student_task_feedback')
-            .select('created_by, created_at, sessions!inner(session_type)');
+            .select('created_by, created_at, session_id, sessions!inner(session_type)');
 
           if (academicYear) {
             createdQuery = createdQuery.eq('academic_year', academicYear);
@@ -132,18 +132,27 @@ export function TopFacilitatorsWidget({ startDate, endDate, academicYear, sessio
           const { data: createdData, error: createdError } = await createdQuery;
 
           if (!createdError && createdData) {
+            const createdSet = new Map<string, Set<string>>();
             createdData.forEach((record: any) => {
-              if (record.created_by) {
+              if (record.created_by && record.session_id) {
                 const email = userIdToEmail.get(record.created_by);
                 if (email) {
                   if (!statsMap.has(email)) {
                     const p = profileMap.get(record.created_by);
                     statsMap.set(email, { id: record.created_by, name: p?.full_name || 'Unknown', sessionsDone: 0, tasksCreated: 0, feedbackDone: 0 });
                   }
-                  statsMap.get(email)!.tasksCreated += 1;
+                  if (!createdSet.has(email)) createdSet.set(email, new Set());
+                  createdSet.get(email)!.add(record.session_id);
                 }
               }
             });
+            
+            // Assign unique session counts
+            for (const [email, sessions] of createdSet.entries()) {
+              if (statsMap.has(email)) {
+                statsMap.get(email)!.tasksCreated = sessions.size;
+              }
+            }
           }
         } catch (colError) {
           console.log('created_by column might not exist yet:', colError);
@@ -153,7 +162,7 @@ export function TopFacilitatorsWidget({ startDate, endDate, academicYear, sessio
         try {
           let reviewedQuery = supabase
             .from('student_task_feedback')
-            .select('verified_by, updated_at, sessions!inner(session_type)')
+            .select('verified_by, updated_at, session_id, sessions!inner(session_type)')
             .not('verified_by', 'is', null);
 
           if (academicYear) {
@@ -174,18 +183,27 @@ export function TopFacilitatorsWidget({ startDate, endDate, academicYear, sessio
           const { data: reviewedData, error: reviewedError } = await reviewedQuery;
 
           if (!reviewedError && reviewedData) {
+            const reviewedSet = new Map<string, Set<string>>();
             reviewedData.forEach((record: any) => {
-              if (record.verified_by) {
+              if (record.verified_by && record.session_id) {
                 const email = userIdToEmail.get(record.verified_by);
                 if (email) {
                   if (!statsMap.has(email)) {
                     const p = profileMap.get(record.verified_by);
                     statsMap.set(email, { id: record.verified_by, name: p?.full_name || 'Unknown', sessionsDone: 0, tasksCreated: 0, feedbackDone: 0 });
                   }
-                  statsMap.get(email)!.feedbackDone += 1;
+                  if (!reviewedSet.has(email)) reviewedSet.set(email, new Set());
+                  reviewedSet.get(email)!.add(record.session_id);
                 }
               }
             });
+            
+            // Assign unique session counts
+            for (const [email, sessions] of reviewedSet.entries()) {
+              if (statsMap.has(email)) {
+                statsMap.get(email)!.feedbackDone = sessions.size;
+              }
+            }
           }
         } catch (colError) {
           console.log('verified_by column might not exist yet:', colError);
@@ -225,7 +243,7 @@ export function TopFacilitatorsWidget({ startDate, endDate, academicYear, sessio
           <Tabs defaultValue="sessions" className="w-full">
             <TabsList className="grid w-full grid-cols-3 mb-4 h-auto">
               <TabsTrigger value="sessions" className="text-[10px] md:text-xs py-1.5">Sessions</TabsTrigger>
-              <TabsTrigger value="created" className="text-[10px] md:text-xs py-1.5">Created</TabsTrigger>
+              <TabsTrigger value="created" className="text-[10px] md:text-xs py-1.5">Homework</TabsTrigger>
               <TabsTrigger value="reviewed" className="text-[10px] md:text-xs py-1.5">Reviewed</TabsTrigger>
             </TabsList>
             

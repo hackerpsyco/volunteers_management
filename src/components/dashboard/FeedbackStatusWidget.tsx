@@ -6,9 +6,11 @@ interface FeedbackStatusWidgetProps {
   endDate?: Date | null;
   academicYear?: string;
   sessionType?: string;
+  totalExpected?: number;
+  precalculatedStats?: { facDone: number, coordDone: number, supDone: number };
 }
 
-export function FeedbackStatusWidget({ startDate, endDate, academicYear, sessionType }: FeedbackStatusWidgetProps) {
+export function FeedbackStatusWidget({ startDate, endDate, academicYear, sessionType, totalExpected, precalculatedStats }: FeedbackStatusWidgetProps) {
   const [stats, setStats] = useState({
     totalCompleted: 0,
     facilitatorDone: 0,
@@ -18,19 +20,30 @@ export function FeedbackStatusWidget({ startDate, endDate, academicYear, session
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (precalculatedStats) {
+      setStats({
+        totalCompleted: totalExpected || 0,
+        facilitatorDone: precalculatedStats.facDone || 0,
+        coordinatorDone: precalculatedStats.coordDone || 0,
+        supervisorDone: precalculatedStats.supDone || 0
+      });
+      setLoading(false);
+      return;
+    }
+
     async function fetchFeedbackStatus() {
       setLoading(true);
       try {
         let query = supabase
           .from('sessions')
-          .select('status, session_date, session_type, facilitator_feedback_status, coordinator_feedback_status, supervisor_feedback_status')
-          .in('status', ['completed', 'Completed']);
+          .select('status, session_date, session_type, facilitator_feedback_status, coordinator_feedback_status, supervisor_feedback_status');
+          
+        if (endDate) {
+          query = query.lte('session_date', endDate.toISOString().split('T')[0]);
+        }
           
         if (startDate) {
           query = query.gte('session_date', startDate.toISOString().split('T')[0]);
-        }
-        if (endDate) {
-          query = query.lte('session_date', endDate.toISOString().split('T')[0]);
         }
         if (sessionType && sessionType !== 'all') {
           query = query.eq('session_type', sessionType);
@@ -46,7 +59,9 @@ export function FeedbackStatusWidget({ startDate, endDate, academicYear, session
         let supervisorDone = 0;
 
         (data || []).forEach(session => {
-          totalCompleted++;
+          if (session.status?.toLowerCase() === 'completed' || session.status?.toLowerCase() === 'in progress' || session.status?.toLowerCase() === 'in-progress') {
+            totalCompleted++;
+          }
           
           if (session.facilitator_feedback_status?.toLowerCase() === 'done') {
             facilitatorDone++;
@@ -60,7 +75,7 @@ export function FeedbackStatusWidget({ startDate, endDate, academicYear, session
         });
 
         setStats({
-          totalCompleted,
+          totalCompleted: totalExpected !== undefined ? totalExpected : totalCompleted,
           facilitatorDone,
           coordinatorDone,
           supervisorDone
@@ -73,7 +88,7 @@ export function FeedbackStatusWidget({ startDate, endDate, academicYear, session
     }
 
     fetchFeedbackStatus();
-  }, [startDate, endDate, academicYear, sessionType]);
+  }, [startDate, endDate, academicYear, sessionType, precalculatedStats, totalExpected]);
 
   const items = [
     { label: 'Facilitator', done: stats.facilitatorDone, color: 'bg-blue-50', textColor: 'text-blue-700' },

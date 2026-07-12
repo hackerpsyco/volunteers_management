@@ -297,12 +297,16 @@ export default function Dashboard() {
           }
         }
 
+        // Use local date strings to prevent UTC timezone shifting
+        const startYMD = `${startDate.getFullYear()}-${String(startDate.getMonth()+1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`;
+        const endYMD = `${endDate.getFullYear()}-${String(endDate.getMonth()+1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
+
         // FILTER SESSIONS BY DATE RANGE
         const { data: allSessions } = await supabase
           .from('sessions')
-          .select('id, status, facilitator_name, recorded_at, session_type')
-          .gte('session_date', startDate.toISOString().split('T')[0])
-          .lte('session_date', endDate.toISOString().split('T')[0]);
+          .select('id, status, facilitator_name, recorded_at, session_type, facilitator_feedback_status, coordinator_feedback_status, supervisor_feedback_status')
+          .gte('session_date', startYMD)
+          .lte('session_date', endYMD);
         
         let userSessions = allSessions || [];
 
@@ -344,18 +348,68 @@ export default function Dashboard() {
         const statusCounts = {
           pending: 0,
           committed: 0,
-          available: 0,
+          inProgress: 0,
           completed: 0,
         };
 
+
+
+        // Find committed sessions that have attendance records (meaning they are in progress)
+        const committedSessionIds = userSessions
+          .filter(s => s.status?.toLowerCase() === 'committed')
+          .map(s => s.id);
+          
+        const sessionsWithAttendance = new Set();
+        if (committedSessionIds.length > 0) {
+          const { data: attendanceData } = await supabase
+            .from('student_performance')
+            .select('session_id')
+            .in('session_id', committedSessionIds);
+            
+          attendanceData?.forEach(record => sessionsWithAttendance.add(record.session_id));
+        }
+
+        let facDone = 0;
+        let coordDone = 0;
+        let supDone = 0;
+
         userSessions.forEach((session: any) => {
-          const status = session.status as keyof typeof statusCounts;
-          if (status in statusCounts) {
-            statusCounts[status]++;
+          const status = session.status?.toLowerCase();
+          let qualifiesForFeedback = false;
+          
+          const hasAnyFeedback = 
+            session.facilitator_feedback_status?.toLowerCase().trim() === 'done' ||
+            session.coordinator_feedback_status?.toLowerCase().trim() === 'done' ||
+            session.supervisor_feedback_status?.toLowerCase().trim() === 'done';
+          
+          if (status === 'pending') statusCounts.pending++;
+          else if (status === 'available' || status === 'in progress' || status === 'in-progress' || status === 'in_progress') {
+            statusCounts.inProgress++;
+            qualifiesForFeedback = true;
+          } else if (status === 'completed') {
+            statusCounts.completed++;
+            qualifiesForFeedback = true;
+          } else if (status === 'committed') {
+            if (sessionsWithAttendance.has(session.id) || hasAnyFeedback) {
+              statusCounts.inProgress++;
+              qualifiesForFeedback = true;
+            } else {
+              statusCounts.committed++;
+            }
+          }
+          
+          if (qualifiesForFeedback) {
+            if (session.facilitator_feedback_status?.toLowerCase().trim() === 'done') facDone++;
+            if (session.coordinator_feedback_status?.toLowerCase().trim() === 'done') coordDone++;
+            if (session.supervisor_feedback_status?.toLowerCase().trim() === 'done') supDone++;
           }
         });
 
         setSessionStatus(statusCounts);
+        setStats(prev => ({
+          ...prev,
+          feedbackStats: { facDone, coordDone, supDone }
+        }));
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
       } finally {
@@ -418,7 +472,7 @@ export default function Dashboard() {
   const sessionStatusItems = [
     { label: 'Pending', value: sessionStatus.pending, color: 'bg-muted/30', textColor: 'text-yellow-700' },
     { label: 'Committed', value: sessionStatus.committed, color: 'bg-muted/30', textColor: 'text-purple-700' },
-    { label: 'Available', value: sessionStatus.available, color: 'bg-muted/30', textColor: 'text-blue-700' },
+    { label: 'In Progress', value: sessionStatus.inProgress, color: 'bg-muted/30', textColor: 'text-blue-700' },
     { label: 'Completed', value: sessionStatus.completed, color: 'bg-muted/30', textColor: 'text-green-700' },
   ];
 
@@ -598,6 +652,8 @@ export default function Dashboard() {
             endDate={customEndDate || getDateRange().endDate} 
             academicYear={selectedYear} 
             sessionType={selectedSessionType}
+            totalExpected={sessionStatus.completed + sessionStatus.inProgress}
+            precalculatedStats={(stats as any).feedbackStats}
           />
 
           {/* 4. Volunteer Reach Out */}
