@@ -68,16 +68,28 @@ export default function ResourceHub({ isStudent = false }: { isStudent?: boolean
     target_student_id: null as string | null,
   });
 
-  const [students, setStudents] = useState<{id: string, name: string}[]>([]);
+  const [students, setStudents] = useState<{id: string, name: string, class_id: string}[]>([]);
+  const [classes, setClasses] = useState<{id: string, name: string}[]>([]);
+  const [selectedClassForStudent, setSelectedClassForStudent] = useState<string>('');
 
   useEffect(() => {
     fetchResources();
     fetchStudents();
+    fetchClasses();
   }, []);
+
+  const fetchClasses = async () => {
+    try {
+      const { data } = await supabase.from('classes').select('id, name').order('name');
+      if (data) setClasses(data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const fetchStudents = async () => {
     try {
-      const { data } = await supabase.from('students').select('id, name').order('name');
+      const { data } = await supabase.from('students').select('id, name, class_id').order('name');
       if (data) setStudents(data);
     } catch (e) {
       console.error(e);
@@ -387,22 +399,45 @@ export default function ResourceHub({ isStudent = false }: { isStudent?: boolean
                   </div>
 
                   {formData.target_audience === 'specific_student' && (
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Select Student *</label>
-                      <Select
-                        value={formData.target_student_id || ''}
-                        onValueChange={(value) => setFormData({ ...formData, target_student_id: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Choose a student" />
-                        </SelectTrigger>
-                        <SelectContent className="max-h-[300px]">
-                          {students.map(student => (
-                            <SelectItem key={student.id} value={student.id}>{student.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    <>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Select Class First</label>
+                        <Select
+                          value={selectedClassForStudent}
+                          onValueChange={setSelectedClassForStudent}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Choose a class" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-[300px]">
+                            {classes.map(c => (
+                              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Select Student *</label>
+                        <Select
+                          value={formData.target_student_id || ''}
+                          onValueChange={(value) => setFormData({ ...formData, target_student_id: value })}
+                          disabled={!selectedClassForStudent}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={selectedClassForStudent ? "Choose a student" : "Select class first"} />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-[300px]">
+                            {students
+                              .filter(s => s.class_id === selectedClassForStudent)
+                              .map(student => (
+                                <SelectItem key={student.id} value={student.id}>{student.name}</SelectItem>
+                              ))
+                            }
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </>
                   )}
                 </div>
 
