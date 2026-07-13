@@ -39,7 +39,7 @@ interface Resource {
 
 const CATEGORIES = [
   'Notices', 'Forms', 'Guidelines', 'Worksheets', 
-  'Reports', 'Admission', 'Student Resources', 'Teacher Resources', 'Other'
+  'Reports', 'Admission', 'Student Resources', 'Teacher Resources', 'Agreement', 'Other'
 ];
 
 export default function ResourceHub({ isStudent = false }: { isStudent?: boolean }) {
@@ -65,11 +65,24 @@ export default function ResourceHub({ isStudent = false }: { isStudent?: boolean
     resource_type: 'pdf',
     target_audience: 'all',
     file_url: '',
+    target_student_id: null as string | null,
   });
+
+  const [students, setStudents] = useState<{id: string, name: string}[]>([]);
 
   useEffect(() => {
     fetchResources();
+    fetchStudents();
   }, []);
+
+  const fetchStudents = async () => {
+    try {
+      const { data } = await supabase.from('students').select('id, name').order('name');
+      if (data) setStudents(data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const fetchResources = async () => {
     try {
@@ -147,6 +160,11 @@ export default function ResourceHub({ isStudent = false }: { isStudent?: boolean
       return;
     }
 
+    if (formData.target_audience === 'specific_student' && !formData.target_student_id) {
+      toast.error('Please select a student');
+      return;
+    }
+
     let finalFileUrl = formData.file_url;
 
     if (uploadMode === 'file') {
@@ -170,13 +188,23 @@ export default function ResourceHub({ isStudent = false }: { isStudent?: boolean
     }
 
     try {
-      const payload = { ...formData, file_url: finalFileUrl };
+      const payload: any = { ...formData, file_url: finalFileUrl };
       
       const { error } = await supabase
         .from('resource_hub')
         .insert([payload]);
 
-      if (error) throw error;
+      if (error) {
+        if (error.message.includes('target_student_id')) {
+          delete payload.target_student_id;
+          payload.target_audience = `student_${formData.target_student_id}`;
+          const retry = await supabase.from('resource_hub').insert([payload]);
+          if (retry.error) throw retry.error;
+        } else {
+          throw error;
+        }
+      }
+      
       toast.success('Resource added successfully');
       
       setShowForm(false);
@@ -349,14 +377,33 @@ export default function ResourceHub({ isStudent = false }: { isStudent?: boolean
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="public">Public</SelectItem>
                         <SelectItem value="all">Everyone (Public + Students + Teachers)</SelectItem>
-                        <SelectItem value="students">Students Only</SelectItem>
+                        <SelectItem value="students">All Students</SelectItem>
+                        <SelectItem value="specific_student">Specific Student</SelectItem>
                         <SelectItem value="teachers">Teachers Only</SelectItem>
                         <SelectItem value="admin_only">Admin Only</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {formData.target_audience === 'specific_student' && (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Select Student *</label>
+                      <Select
+                        value={formData.target_student_id || ''}
+                        onValueChange={(value) => setFormData({ ...formData, target_student_id: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Choose a student" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-[300px]">
+                          {students.map(student => (
+                            <SelectItem key={student.id} value={student.id}>{student.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-2">

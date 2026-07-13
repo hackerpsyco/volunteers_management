@@ -141,7 +141,7 @@ export default function Calendar() {
       // Get user role and class info
       const { data: profileData, error: profileError } = await supabase
         .from('user_profiles')
-        .select('role_id, class_id')
+        .select('role_id, class_id, full_name')
         .eq('id', user?.id)
         .single();
 
@@ -163,6 +163,11 @@ export default function Calendar() {
           if (classData?.name) {
             setSelectedClass(classData.name);
           }
+        }
+
+        // If facilitator (role_id = 4), automatically select their name
+        if (profileData.role_id === 4 && profileData.full_name) {
+          setSelectedFacilitator(profileData.full_name);
         }
       }
     } catch (error) {
