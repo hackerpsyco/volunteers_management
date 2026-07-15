@@ -9,6 +9,7 @@ import { VolunteerSessionStats } from '@/components/dashboard/VolunteerSessionSt
 import { VolunteerReachOutStats } from '@/components/dashboard/VolunteerReachOutStats';
 import { TopStudentsWidget } from '@/components/dashboard/TopStudentsWidget';
 import { TopFacilitatorsWidget } from '@/components/dashboard/TopFacilitatorsWidget';
+import { TopVolunteersWidget } from '@/components/dashboard/TopVolunteersWidget';
 import { TodayClassAttendanceWidget } from '@/components/dashboard/TodayClassAttendanceWidget';
 import { FeedbackStatusWidget } from '@/components/dashboard/FeedbackStatusWidget';
 import { useAcademicYear } from '@/contexts/AcademicYearContext';
@@ -661,7 +662,7 @@ export default function Dashboard() {
         </div>
 
         {/* Top Rankings & Attendance Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
           {/* 5. Today's Attendance */}
           <TodayClassAttendanceWidget 
             selectedClass={selectedClass}
@@ -678,6 +679,12 @@ export default function Dashboard() {
             selectedClass={selectedClass}
             selectedDesignation={selectedDesignation}
             classes={classes}
+          />
+
+          {/* 6.5 Top Volunteers */}
+          <TopVolunteersWidget 
+            startDate={customStartDate || getDateRange().startDate} 
+            endDate={customEndDate || getDateRange().endDate} 
           />
 
           {/* 7. Curriculum */}

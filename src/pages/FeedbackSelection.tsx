@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FileText, MoreVertical, Eye, Plus, Search, X, GraduationCap, Upload, Check, ChevronsUpDown, ExternalLink } from 'lucide-react';
+import { FileText, MoreVertical, Eye, Plus, Search, X, GraduationCap, Upload, Check, ChevronsUpDown, ExternalLink, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -91,8 +91,14 @@ export default function FeedbackSelection() {
   const [coordinatorFilter, setCoordinatorFilter] = useState<string | null>(null);
   const [subjectFilter, setSubjectFilter] = useState<string | null>(null);
   const [sessionTypeFilter, setSessionTypeFilter] = useState<string | null>(null);
-  const [dateFromFilter, setDateFromFilter] = useState<string>('');
-  const [dateToFilter, setDateToFilter] = useState<string>('');
+  const [dateFromFilter, setDateFromFilter] = useState<string>(() => {
+    const today = new Date();
+    return new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+  });
+  const [dateToFilter, setDateToFilter] = useState<string>(() => {
+    const today = new Date();
+    return new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
+  });
   const [sortColumn, setSortColumn] = useState<keyof FeedbackSession | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc' | null>(null);
   const [facilitatorStatusFilter, setFacilitatorStatusFilter] = useState<string | null>(null);
@@ -121,7 +127,8 @@ export default function FeedbackSelection() {
         .select(`
           *,
           coordinators:coordinator_id(name),
-          subjects(name)
+          subjects(name),
+          session_hours_tracker(plan_coordinate_hours, preparation_hours, session_hours, reflection_feedback_followup_hours, total_volunteering_time, logged_hours_in_benevity, notes)
         `)
         .not('recorded_at', 'is', null)
         .gte('session_date', startDate.toISOString().split('T')[0])
@@ -342,6 +349,46 @@ export default function FeedbackSelection() {
               <ExternalLink className="h-4 w-4" />
               <span className="hidden sm:inline">Guest Speaker Overview</span>
               <span className="sm:hidden">GS Overview</span>
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={async () => {
+                const XLSX = await import('xlsx');
+                const data = filteredSessions.map(session => {
+                  const hours = Array.isArray(session.session_hours_tracker) 
+                    ? session.session_hours_tracker[0] 
+                    : session.session_hours_tracker;
+                    
+                  return {
+                    Date: new Date(session.session_date).toLocaleDateString(),
+                    Time: session.session_time,
+                    Class: session.class_batch || '-',
+                    Facilitator: session.facilitator_name || '-',
+                    Volunteer: session.volunteer_name || '-',
+                    Coordinator: session.coordinator_name || '-',
+                    'Session Type': session.session_type,
+                    Category: session.content_category || '-',
+                    Module: session.module_name || '-',
+                    Topic: session.topics_covered || '-',
+                    'Supervisor Feedback - Status': session.supervisor_feedback_status || 'Pending',
+                    'Plan & Coordinate Hours': hours?.plan_coordinate_hours || 0,
+                    'Preparation Hours': hours?.preparation_hours || 0,
+                    'Session Hours': hours?.session_hours || 0,
+                    'Reflection & Feedback Hours': hours?.reflection_feedback_followup_hours || 0,
+                    'Total Volunteering Time': hours?.total_volunteering_time || 0,
+                    'Logged in Benevity': hours?.logged_hours_in_benevity ? 'Yes' : 'No',
+                    'Notes': hours?.notes || '',
+                  };
+                });
+                const ws = XLSX.utils.json_to_sheet(data);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Supervisor Report");
+                XLSX.writeFile(wb, `Supervisor_Report.xlsx`);
+              }}
+              className="w-full sm:w-auto gap-2 bg-green-600 hover:bg-green-700 text-white border-none"
+            >
+              <Download className="h-4 w-4" />
+              <span className="hidden sm:inline">Export Supervisor Report</span>
             </Button>
             <Button onClick={handleOpenAddFeedbackDialog} className="w-full sm:w-auto">
               <Plus className="h-4 w-4 mr-2" />

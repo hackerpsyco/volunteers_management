@@ -559,9 +559,35 @@ export default function FeedbackDetails() {
               Edit Feedback
             </Button>
             {userRole === 1 && (
-              <Button onClick={() => handlePrint('supervisor')} className="gap-2 bg-purple-600 hover:bg-purple-700 text-white">
+              <Button onClick={async () => {
+                const XLSX = await import('xlsx');
+                const data = [{
+                  Date: new Date(feedback.session_date).toLocaleDateString(),
+                  Time: feedback.session_time,
+                  Class: feedback.class_batch || '-',
+                  Facilitator: feedback.facilitator_name || '-',
+                  Volunteer: feedback.volunteer_name || '-',
+                  Coordinator: feedback.coordinator_name || '-',
+                  'Session Type': getFormattedSessionType(feedback.session_type),
+                  Category: feedback.content_category || '-',
+                  Module: feedback.module_name || '-',
+                  Topic: feedback.topics_covered || '-',
+                  'Supervisor Feedback - Status': feedback.supervisor_feedback_status || 'Pending',
+                  'Plan & Coordinate Hours': hoursTracker?.plan_coordinate_hours || 0,
+                  'Preparation Hours': hoursTracker?.preparation_hours || 0,
+                  'Session Hours': hoursTracker?.session_hours || 0,
+                  'Reflection & Feedback Hours': hoursTracker?.reflection_feedback_followup_hours || 0,
+                  'Total Volunteering Time': hoursTracker?.total_volunteering_time || 0,
+                  'Logged in Benevity': hoursTracker?.logged_hours_in_benevity ? 'Yes' : 'No',
+                  'Notes': hoursTracker?.notes || '',
+                }];
+                const ws = XLSX.utils.json_to_sheet(data);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Supervisor Report");
+                XLSX.writeFile(wb, `Supervisor_Report_${feedback.title}.xlsx`);
+              }} className="gap-2 bg-green-600 hover:bg-green-700 text-white">
                 <Download className="h-4 w-4" />
-                <span className="hidden sm:inline">Download</span> Supervisor PDF
+                <span className="hidden sm:inline">Download</span> Supervisor Excel
               </Button>
             )}
             <Button onClick={() => handlePrint('standard')} className="gap-2">
