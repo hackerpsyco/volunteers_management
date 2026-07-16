@@ -47,7 +47,7 @@ export function StudentAuthDialog({
       const { data, error } = await supabase
         .from('user_profiles')
         .select('*')
-        .eq('email', student.email)
+        .ilike('email', student.email)
         .maybeSingle();
       
       if (error && error.code !== 'PGRST116') {

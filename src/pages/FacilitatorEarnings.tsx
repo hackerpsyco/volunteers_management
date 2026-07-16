@@ -62,12 +62,14 @@ export default function FacilitatorEarnings() {
       const { data: facilitator, error: facError } = await supabase
         .from('facilitators')
         .select('id')
-        .eq('email', user?.email)
-        .single();
+        .ilike('email', user?.email || '')
+        .maybeSingle();
         
       if (facError) {
-        if (facError.code !== 'PGRST116') throw facError;
-        // Not a facilitator or not linked properly
+        throw facError;
+      }
+
+      if (!facilitator) {
         setLoading(false);
         return;
       }

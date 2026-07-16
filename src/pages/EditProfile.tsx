@@ -72,7 +72,7 @@ export default function EditProfile() {
           const { data: studentRecord } = await supabase
             .from('students')
             .select('bank_name, account_number, ifsc_code, allow_profile_edit')
-            .eq('email', data.email)
+            .ilike('email', data.email)
             .maybeSingle();
 
           if (studentRecord) {
@@ -221,7 +221,7 @@ export default function EditProfile() {
             name: profileData.full_name.trim() || undefined,
             phone_number: profileData.phone.trim() || undefined,
           })
-          .eq('email', user.email);
+          .ilike('email', user.email);
 
         if (studentUpdateError) {
           console.error('Student update error:', studentUpdateError);

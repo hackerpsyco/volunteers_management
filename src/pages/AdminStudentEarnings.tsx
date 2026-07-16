@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Wallet, Search, Filter, ArrowUpDown, Pencil, Trash2, TrendingUp, Info, FileSpreadsheet } from 'lucide-react';
+import { Wallet, Search, Filter, ArrowUpDown, Pencil, Trash2, TrendingUp, Info, FileSpreadsheet, UploadCloud } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -94,6 +94,10 @@ export default function AdminStudentEarnings() {
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [selectedDesignation, setSelectedDesignation] = useState<string>('all');
   const { selectedYear, getDateRange } = useAcademicYear();
+
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importMonth, setImportMonth] = useState<string>(new Date().getMonth().toString());
 
   useEffect(() => {
     fetchClasses();
@@ -369,6 +373,94 @@ export default function AdminStudentEarnings() {
     toast.success(`Successfully exported payouts for ${count} students`);
   };
 
+  const handleImportMentorConnect = async () => {
+    if (!importFile) {
+      toast.error('Please select an Excel file');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const XLSX = await import('xlsx');
+      const data = await importFile.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(worksheet);
+
+      let successCount = 0;
+      let notFoundCount = 0;
+
+      // Find the mentor connect rate
+      const mentorRate = rewardConfigs.find(r => r.task_type === 'Mentor connect Task')?.rate_per_task || 400;
+
+      for (const row of rows as any[]) {
+        // Find email column (case insensitive key search)
+        const emailKey = Object.keys(row).find(k => k.toLowerCase().includes('email'));
+        if (!emailKey) continue;
+        
+        const email = row[emailKey]?.toString().trim();
+        if (!email) continue;
+
+        // Check for Tasks Completed or Amount columns
+        const tasksKey = Object.keys(row).find(k => k.toLowerCase().includes('tasks') || k.toLowerCase().includes('completed'));
+        const amountKey = Object.keys(row).find(k => k.toLowerCase().includes('amount') || k.toLowerCase().includes('earnings'));
+
+        let finalAmount = mentorRate; // default to 1 task
+
+        if (amountKey && !isNaN(Number(row[amountKey]))) {
+          finalAmount = Number(row[amountKey]);
+        } else if (tasksKey && !isNaN(Number(row[tasksKey]))) {
+          finalAmount = Number(row[tasksKey]) * mentorRate;
+        }
+
+        // Find student by email
+        const { data: student } = await supabase
+          .from('students')
+          .select('id')
+          .ilike('email', email)
+          .maybeSingle();
+
+        if (student) {
+          // Add earning
+          const date = new Date(selectedYear ? parseInt(selectedYear.split('-')[0]) : new Date().getFullYear(), parseInt(importMonth), 28);
+          
+          await supabase.from('student_earnings').insert({
+            student_id: student.id,
+            amount: finalAmount,
+            earned_at: date.toISOString(),
+            description: 'Mentor connect Task (Imported)',
+            task_type: 'Mentor connect Task'
+          });
+          successCount++;
+        } else {
+          notFoundCount++;
+        }
+      }
+
+      toast.success(`Import complete. ${successCount} added. ${notFoundCount > 0 ? `${notFoundCount} not found.` : ''}`);
+      setIsImportModalOpen(false);
+      setImportFile(null);
+      fetchStudentEarnings();
+    } catch (error) {
+      console.error('Import error:', error);
+      toast.error('Failed to import file');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDownloadSample = () => {
+    const csvContent = "Email,Tasks Completed,Amount\nstudent1@example.com,1,\nstudent2@example.com,2,\nstudent3@example.com,,400";
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'Mentor_Connect_Import_Sample.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const handleSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc';
     if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
@@ -417,6 +509,10 @@ export default function AdminStudentEarnings() {
             <Button onClick={handleExportBankFormat} className="gap-2 bg-green-600 hover:bg-green-700">
               <FileSpreadsheet className="h-4 w-4" />
               Export Bank Format
+            </Button>
+            <Button onClick={() => setIsImportModalOpen(true)} className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white">
+              <UploadCloud className="h-4 w-4" />
+              Import Mentor Connect
             </Button>
             <Button onClick={() => setIsPotentialModalOpen(true)} className="gap-2 bg-blue-600 hover:bg-blue-700">
               <TrendingUp className="h-4 w-4" />
@@ -860,6 +956,77 @@ export default function AdminStudentEarnings() {
                 <strong>Note:</strong> This table reflects the standardized reward rates. Individual student earnings are calculated based on these rates when tasks are marked as completed.
               </p>
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Import Mentor Connect Modal */}
+        <Dialog open={isImportModalOpen} onOpenChange={(open) => {
+          setIsImportModalOpen(open);
+          if (!open) setImportFile(null);
+        }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Import Mentor Connect Earnings</DialogTitle>
+              <DialogDescription>
+                Upload an Excel file containing student emails. This will automatically add the monthly mentor connect earnings to matching students.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Earning Month</Label>
+                <Select value={importMonth} onValueChange={setImportMonth}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Month" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">January</SelectItem>
+                    <SelectItem value="1">February</SelectItem>
+                    <SelectItem value="2">March</SelectItem>
+                    <SelectItem value="3">April</SelectItem>
+                    <SelectItem value="4">May</SelectItem>
+                    <SelectItem value="5">June</SelectItem>
+                    <SelectItem value="6">July</SelectItem>
+                    <SelectItem value="7">August</SelectItem>
+                    <SelectItem value="8">September</SelectItem>
+                    <SelectItem value="9">October</SelectItem>
+                    <SelectItem value="10">November</SelectItem>
+                    <SelectItem value="11">December</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Excel File</Label>
+                <div className="flex gap-2 items-center">
+                  <Input 
+                    type="file" 
+                    accept=".xlsx, .xls, .csv" 
+                    onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                    className="flex-1"
+                  />
+                  <Button 
+                    variant="outline" 
+                    size="icon" 
+                    onClick={handleDownloadSample}
+                    title="Download Sample Format"
+                    className="shrink-0 text-blue-600 hover:text-blue-700"
+                  >
+                    <FileSpreadsheet className="h-4 w-4" />
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  The file must contain an <strong>Email</strong> column. Optionally, add a <strong>Tasks Completed</strong> column (e.g. 1 or 2) OR an <strong>Amount</strong> column to specify custom earnings. If omitted, it defaults to 1 task (₹400).
+                </p>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsImportModalOpen(false)}>Cancel</Button>
+              <Button onClick={handleImportMentorConnect} disabled={!importFile || loading}>
+                {loading ? 'Importing...' : 'Import Earnings'}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
