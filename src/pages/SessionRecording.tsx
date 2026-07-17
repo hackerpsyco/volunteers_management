@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, Save, ChevronRight, ChevronLeft, Plus, Trash2, Shield, ExternalLink, Mic, MicOff, CheckCircle, Info, Calendar, Search, Edit, Check, ChevronsUpDown, X } from 'lucide-react';
+import { ArrowLeft, Save, ChevronRight, ChevronLeft, Plus, Trash2, Shield, ExternalLink, Mic, MicOff, CheckCircle, Info, Calendar, Search, Edit, Check, ChevronsUpDown, X, ArrowUpDown } from 'lucide-react';
 import { parseSubmissionRequirements, serializeSubmissionRequirements, type SubmissionRequirement } from "../utils/submissionUtils";
 import { useNavigate, useParams } from 'react-router-dom';
 import { logActivity } from '@/utils/activityLogger';

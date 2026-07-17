@@ -163,15 +163,18 @@ export function DateRangePicker({
           {display || placeholder}
         </span>
         {(dateFrom || dateTo) && (
-          <button
-            type="button"
-            onClick={handleClear}
+          <div
+            role="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleClear();
+            }}
             className="text-muted-foreground hover:text-foreground transition-colors"
             tabIndex={-1}
             aria-label="Clear"
           >
             <X className="h-3.5 w-3.5" />
-          </button>
+          </div>
         )}
       </button>
 
