@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Edit, Plus, Trash2, Package, Monitor, Tag } from 'lucide-react';
+import { Edit, Plus, Trash2, Package, Monitor, Tag, FileText, Upload, Loader2, ExternalLink } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -22,6 +22,8 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { logActivity } from '@/utils/activityLogger';
+import { useAuth } from '@/contexts/AuthContext';
+import { cn } from '@/lib/utils';
 
 interface Student {
   id: string;
@@ -44,7 +46,7 @@ interface Student {
 interface AssignedItem {
   id?: string;
   student_id: string;
-  item_type: 'device' | 'other';
+  item_type: 'device' | 'other' | 'document';
   item_name: string;
   item_id: string;
   serial_number: string;
@@ -79,7 +81,26 @@ export function EditStudentDialog({
   const [editedStudent, setEditedStudent] = useState<Student | null>(null);
   const [originalEmail, setOriginalEmail] = useState<string | null>(null);
   const [assignedItems, setAssignedItems] = useState<AssignedItem[]>([]);
+  const [documents, setDocuments] = useState<AssignedItem[]>([]);
   const [loadingItems, setLoadingItems] = useState(false);
+  const [uploadingDocType, setUploadingDocType] = useState<string | null>(null);
+  
+  const { user } = useAuth();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    if (user?.id) {
+      const fetchRole = async () => {
+        const { data } = await supabase
+          .from('user_profiles')
+          .select('role_id')
+          .eq('id', user.id)
+          .single();
+        if (data?.role_id === 1) setIsAdmin(true);
+      };
+      fetchRole();
+    }
+  }, [user?.id]);
 
   useEffect(() => {
     if (student) {
@@ -108,8 +129,11 @@ export function EditStudentDialog({
         // Table may not exist yet — silently ignore
         console.warn('student_assigned_items table not ready:', error.message);
         setAssignedItems([]);
+        setDocuments([]);
       } else {
-        setAssignedItems(data || []);
+        const allItems = data || [];
+        setAssignedItems(allItems.filter(i => i.item_type !== 'document'));
+        setDocuments(allItems.filter(i => i.item_type === 'document'));
       }
     } catch {
       setAssignedItems([]);
@@ -132,6 +156,109 @@ export function EditStudentDialog({
         i === index ? { ...item, [field]: value } : item
       )
     );
+  };
+
+  const handleUploadDocument = async (event: React.ChangeEvent<HTMLInputElement>, index: number) => {
+    const file = event.target.files?.[0];
+    const doc = documents[index];
+    if (!file || !editedStudent || !doc || !doc.item_name) {
+      if (!doc?.item_name) toast.error('Please select a document type first.');
+      return;
+    }
+    
+    if (file.type !== 'application/pdf') {
+      toast.error('Only PDF files are allowed for documents.');
+      return;
+    }
+    
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('File size must be under 10MB.');
+      return;
+    }
+    
+    try {
+      setUploadingDocType(`doc-${index}`);
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const folderPath = ["document", editedStudent.academic_year || 'Unknown Year', editedStudent.designation || 'Unknown Class', `${editedStudent.name} - ${editedStudent.roll_number || editedStudent.student_id}`];
+      
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-to-gdrive`;
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('folderPath', JSON.stringify(folderPath));
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`
+        },
+        body: formData
+      });
+      
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Upload failed');
+      }
+      
+      const result = await response.json();
+      
+      // Save to database
+      const newDoc = {
+        student_id: editedStudent.id,
+        item_type: 'document' as const,
+        item_name: doc.item_name,
+        item_id: result.webViewLink,
+        serial_number: file.name,
+        condition: 'Uploaded'
+      };
+      
+      const { data, error } = await supabase.from('student_assigned_items').insert([newDoc]).select();
+      if (error) throw error;
+      
+      if (data && data.length > 0) {
+        setDocuments(prev => prev.map((d, i) => i === index ? data[0] : d));
+        toast.success(`${doc.item_name} uploaded successfully`);
+      }
+      
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e.message || 'Failed to upload document');
+    } finally {
+      setUploadingDocType(null);
+      event.target.value = '';
+    }
+  };
+
+  const handleDeleteDocument = async (doc: AssignedItem) => {
+    if (!doc.id) return;
+    try {
+      setUploadingDocType(doc.item_name);
+      
+      // Delete from GDrive
+      const { data: { session } } = await supabase.auth.getSession();
+      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-to-gdrive`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify({ link: doc.item_id })
+      });
+      
+      // Delete from DB
+      const { error } = await supabase.from('student_assigned_items').delete().eq('id', doc.id);
+      if (error) throw error;
+      
+      setDocuments(prev => prev.filter(d => d.id !== doc.id));
+      toast.success(`${doc.item_name} removed`);
+      
+    } catch (e: any) {
+      console.error(e);
+      toast.error('Failed to remove document');
+    } finally {
+      setUploadingDocType(null);
+    }
   };
 
   const removeItem = (index: number) => {
@@ -175,6 +302,7 @@ export function EditStudentDialog({
       const { error } = await (supabase as any)
         .from('students')
         .update({
+          student_id: editedStudent.student_id.trim(),
           name: editedStudent.name.trim(),
           gender: editedStudent.gender || null,
           dob: editedStudent.dob || null,
@@ -290,10 +418,11 @@ export function EditStudentDialog({
               <Input
                 id="student_id"
                 value={editedStudent.student_id}
-                disabled
-                className="mt-1 bg-muted"
+                disabled={!isAdmin}
+                onChange={(e) => setEditedStudent({ ...editedStudent, student_id: e.target.value })}
+                className={cn("mt-1", !isAdmin && "bg-muted")}
               />
-              <p className="text-xs text-muted-foreground mt-1">Cannot be changed</p>
+              {!isAdmin && <p className="text-xs text-muted-foreground mt-1">Cannot be changed</p>}
             </div>
             <div>
               <Label htmlFor="name" className="text-sm">
@@ -617,6 +746,131 @@ export function EditStudentDialog({
                 ))}
               </div>
             )}
+
+            {/* MY DOCUMENTS */}
+            <div className="pt-4 border-t border-border">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-blue-500" />
+                  <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+                    My Documents
+                  </h3>
+                  {documents.length > 0 && (
+                    <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800 hover:bg-blue-200">
+                      {documents.length}
+                    </Badge>
+                  )}
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setDocuments(prev => [...prev, { student_id: editedStudent.id, item_type: 'document', item_name: '', item_id: '', serial_number: '', condition: 'Uploaded' } as AssignedItem])}
+                  className="h-8 text-xs gap-1.5 border-blue-500 text-blue-600 hover:bg-blue-50"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Add Document
+                </Button>
+              </div>
+
+              {documents.length === 0 ? (
+                <div className="text-center py-6 border-2 border-dashed rounded-lg bg-muted/20">
+                  <FileText className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
+                  <p className="text-sm text-muted-foreground">No documents uploaded yet.</p>
+                  <p className="text-xs text-muted-foreground">Click <strong className="font-medium">Add Document</strong> to upload a PDF.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {documents.map((doc, index) => {
+                    const isUploadingThis = uploadingDocType === `doc-${index}`;
+                    return (
+                      <div key={index} className="p-4 border rounded-lg bg-card/50 relative group">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            if (doc.id) {
+                              handleDeleteDocument(doc);
+                            } else {
+                              setDocuments(prev => prev.filter((_, i) => i !== index));
+                            }
+                          }}
+                          className="absolute -top-3 -right-3 h-6 w-6 rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                          disabled={uploadingDocType !== null}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <Label className="text-xs text-muted-foreground mb-1 block">Document Type *</Label>
+                            <Select
+                              value={['10th', '12th', 'Affidavit', 'Form'].includes(doc.item_name || '') ? doc.item_name : ((documents[index] as any).isOther || (doc.item_name && !['10th', '12th', 'Affidavit', 'Form'].includes(doc.item_name))) ? 'Other' : ''}
+                              onValueChange={(val) => {
+                                setDocuments(prev => prev.map((d, i) => i === index ? { ...d, item_name: val === 'Other' ? '' : val, isOther: val === 'Other' } as any : d));
+                              }}
+                              disabled={!!doc.id || isUploadingThis}
+                            >
+                              <SelectTrigger className="h-8 text-xs">
+                                <SelectValue placeholder="Select type" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="10th">10th</SelectItem>
+                                <SelectItem value="12th">12th</SelectItem>
+                                <SelectItem value="Affidavit">Affidavit</SelectItem>
+                                <SelectItem value="Form">Form</SelectItem>
+                                <SelectItem value="Other">Other</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            
+                            {((documents[index] as any).isOther || (doc.item_name && !['10th', '12th', 'Affidavit', 'Form'].includes(doc.item_name))) && (
+                              <Input 
+                                className="h-8 text-xs mt-2" 
+                                placeholder="Enter document name"
+                                value={doc.item_name || ''}
+                                onChange={(e) => setDocuments(prev => prev.map((d, i) => i === index ? { ...d, item_name: e.target.value } : d))}
+                                disabled={!!doc.id || isUploadingThis}
+                              />
+                            )}
+                          </div>
+                          
+                          <div>
+                            <Label className="text-xs text-muted-foreground mb-1 block">File</Label>
+                            {doc.id ? (
+                              <div className="flex items-center gap-2 h-8 px-3 rounded-md border bg-muted/50 text-xs">
+                                <FileText className="h-3.5 w-3.5 text-blue-500 flex-shrink-0" />
+                                <span className="truncate flex-1" title={doc.serial_number}>{doc.serial_number}</span>
+                                <a 
+                                  href={doc.item_id} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 hover:text-blue-800 flex-shrink-0"
+                                  title="View Document"
+                                >
+                                  <ExternalLink className="h-3.5 w-3.5" />
+                                </a>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  type="file"
+                                  accept="application/pdf"
+                                  className="h-8 text-xs file:h-full file:bg-transparent file:border-0 file:text-xs file:font-medium"
+                                  onChange={(e) => handleUploadDocument(e, index)}
+                                  disabled={!doc.item_name || isUploadingThis}
+                                />
+                                {isUploadingThis && <Loader2 className="h-4 w-4 animate-spin text-blue-500" />}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

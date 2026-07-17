@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, Save, ChevronRight, ChevronLeft, Plus, Trash2, Shield, ExternalLink, Mic, MicOff, Check, ChevronsUpDown, X, Edit, Search, ArrowUpDown } from 'lucide-react';
+import { ArrowLeft, Save, ChevronRight, ChevronLeft, Plus, Trash2, Shield, ExternalLink, Mic, MicOff, CheckCircle, Info, Calendar, Search, Edit, Check, ChevronsUpDown, X } from 'lucide-react';
+import { parseSubmissionRequirements, serializeSubmissionRequirements, type SubmissionRequirement } from "../utils/submissionUtils";
 import { useNavigate, useParams } from 'react-router-dom';
 import { logActivity } from '@/utils/activityLogger';
 import { cn } from '@/lib/utils';
@@ -149,7 +150,7 @@ export default function SessionRecording() {
     submission_link: '',
     feedback_notes: '',
     earning_amount: '5',
-    submission_types: ['code'],
+    submission_requirements: [] as SubmissionRequirement[],
   });
 
   const [isListening, setIsListening] = useState(false);
@@ -189,9 +190,9 @@ export default function SessionRecording() {
     
     const earningMatch = Number(newHomework.earning_amount || 0) === Number(draft.earning_amount || 0);
     
-    const newTypes = [...(newHomework.submission_types || [])].sort().join(',');
-    const draftTypes = [...(draft.submission_types || [])].sort().join(',');
-    const typesMatch = newTypes === draftTypes;
+    const draftTypes = serializeSubmissionRequirements(parseSubmissionRequirements(draft.submission_types));
+    const newTypes = serializeSubmissionRequirements(newHomework.submission_requirements);
+    const typesMatch = draftTypes.join(',') === newTypes.join(',');
 
     return taskNameMatch && taskTypeMatch && descMatch && deadlineMatch && earningMatch && typesMatch;
   })();
@@ -262,6 +263,28 @@ export default function SessionRecording() {
     };
 
     recognition.start();
+  };
+
+  const handleNextPage = () => {
+    if (currentPage === 1) {
+      if (currentSubTab === 'a') setCurrentSubTab('b');
+      else if (currentSubTab === 'b') setCurrentSubTab('c');
+      else if (currentSubTab === 'c') setCurrentPage(3);
+    } else if (currentPage === 3) {
+      setCurrentPage(2);
+    }
+  };
+
+  const handlePreviousPage = () => {
+    if (currentPage === 2) {
+      setCurrentPage(3);
+    } else if (currentPage === 3) {
+      setCurrentPage(1);
+      setCurrentSubTab('c');
+    } else if (currentPage === 1) {
+      if (currentSubTab === 'c') setCurrentSubTab('b');
+      else if (currentSubTab === 'b') setCurrentSubTab('a');
+    }
   };
 
   useEffect(() => {
@@ -494,6 +517,7 @@ export default function SessionRecording() {
           status,
           feedback_notes,
           earning_amount,
+          submission_types,
           students:student_id(name),
           student_earnings(amount)
         `)
@@ -588,6 +612,7 @@ export default function SessionRecording() {
           submission_link: draft.submission_link || '',
           feedback_notes: draft.feedback_notes || '',
           earning_amount: draft.earning_amount?.toString() || '5',
+          submission_requirements: parseSubmissionRequirements(draft.submission_types),
         });
       }
     } catch (error) {
@@ -993,7 +1018,7 @@ export default function SessionRecording() {
       return;
     }
     // Benevity ID is now optional
-    if (activeSubTab === 'benevity' && !formData.hours_validation_id) {
+    if (hoursSubTab === 'benevity' && !hoursValidationId) {
       // toast.error('Benevity ID is required.');
       // return false;
     }
@@ -1211,7 +1236,7 @@ export default function SessionRecording() {
               deadline: templateTask.deadline,
               status: 'pending',
               earning_amount: templateTask.earning_amount,
-              submission_types: templateTask.submission_types || ['code'],
+              submission_types: templateTask.submission_types || [],
               academic_year: templateTask.academic_year || selectedYear,
               created_by: user?.id || null
             }]);
@@ -1294,7 +1319,7 @@ export default function SessionRecording() {
         submission_link: '',
         feedback_notes: '',
         earning_amount: currentHw.earning_amount?.toString() || '5',
-        submission_types: currentHw.submission_types || ['code'],
+        submission_requirements: parseSubmissionRequirements(currentHw.submission_types),
       });
       setIsEditingHomework(true);
     }
@@ -1349,7 +1374,7 @@ export default function SessionRecording() {
             task_description: newHomework.task_description || null,
             deadline: newHomework.deadline ? new Date(newHomework.deadline).toISOString() : null,
             earning_amount: Number(newHomework.earning_amount) || 5,
-            submission_types: newHomework.submission_types && newHomework.submission_types.length > 0 ? newHomework.submission_types : ['code'],
+            submission_types: serializeSubmissionRequirements(newHomework.submission_requirements),
             updated_at: new Date().toISOString(),
           })
           .eq('session_id', sessionId);
@@ -1397,7 +1422,7 @@ export default function SessionRecording() {
           submission_link: newHomework.submission_link || null,
           feedback_notes: newHomework.feedback_notes || null,
           earning_amount: Number(newHomework.earning_amount) || 5,
-          submission_types: newHomework.submission_types && newHomework.submission_types.length > 0 ? newHomework.submission_types : ['code'],
+          submission_types: serializeSubmissionRequirements(newHomework.submission_requirements),
           academic_year: selectedYear,
           status: 'draft',
           created_at: new Date().toISOString(),
@@ -1497,7 +1522,7 @@ export default function SessionRecording() {
             task_description: newHomework.task_description || null,
             deadline: newHomework.deadline ? new Date(newHomework.deadline).toISOString() : null,
             earning_amount: Number(newHomework.earning_amount) || 5,
-            submission_types: newHomework.submission_types && newHomework.submission_types.length > 0 ? newHomework.submission_types : ['code'],
+            submission_types: serializeSubmissionRequirements(newHomework.submission_requirements),
             updated_at: new Date().toISOString(),
           })
           .eq('session_id', sessionId);
@@ -1521,6 +1546,14 @@ export default function SessionRecording() {
             .from('student_task_feedback')
             .update({
               status: 'pending',
+              feedback_type: finalTaskType || 'homework',
+              task_name: newHomework.task_name,
+              task_description: newHomework.task_description || null,
+              deadline: newHomework.deadline ? new Date(newHomework.deadline).toISOString() : null,
+              submission_link: newHomework.submission_link || null,
+              feedback_notes: newHomework.feedback_notes || null,
+              earning_amount: Number(newHomework.earning_amount) || 5,
+              submission_types: serializeSubmissionRequirements(newHomework.submission_requirements),
               updated_at: new Date().toISOString(),
             })
             .eq('session_id', sessionId);
@@ -1592,7 +1625,7 @@ export default function SessionRecording() {
             submission_link: newHomework.submission_link || null,
             feedback_notes: newHomework.feedback_notes || null,
             earning_amount: Number(newHomework.earning_amount) || 5,
-            submission_types: newHomework.submission_types && newHomework.submission_types.length > 0 ? newHomework.submission_types : ['code'],
+            submission_types: serializeSubmissionRequirements(newHomework.submission_requirements),
             academic_year: selectedYear,
             status: 'pending',
             created_at: new Date().toISOString(),
@@ -1621,7 +1654,7 @@ export default function SessionRecording() {
         submission_link: '',
         feedback_notes: '',
         earning_amount: '5',
-        submission_types: ['code'],
+        submission_requirements: [],
       });
       fetchHomeworkRecords();
     } catch (error) {
@@ -1685,35 +1718,6 @@ export default function SessionRecording() {
       </DashboardLayout>
     );
   }
-
-  const handleNextPage = () => {
-    if (currentPage === 1) {
-      if (currentSubTab === 'a') {
-        setCurrentSubTab('b');
-      } else if (currentSubTab === 'b') {
-        setCurrentSubTab('c');
-      } else if (currentSubTab === 'c') {
-        setCurrentPage(3);
-      }
-    } else if (currentPage === 3) {
-      setCurrentPage(2);
-    }
-  };
-
-  const handlePreviousPage = () => {
-    if (currentPage === 2) {
-      setCurrentPage(3);
-    } else if (currentPage === 3) {
-      setCurrentPage(1);
-      setCurrentSubTab('c');
-    } else if (currentPage === 1) {
-      if (currentSubTab === 'c') {
-        setCurrentSubTab('b');
-      } else if (currentSubTab === 'b') {
-        setCurrentSubTab('a');
-      }
-    }
-  };
 
   return (
     <DashboardLayout>
@@ -2480,43 +2484,90 @@ export default function SessionRecording() {
                           />
                         </div>
                       </div>
-                      <div className="space-y-2 mt-4">
-                        <Label>Allowed Submission Formats</Label>
-                        <div className="flex flex-wrap gap-4 pt-2">
-                          {[
-                            { value: 'video', label: 'Video' },
-                            { value: 'pdf', label: 'Pdf' },
-                            { value: 'doc', label: 'Doc' },
-                            { value: 'ppt', label: 'Ppt' },
-                            { value: 'excel', label: 'Excel' },
-                            { value: 'image', label: 'Image' },
-                            { value: 'code', label: 'Code' },
-                            { value: 'link', label: 'Link' },
-                          ].map(({ value: type, label }) => {
-                            const isSelected = newHomework.submission_types?.includes(type) ?? (type === 'code');
-                            return (
-                              <label key={type} className="flex items-center space-x-2 cursor-pointer">
-                                <input 
-                                  type="checkbox" 
-                                  className="rounded border-gray-300"
-                                  checked={isSelected}
-                                  onChange={(e) => {
-                                    const currentTypes = newHomework.submission_types || ['code'];
-                                    const newTypes = e.target.checked 
-                                      ? [...currentTypes, type]
-                                      : currentTypes.filter(t => t !== type);
-                                    setNewHomework({ ...newHomework, submission_types: newTypes });
-                                  }}
-                                />
-                                <span className="text-sm font-medium">
-                                  {label}
-                                </span>
-                              </label>
-                            );
-                          })}
+                      
+                      <div className="space-y-4 mt-6">
+                        <div className="flex items-center justify-between">
+                          <Label>Submission Requirements</Label>
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => {
+                              const newReq: SubmissionRequirement = {
+                                id: `req-${Date.now()}`,
+                                title: '',
+                                type: 'link'
+                              };
+                              setNewHomework({
+                                ...newHomework,
+                                submission_requirements: [...newHomework.submission_requirements, newReq]
+                              });
+                            }}
+                          >
+                            + Add Requirement
+                          </Button>
                         </div>
-                        <p className="text-xs text-muted-foreground">Select which formats students can upload.</p>
+                        
+                        {newHomework.submission_requirements.length === 0 ? (
+                          <div className="text-sm text-gray-500 italic">No submission requirements added. Students won't be prompted to upload anything.</div>
+                        ) : (
+                          <div className="space-y-3">
+                            {newHomework.submission_requirements.map((req, index) => (
+                              <div key={req.id} className="flex gap-2 items-start border p-3 rounded-md bg-gray-50">
+                                <div className="flex-1 space-y-2">
+                                  <div>
+                                    <Label className="text-xs">Requirement Title</Label>
+                                    <Input 
+                                      placeholder="e.g., Presentation PPT" 
+                                      value={req.title}
+                                      onChange={(e) => {
+                                        const updated = [...newHomework.submission_requirements];
+                                        updated[index].title = e.target.value;
+                                        setNewHomework({ ...newHomework, submission_requirements: updated });
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                                <div className="w-48 space-y-2">
+                                  <Label className="text-xs">File Type</Label>
+                                  <select 
+                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                                    value={req.type}
+                                    onChange={(e) => {
+                                      const updated = [...newHomework.submission_requirements];
+                                      updated[index].type = e.target.value;
+                                      setNewHomework({ ...newHomework, submission_requirements: updated });
+                                    }}
+                                  >
+                                    <option value="video">Video</option>
+                                    <option value="pdf">Pdf</option>
+                                    <option value="doc">Doc</option>
+                                    <option value="ppt">Ppt</option>
+                                    <option value="excel">Excel</option>
+                                    <option value="image">Image</option>
+                                    <option value="code">Code</option>
+                                    <option value="link">Link</option>
+                                  </select>
+                                </div>
+                                <div className="pt-6">
+                                  <Button
+                                    type="button"
+                                    variant="destructive"
+                                    size="icon"
+                                    onClick={() => {
+                                      const updated = newHomework.submission_requirements.filter((_, i) => i !== index);
+                                      setNewHomework({ ...newHomework, submission_requirements: updated });
+                                    }}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
+                      
                       <div className="mt-4">
                         <div className="flex items-center justify-between mb-1">
                           <Label htmlFor="hw_description" className="text-sm">Task Description</Label>

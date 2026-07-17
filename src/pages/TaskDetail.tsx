@@ -22,6 +22,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useAcademicYear } from '@/contexts/AcademicYearContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { parseSubmissionRequirements, parseSubmissionLinks } from "../utils/submissionUtils";
 import {
   Select,
   SelectContent,
@@ -60,6 +61,7 @@ interface TaskItem {
   feedback_notes?: string | null;
   volunteer_name?: string;
   facilitator_name?: string;
+  submission_types?: string[];
 }
 
 interface TaskGroup {
@@ -93,6 +95,11 @@ export default function TaskDetail() {
   // Reject dialog state
   const [rejectingTaskId, setRejectingTaskId] = useState<string | null>(null);
   const [rejectionComment, setRejectionComment] = useState('');
+  
+  // Partial Reject state
+  const [rejectRequirement, setRejectRequirement] = useState<{taskId: string, reqId: string, reqTitle: string, currentLinks: Record<string, string>} | null>(null);
+  const [requirementRejectComment, setRequirementRejectComment] = useState('');
+  
   const [editingCommentTaskId, setEditingCommentTaskId] = useState<string | null>(null);
   const [editCommentValue, setEditCommentValue] = useState('');
   const [editingDeadlineTaskId, setEditingDeadlineTaskId] = useState<string | null>(null);
@@ -117,6 +124,7 @@ export default function TaskDetail() {
           task_description,
           deadline,
           submission_link,
+          submission_types,
           status,
           student_id,
           session_id,
@@ -169,10 +177,11 @@ export default function TaskDetail() {
           session_title: task.sessions?.title || '-',
           class_name: task.sessions?.class_batch || '-',
           earning_amount: task.earning_amount || 0,
-          feedback_type: task.feedback_type || '',
-          rejection_comment: task.rejection_comment || null,
-          feedback_notes: task.feedback_notes || null,
-          volunteer_name: task.sessions?.volunteer_name || '-',
+          feedback_type: task.feedback_type,
+          rejection_comment: task.rejection_comment,
+          feedback_notes: task.feedback_notes,
+          submission_types: task.submission_types || [],
+          volunteer_name: task.sessions?.volunteer_name || undefined,
           facilitator_name: task.sessions?.facilitator_name || '-',
         }));
 
@@ -392,6 +401,77 @@ export default function TaskDetail() {
       toast.error('Failed to reject task: ' + (error.message || 'Unknown error'));
     } finally {
       setUpdatingId(null);
+      setRejectingTaskId(null);
+      setRejectionComment('');
+    }
+  };
+
+  const handlePartialReject = async () => {
+    if (!rejectRequirement || !requirementRejectComment.trim()) {
+      toast.error('Please enter a rejection reason.');
+      return;
+    }
+    
+    const { taskId, reqId, reqTitle, currentLinks } = rejectRequirement;
+    const newLinks = { ...currentLinks };
+    const linkToDelete = newLinks[reqId];
+    delete newLinks[reqId];
+    
+    const linkStr = serializeSubmissionLinks(newLinks);
+    const comment = `[${reqTitle}]: ${requirementRejectComment.trim()}`;
+    
+    try {
+      setUpdatingId(taskId);
+      const { data: currentTask } = await supabase.from('student_task_feedback').select('rejection_comment').eq('id', taskId).single();
+      
+      let newComment = comment;
+      if (currentTask?.rejection_comment) {
+        newComment = `${currentTask.rejection_comment}\n${comment}`;
+      }
+      
+      // Delete file from drive if it's a drive link
+      if (linkToDelete) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          const links = linkToDelete.split(',');
+          for (const link of links) {
+            if (link.includes('drive.google.com')) {
+              await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-to-gdrive`, {
+                method: 'DELETE',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${session?.access_token}`
+                },
+                body: JSON.stringify({ link: link.trim() })
+              });
+            }
+          }
+        } catch (err) {
+          console.error("Failed to delete file from Google Drive", err);
+        }
+      }
+      
+      const { error } = await supabase
+        .from('student_task_feedback')
+        .update({
+          submission_link: Object.keys(newLinks).length > 0 ? linkStr : null,
+          status: 'rejected',
+          rejection_comment: newComment,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', taskId);
+        
+      if (error) throw error;
+      
+      toast.success(`${reqTitle} rejected successfully.`);
+      setRejectRequirement(null);
+      setRequirementRejectComment('');
+      fetchTaskDetail();
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to reject requirement.');
+    } finally {
+      setUpdatingId(null);
     }
   };
 
@@ -564,22 +644,51 @@ export default function TaskDetail() {
                     </span>
                   </td>
                   <td className="py-2.5 px-3 break-all">
-                    {task.submission_link ? (
-                      <div className="space-y-1">
-                        {task.submission_link.split(',').filter(Boolean).map((link, idx) => (
-                          <div key={idx}>
-                            <a 
-                              href={link.trim()} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="text-blue-600 underline hover:text-blue-800"
-                            >
-                              {link.trim()}
-                            </a>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
+                    {task.submission_link ? (() => {
+                      const reqs = parseSubmissionRequirements(task.submission_types);
+                      const links = parseSubmissionLinks(task.submission_link, reqs);
+                      const hasAny = Object.values(links).some(l => l.trim() !== '');
+                      
+                      if (!hasAny) return <span className="text-gray-400 italic">No submission</span>;
+                      
+                      return (
+                        <div className="space-y-2">
+                          {reqs.map((req) => {
+                            const linkStr = links[req.id];
+                            if (!linkStr) return null;
+                            const splitLinks = linkStr.split(',').filter(Boolean);
+                            if (splitLinks.length === 0) return null;
+                            
+                            return (
+                              <div key={req.id} className="text-xs">
+                                <span className="font-semibold text-gray-700 block mb-1">{req.title}:</span>
+                                {splitLinks.map((link, idx) => (
+                                    <div key={idx} className="flex items-center gap-2">
+                                      <a 
+                                        href={link.trim()} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="text-blue-600 underline hover:text-blue-800"
+                                      >
+                                        View {splitLinks.length > 1 ? idx + 1 : ''}
+                                      </a>
+                                      {task.status !== 'completed' && (
+                                        <button 
+                                          onClick={() => setRejectRequirement({taskId: task.id, reqId: req.id, reqTitle: req.title, currentLinks: links})}
+                                          className="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 p-0.5 rounded ml-1 transition-colors"
+                                          title="Reject this specific file"
+                                        >
+                                          <XCircle className="h-3.5 w-3.5" />
+                                        </button>
+                                      )}
+                                    </div>
+                                ))}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })() : (
                       <span className="text-gray-400 italic">No submission</span>
                     )}
                   </td>
@@ -790,22 +899,50 @@ export default function TaskDetail() {
                       >
                         {task.status}
                       </Badge>
-                      {task.submission_link && (
-                        <div className="flex gap-1.5">
-                          {task.submission_link.split(',').filter(Boolean).map((link, idx) => (
-                            <a
-                              key={idx}
-                              href={link.trim()}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-primary hover:underline bg-primary/10 p-1.5 rounded-md"
-                              title={`View File ${idx + 1}`}
-                            >
-                              <ExternalLink className="h-4 w-4" />
-                            </a>
-                          ))}
-                        </div>
-                      )}
+                      {task.submission_link && (() => {
+                        const reqs = parseSubmissionRequirements(task.submission_types);
+                        const links = parseSubmissionLinks(task.submission_link, reqs);
+                        return (
+                          <div className="space-y-2">
+                            {reqs.map((req) => {
+                              const linkStr = links[req.id];
+                              if (!linkStr) return null;
+                              const splitLinks = linkStr.split(',').filter(Boolean);
+                              if (splitLinks.length === 0) return null;
+                              
+                              return (
+                                <div key={req.id} className="text-sm">
+                                  <span className="font-semibold block mb-1">{req.title}:</span>
+                                  <div className="flex flex-wrap gap-2">
+                                    {splitLinks.map((link, idx) => (
+                                      <div key={idx} className="flex items-center justify-between w-full">
+                                        <a 
+                                          href={link.trim()} 
+                                          target="_blank" 
+                                          rel="noopener noreferrer"
+                                          className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-full transition-colors font-medium"
+                                        >
+                                          <ExternalLink className="h-3.5 w-3.5" />
+                                          View {splitLinks.length > 1 ? idx + 1 : ''}
+                                        </a>
+                                        {task.status !== 'completed' && (
+                                          <button 
+                                            onClick={() => setRejectRequirement({taskId: task.id, reqId: req.id, reqTitle: req.title, currentLinks: links})}
+                                            className="text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 px-2 py-1.5 rounded-md transition-colors text-xs font-semibold inline-flex items-center gap-1 border border-red-100"
+                                            title="Reject this specific file"
+                                          >
+                                            <XCircle className="h-3.5 w-3.5" /> Reject
+                                          </button>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
                       <div className="flex gap-2">
                         {task.status !== 'pending' && task.status !== 'rejected' && (
                           <Button
@@ -922,7 +1059,48 @@ export default function TaskDetail() {
           </div>
         </DialogContent>
       </Dialog>
-      {/* Reject Dialog */}
+      
+      {/* Reject Requirement Dialog */}
+        <Dialog open={!!rejectRequirement} onOpenChange={(open) => !open && setRejectRequirement(null)}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-red-600">
+                <XCircle className="h-5 w-5" />
+                Reject Specific File
+              </DialogTitle>
+              <DialogDescription>
+                You are rejecting the file for <strong>"{rejectRequirement?.reqTitle}"</strong>.
+                This will delete the file and set the task to rejected so the student can upload this specific file again.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="requirement_reject_reason">Reason for rejection (Required)</Label>
+                <Textarea
+                  id="requirement_reject_reason"
+                  placeholder="E.g. The video is too short, please resubmit."
+                  value={requirementRejectComment}
+                  onChange={(e) => setRequirementRejectComment(e.target.value)}
+                  className="min-h-[100px]"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setRejectRequirement(null)}>
+                Cancel
+              </Button>
+              <Button 
+                variant="destructive" 
+                onClick={handlePartialReject}
+                disabled={!requirementRejectComment.trim() || updatingId !== null}
+              >
+                {updatingId === rejectRequirement?.taskId ? 'Rejecting...' : 'Reject File'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+      {/* Global Reject Task Dialog */}
       <Dialog open={!!rejectingTaskId} onOpenChange={(open) => { if (!open) { setRejectingTaskId(null); setRejectionComment(''); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>

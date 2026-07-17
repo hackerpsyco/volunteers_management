@@ -23,6 +23,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { parseSubmissionRequirements, serializeSubmissionRequirements, type SubmissionRequirement } from "../utils/submissionUtils";
 import { logActivity } from '@/utils/activityLogger';
 import { useAcademicYear } from '@/contexts/AcademicYearContext';
 
@@ -63,7 +64,7 @@ export default function AddTask() {
     subject_id: string;
     earning_amount: number | '';
     task_type: string;
-    submission_types: string[];
+    submission_requirements: SubmissionRequirement[];
   }>({
     title: '',
     description: '',
@@ -75,7 +76,7 @@ export default function AddTask() {
     subject_id: '',
     earning_amount: 5,
     task_type: '',
-    submission_types: ['code'],
+    submission_requirements: [],
   });
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
@@ -224,7 +225,7 @@ export default function AddTask() {
         academic_year: formData.academic_year,
         subject_id: formData.subject_id || null,
         earning_amount: formData.earning_amount === '' ? 0 : formData.earning_amount,
-        submission_types: formData.submission_types.length > 0 ? formData.submission_types : ['code'],
+        submission_types: serializeSubmissionRequirements(formData.submission_requirements),
         created_by: user?.id || null,
       }));
 
@@ -314,32 +315,89 @@ export default function AddTask() {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label>Allowed Submission Formats</Label>
-                <div className="flex flex-wrap gap-4 pt-2">
-                  {['video', 'pdf', 'doc', 'ppt', 'excel', 'image', 'code', 'link'].map(type => {
-                    const isSelected = formData.submission_types.includes(type);
-                    return (
-                      <label key={type} className="flex items-center space-x-2 cursor-pointer">
-                        <input 
-                          type="checkbox" 
-                          className="rounded border-gray-300"
-                          checked={isSelected}
-                          onChange={(e) => {
-                            const newTypes = e.target.checked 
-                              ? [...formData.submission_types, type]
-                              : formData.submission_types.filter(t => t !== type);
-                            setFormData({ ...formData, submission_types: newTypes });
-                          }}
-                        />
-                        <span className="text-sm font-medium capitalize">
-                          {type}
-                        </span>
-                      </label>
-                    );
-                  })}
+              <div className="col-span-1 md:col-span-2">
+                <div className="space-y-4 mt-6">
+                  <div className="flex items-center justify-between">
+                    <Label>Submission Requirements</Label>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => {
+                        const newReq: SubmissionRequirement = {
+                          id: `req-${Date.now()}`,
+                          title: '',
+                          type: 'link'
+                        };
+                        setFormData({
+                          ...formData,
+                          submission_requirements: [...formData.submission_requirements, newReq]
+                        });
+                      }}
+                    >
+                      + Add Requirement
+                    </Button>
+                  </div>
+                  
+                  {formData.submission_requirements.length === 0 ? (
+                    <div className="text-sm text-gray-500 italic">No submission requirements added. Students won't be prompted to upload anything.</div>
+                  ) : (
+                    <div className="space-y-3">
+                      {formData.submission_requirements.map((req, index) => (
+                        <div key={req.id} className="flex gap-2 items-start border p-3 rounded-md bg-gray-50">
+                          <div className="flex-1 space-y-2">
+                            <div>
+                              <Label className="text-xs">Requirement Title</Label>
+                              <Input 
+                                placeholder="e.g., Presentation PPT" 
+                                value={req.title}
+                                onChange={(e) => {
+                                  const updated = [...formData.submission_requirements];
+                                  updated[index].title = e.target.value;
+                                  setFormData({ ...formData, submission_requirements: updated });
+                                }}
+                              />
+                            </div>
+                          </div>
+                          <div className="w-48 space-y-2">
+                            <Label className="text-xs">File Type</Label>
+                            <select 
+                              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                              value={req.type}
+                              onChange={(e) => {
+                                const updated = [...formData.submission_requirements];
+                                updated[index].type = e.target.value as SubmissionRequirement['type'];
+                                setFormData({ ...formData, submission_requirements: updated });
+                              }}
+                            >
+                              <option value="video">Video</option>
+                              <option value="pdf">Pdf</option>
+                              <option value="doc">Doc</option>
+                              <option value="ppt">Ppt</option>
+                              <option value="excel">Excel</option>
+                              <option value="image">Image</option>
+                              <option value="code">Code</option>
+                              <option value="link">Link</option>
+                            </select>
+                          </div>
+                          <div className="pt-6">
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="icon"
+                              onClick={() => {
+                                const updated = formData.submission_requirements.filter((_, i) => i !== index);
+                                setFormData({ ...formData, submission_requirements: updated });
+                              }}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <p className="text-xs text-muted-foreground">Select which formats students can upload.</p>
               </div>
 
               <div className="space-y-2">

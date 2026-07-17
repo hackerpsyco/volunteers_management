@@ -4,6 +4,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAcademicYear } from '@/contexts/AcademicYearContext';
+import { parseSubmissionRequirements, parseSubmissionLinks } from "../utils/submissionUtils";
 import { cn } from '@/lib/utils';
 import { 
   Table, 
@@ -52,6 +53,7 @@ interface TaskRecord {
   feedback_type: string;
   student_id: string;
   earning_amount?: number;
+  submission_types?: string[];
 }
 
 interface StudentGroup {
@@ -133,6 +135,7 @@ export default function ClassTaskReview() {
           feedback_type,
           student_id,
           earning_amount,
+          submission_types,
           created_at
         `)
         .in('student_id', classmateIds)
@@ -435,22 +438,44 @@ export default function ClassTaskReview() {
                                 </div>
                               </TableCell>
                               <TableCell>
-                                {task.submission_link ? (
-                                  <div className="flex flex-wrap gap-1">
-                                    {task.submission_link.split(',').filter(Boolean).map((link, idx) => (
-                                      <a
-                                        key={idx}
-                                        href={link.trim().startsWith('http') ? link.trim() : `https://${link.trim()}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-full transition-colors"
-                                      >
-                                        <ExternalLink className="h-3 w-3" />
-                                        View {task.submission_link!.split(',').length > 1 ? idx + 1 : ''}
-                                      </a>
-                                    ))}
-                                  </div>
-                                ) : (
+                                {task.submission_link ? (() => {
+                                  const reqs = parseSubmissionRequirements(task.submission_types);
+                                  const links = parseSubmissionLinks(task.submission_link, reqs);
+                                  const hasAny = Object.values(links).some(l => l.trim() !== '');
+                                  
+                                  if (!hasAny) return <span className="text-xs text-muted-foreground italic">No submission</span>;
+                                  
+                                  return (
+                                    <div className="flex flex-col gap-1.5">
+                                      {reqs.map(req => {
+                                        const linkStr = links[req.id];
+                                        if (!linkStr) return null;
+                                        const splitLinks = linkStr.split(',').filter(Boolean);
+                                        if (splitLinks.length === 0) return null;
+                                        
+                                        return (
+                                          <div key={req.id} className="flex flex-col gap-0.5">
+                                            <span className="text-[10px] font-semibold text-gray-500 uppercase">{req.title}</span>
+                                            <div className="flex flex-wrap gap-1">
+                                              {splitLinks.map((link, idx) => (
+                                                <a
+                                                  key={idx}
+                                                  href={link.trim().startsWith('http') ? link.trim() : `https://${link.trim()}`}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                  className="inline-flex items-center gap-1 text-[10px] text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded transition-colors"
+                                                >
+                                                  <ExternalLink className="h-2.5 w-2.5" />
+                                                  View {splitLinks.length > 1 ? idx + 1 : ''}
+                                                </a>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  );
+                                })() : (
                                   <span className="text-xs text-muted-foreground italic">No submission</span>
                                 )}
                               </TableCell>

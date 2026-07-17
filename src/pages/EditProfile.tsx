@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Upload, X } from 'lucide-react';
+import { ArrowLeft, Upload, X, MapPin, ExternalLink, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,7 @@ export default function EditProfile() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [fetchingLocation, setFetchingLocation] = useState(false);
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [profileImageFile, setProfileImageFile] = useState<File | null>(null);
   const [profileData, setProfileData] = useState({
@@ -245,6 +246,66 @@ export default function EditProfile() {
     setProfileImageFile(null);
   };
 
+  const fetchLiveLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported by your browser');
+      return;
+    }
+    
+    setFetchingLocation(true);
+    toast.info('Fetching your exact location...');
+    
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        try {
+          // Use OpenStreetMap Nominatim for free reverse geocoding
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+          if (!res.ok) throw new Error('Failed to fetch address');
+          
+          const data = await res.json();
+          const address = data.display_name || `${latitude}, ${longitude}`;
+          
+          setProfileData({
+            ...profileData,
+            location: JSON.stringify({ address, lat: latitude, lng: longitude })
+          });
+          toast.success('Live location fetched successfully!');
+        } catch (e) {
+          console.error(e);
+          toast.error('Failed to get address from coordinates. Saving coordinates only.');
+          setProfileData({
+            ...profileData,
+            location: JSON.stringify({ address: `Coordinates: ${latitude}, ${longitude}`, lat: latitude, lng: longitude })
+          });
+        } finally {
+          setFetchingLocation(false);
+        }
+      },
+      (err) => {
+        console.error(err);
+        setFetchingLocation(false);
+        toast.error('Error fetching location: ' + err.message);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
+
+  const parseLocation = (locString: string) => {
+    if (!locString) return { address: '', lat: null, lng: null };
+    try {
+      const parsed = JSON.parse(locString);
+      if (parsed && typeof parsed === 'object' && parsed.address) {
+        return parsed;
+      }
+    } catch (e) {
+      // not json
+    }
+    return { address: locString, lat: null, lng: null };
+  };
+
+  const locData = parseLocation(profileData.location);
+
   return (
     <DashboardLayout>
       <div className="max-w-2xl mx-auto space-y-6">
@@ -363,16 +424,55 @@ export default function EditProfile() {
 
             {/* Location */}
             <div>
-              <Label htmlFor="location" className="text-sm font-medium">Location</Label>
+              <div className="flex justify-between items-center mb-1">
+                <Label htmlFor="location" className="text-sm font-medium">Location</Label>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={fetchLiveLocation}
+                  disabled={isLocked || fetchingLocation}
+                  className="h-8 gap-1.5 text-xs"
+                >
+                  {fetchingLocation ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MapPin className="h-3.5 w-3.5 text-blue-500" />}
+                  {fetchingLocation ? 'Fetching...' : 'Fetch Live Location'}
+                </Button>
+              </div>
               <Input
                 id="location"
                 type="text"
-                placeholder="Enter your location"
-                value={profileData.location}
-                onChange={(e) => setProfileData({ ...profileData, location: e.target.value })}
+                placeholder="Enter your location or fetch live location"
+                value={locData.address}
+                onChange={(e) => {
+                  const newAddress = e.target.value;
+                  if (locData.lat && locData.lng) {
+                    setProfileData({ ...profileData, location: JSON.stringify({ ...locData, address: newAddress }) });
+                  } else {
+                    setProfileData({ ...profileData, location: newAddress });
+                  }
+                }}
                 disabled={isLocked}
                 className="mt-1"
               />
+              {locData.lat && locData.lng && (
+                <div className="mt-3 p-3 bg-blue-50 border border-blue-100 rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-xs text-slate-600">
+                    <MapPin className="h-3.5 w-3.5 text-blue-500" />
+                    <span>
+                      <strong className="text-slate-700">Saved Coordinates:</strong> {locData.lat.toFixed(5)}, {locData.lng.toFixed(5)}
+                    </span>
+                  </div>
+                  <a 
+                    href={`https://www.google.com/maps/search/?api=1&query=${locData.lat},${locData.lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800 bg-white px-2.5 py-1 rounded-md shadow-sm border border-blue-200 transition-colors"
+                  >
+                    View on Google Maps
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+              )}
             </div>
 
             {/* Bio */}
