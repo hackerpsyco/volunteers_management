@@ -12,6 +12,7 @@ interface NavItem {
   icon: any;
   requiredRole: number | null;
   studentVisible: boolean;
+  hiddenRoles?: number[];
 }
 
 interface NavGroup {
@@ -46,10 +47,9 @@ const navGroups: NavGroup[] = [
   {
     label: 'Rewards & Earnings',
     studentVisible: false,
-    hiddenRoles: [4],
     items: [
       { title: 'Student Earnings', url: '/admin-earnings', icon: ClipboardList, requiredRole: null, studentVisible: false },
-      { title: 'Facilitator Earnings', url: '/admin-facilitator-earnings', icon: ClipboardList, requiredRole: null, studentVisible: false },
+      { title: 'Facilitator Earnings', url: '/admin-facilitator-earnings', icon: ClipboardList, requiredRole: null, studentVisible: false, hiddenRoles: [4] },
     ]
   },
   {
@@ -171,6 +171,7 @@ export function AppSidebar({ collapsed = false }: { collapsed?: boolean }) {
 
             const visibleItems = group.items.filter((item) => {
               if (item.requiredRole !== null && userRole !== item.requiredRole) return false;
+              if (item.hiddenRoles && userRole !== null && item.hiddenRoles.includes(userRole)) return false;
               return true;
             });
 
