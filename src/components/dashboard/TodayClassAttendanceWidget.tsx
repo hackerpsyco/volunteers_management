@@ -63,7 +63,7 @@ export function TodayClassAttendanceWidget({
         // Fetch performance for these sessions
         const { data, error } = await supabase
           .from('student_performance')
-          .select('attendance_status, student_name')
+          .select('student_id, attendance_status, student_name')
           .in('session_id', sessionIds);
         
         if (error) {
@@ -77,12 +77,17 @@ export function TodayClassAttendanceWidget({
         if (selectedDesignation !== 'all') {
           const { data: studentsData } = await supabase
             .from('students')
-            .select('name, designation')
+            .select('id, name, designation')
             .eq('designation', selectedDesignation);
           
           if (studentsData) {
+            const allowedIds = new Set(studentsData.map(s => s.id));
             const allowedNames = new Set(studentsData.map(s => s.name?.trim().replace(/\s+/g, ' ').toLowerCase()));
-            filteredData = filteredData.filter(record => allowedNames.has((record.student_name || '').trim().replace(/\s+/g, ' ').toLowerCase()));
+            
+            filteredData = filteredData.filter(record => {
+              if (record.student_id && allowedIds.has(record.student_id)) return true;
+              return allowedNames.has((record.student_name || '').trim().replace(/\s+/g, ' ').toLowerCase());
+            });
           } else {
             filteredData = [];
           }

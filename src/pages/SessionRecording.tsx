@@ -1170,6 +1170,7 @@ export default function SessionRecording() {
 
         const payload: any = {
           session_id: sessionId,
+          student_id: student.id,
           student_name: student.name.trim(),
           attendance_status: data.attendance_status || 'Present',
           questions_asked: data.questions_asked ?? 0,
@@ -1196,6 +1197,7 @@ export default function SessionRecording() {
             .from('student_performance')
             .upsert({
               session_id: sessionId,
+              student_id: student.id,
               student_name: student.name.trim(),
               attendance_status: payload.attendance_status,
               questions_asked: payload.questions_asked,

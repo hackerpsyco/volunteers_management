@@ -125,14 +125,24 @@ export function TopStudentsWidget({
           attendanceError = sessionsError;
         } else if (sessionsData && sessionsData.length > 0) {
           const sessionIds = sessionsData.map(s => s.id);
-          const { data, error } = await supabase
-            .from('student_performance')
-            .select('attendance_status, student_name')
-            .in('session_id', sessionIds)
-            .eq('attendance_status', 'Present');
-            
-          attendanceData = data || [];
-          attendanceError = error;
+          const chunkSize = 5; // Small chunk size to ensure we don't hit the 1000 row limit per query
+          
+          for (let i = 0; i < sessionIds.length; i += chunkSize) {
+            const chunk = sessionIds.slice(i, i + chunkSize);
+            const { data, error } = await supabase
+              .from('student_performance')
+              .select('student_id, attendance_status, student_name')
+              .in('session_id', chunk)
+              .eq('attendance_status', 'Present');
+              
+            if (error) {
+              attendanceError = error;
+              break;
+            }
+            if (data) {
+              attendanceData = attendanceData.concat(data);
+            }
+          }
         }
 
         if (attendanceError) {
@@ -161,14 +171,32 @@ export function TopStudentsWidget({
 
         // Process Attendance
         attendanceData?.forEach((record: any) => {
-          if (!record.student_name) return;
-          const s = studentNameMap.get(record.student_name.toLowerCase().trim().replace(/\s+/g, ' '));
-          if (!s) return;
-          if (academicYear && academicYear !== 'All' && s.academic_year && s.academic_year !== academicYear) return;
+          let sId = record.student_id;
+          
+          if (!sId) {
+            if (!record.student_name) return;
+            let normalizedName = record.student_name.toLowerCase().trim().replace(/\s+/g, ' ');
+            
+            // Data correction for students whose names were changed in the students table
+            // but their old attendance records still have the old name.
+            if (normalizedName.includes('puspa lodhi')) normalizedName = 'pushpa lodhi';
+            if (normalizedName.includes('nausheen naaj')) normalizedName = 'nausheen naaz';
+            if (normalizedName === 'mohammad tauseef') normalizedName = 'tauseef';
+            
+            const s = studentNameMap.get(normalizedName);
+            if (!s) return;
+            sId = s.id;
+          }
 
-          const sId = s.id;
+          if (academicYear && academicYear !== 'All') {
+             const studentInfo = studentIdMap.get(sId);
+             if (studentInfo && studentInfo.academic_year !== academicYear) return;
+          }
+
           if (!statsMap.has(sId)) {
-            statsMap.set(sId, { id: sId, name: s.name, earnings: 0, attendance: 0 });
+            const studentInfo = studentIdMap.get(sId);
+            if (!studentInfo) return;
+            statsMap.set(sId, { id: sId, name: studentInfo.name, earnings: 0, attendance: 0 });
           }
           statsMap.get(sId)!.attendance += 1;
         });

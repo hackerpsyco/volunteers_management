@@ -268,7 +268,7 @@ export default function StudentDashboard() {
             const sessionIds = sessionsForLeaderboard.map(s => s.id);
             const { data: perfData } = await supabase
               .from('student_performance')
-              .select('session_id, attendance_status, student_name')
+              .select('student_id, session_id, attendance_status, student_name')
               .in('session_id', sessionIds)
               .eq('attendance_status', 'Present');
             if (perfData) {
@@ -276,7 +276,7 @@ export default function StudentDashboard() {
             }
           }
 
-          // Aggregate statistics
+          // Aggregate statistics - initialize all students with 0
           const statsMap: Record<string, { id: string; name: string; earnings: number; attendance: number }> = {};
           const studentNameMap: Record<string, string> = {};
           studentsList.forEach(s => {
@@ -284,6 +284,7 @@ export default function StudentDashboard() {
             studentNameMap[s.name.toLowerCase().trim().replace(/\s+/g, ' ')] = s.id;
           });
 
+          // Apply earnings filter
           earningsData?.forEach(item => {
             if (selectedMonth !== 'all') {
               const date = new Date(item.earned_at);
@@ -295,6 +296,7 @@ export default function StudentDashboard() {
             }
           });
 
+          // Only count attendance for sessions in the selected month
           const validSessionIds = new Set(
             (sessionsForLeaderboard || [])
               .filter(s => {
@@ -307,10 +309,14 @@ export default function StudentDashboard() {
               .map(s => s.id)
           );
 
+          // Count attendance using student_id (reliable) with name fallback
           attendanceData?.forEach(record => {
-            if (!record.student_name || !record.session_id || !validSessionIds.has(record.session_id)) return;
-            const nameKey = record.student_name.toLowerCase().trim().replace(/\s+/g, ' ');
-            const sId = studentNameMap[nameKey];
+            if (!record.session_id || !validSessionIds.has(record.session_id)) return;
+            let sId = record.student_id;
+            if (!sId) {
+              const nameKey = (record.student_name || '').toLowerCase().trim().replace(/\s+/g, ' ');
+              sId = studentNameMap[nameKey];
+            }
             if (sId && statsMap[sId]) {
               statsMap[sId].attendance += 1;
             }
@@ -477,13 +483,11 @@ export default function StudentDashboard() {
         }
       }
 
-      if (activeStudentName && ownSessionsList.length > 0) {
-        const normalizedName = activeStudentName.trim().replace(/\s+/g, ' ');
-        const doubleSpacedName = normalizedName.replace(' ', '  ');
+      if (studentIds.length > 0 && ownSessionsList.length > 0) {
         const { data: perfData } = await supabase
           .from('student_performance')
           .select('session_id, attendance_status')
-          .or(`student_name.ilike."${normalizedName}",student_name.ilike."${doubleSpacedName}"`);
+          .in('student_id', studentIds);
         
         if (perfData) {
           setStudentPerformances(perfData);

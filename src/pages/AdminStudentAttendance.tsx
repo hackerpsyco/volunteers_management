@@ -113,6 +113,7 @@ export default function AdminStudentAttendance() {
           .from('student_performance')
           .select(`
             id,
+            student_id,
             student_name,
             attendance_status,
             sessions!inner (
@@ -153,21 +154,32 @@ export default function AdminStudentAttendance() {
         return true;
       });
 
-      // Group by student name (case insensitive, normalized spacing)
+      // Group by student_id, fallback to name if missing
       const attendanceMap = new Map();
       filteredPerformance.forEach(p => {
-        const name = (p.student_name || '').trim().replace(/\s+/g, ' ').toLowerCase();
-        if (!attendanceMap.has(name)) {
-          attendanceMap.set(name, { present: 0, absent: 0 });
+        let key = p.student_id;
+        
+        // Fallback for any records that somehow missed the backfill
+        if (!key) {
+          let name = (p.student_name || '').trim().replace(/\s+/g, ' ').toLowerCase();
+          if (name.includes('puspa lodhi')) name = 'pushpa lodhi';
+          if (name.includes('nausheen naaj')) name = 'nausheen naaz';
+          if (name === 'mohammad tauseef') name = 'tauseef';
+          key = name;
         }
-        const counts = attendanceMap.get(name);
+
+        if (!attendanceMap.has(key)) {
+          attendanceMap.set(key, { present: 0, absent: 0 });
+        }
+        const counts = attendanceMap.get(key);
         if (p.attendance_status === 'Present') counts.present++;
         if (p.attendance_status === 'Absent') counts.absent++;
       });
 
       const aggregated = (students || []).map((s: any) => {
         const nameKey = (s.name || '').trim().replace(/\s+/g, ' ').toLowerCase();
-        const counts = attendanceMap.get(nameKey) || { present: 0, absent: 0 };
+        // Try getting by ID first, fallback to name key
+        const counts = attendanceMap.get(s.id) || attendanceMap.get(nameKey) || { present: 0, absent: 0 };
         const totalSessions = counts.present + counts.absent;
         const percentage = totalSessions > 0 ? Math.round((counts.present / totalSessions) * 100) : 0;
 
@@ -198,6 +210,11 @@ export default function AdminStudentAttendance() {
       
       const normalizedName = studentName.trim().replace(/\s+/g, ' ');
       const doubleSpacedName = normalizedName.replace(' ', '  ');
+      
+      let aliases = `student_name.ilike."${normalizedName}",student_name.ilike."${doubleSpacedName}"`;
+      if (normalizedName.toLowerCase() === 'pushpa lodhi') aliases += `,student_name.ilike."%puspa%lodhi%"`;
+      if (normalizedName.toLowerCase() === 'nausheen naaz') aliases += `,student_name.ilike."%nausheen%naaj%"`;
+      if (normalizedName.toLowerCase() === 'tauseef') aliases += `,student_name.ilike."%mohammad%tauseef%"`;
 
       const { data, error } = await supabase
         .from('student_performance')
@@ -212,7 +229,7 @@ export default function AdminStudentAttendance() {
             session_type
           )
         `)
-        .or(`student_name.ilike."${normalizedName}",student_name.ilike."${doubleSpacedName}"`)
+        .or(aliases)
         .gte('sessions.session_date', startDate.toISOString().split('T')[0])
         .lte('sessions.session_date', endDate.toISOString().split('T')[0]);
 
@@ -350,20 +367,19 @@ export default function AdminStudentAttendance() {
                   <TableHead><div className="flex items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('designation')}>Designation <ArrowUpDown className="h-3 w-3" /></div></TableHead>
                   <TableHead className="text-center"><div className="flex justify-center items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('total_present')}>Present <ArrowUpDown className="h-3 w-3" /></div></TableHead>
                   <TableHead className="text-center"><div className="flex justify-center items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('total_absent')}>Absent <ArrowUpDown className="h-3 w-3" /></div></TableHead>
-                  <TableHead className="text-center"><div className="flex justify-center items-center gap-1 cursor-pointer hover:text-primary" onClick={() => handleSort('attendance_percentage')}>Attendance % <ArrowUpDown className="h-3 w-3" /></div></TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
                       Loading data...
                     </TableCell>
                   </TableRow>
                 ) : sortedStudents.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
                       No student records found
                     </TableCell>
                   </TableRow>
@@ -380,9 +396,6 @@ export default function AdminStudentAttendance() {
                       </TableCell>
                       <TableCell className="text-center font-bold text-red-500">
                         {s.total_absent}
-                      </TableCell>
-                      <TableCell className="text-center font-bold">
-                        {s.attendance_percentage}%
                       </TableCell>
                       <TableCell className="text-right">
                         <Button 
