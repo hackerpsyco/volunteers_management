@@ -158,6 +158,32 @@ export default function AddTask() {
       return;
     }
 
+    // Validate task description
+    const isDescriptionEmpty = !formData.description || formData.description.replace(/<[^>]*>/g, '').trim() === '';
+    if (isDescriptionEmpty) {
+      toast.error('Task description is required');
+      return;
+    }
+
+    // Validate due date
+    if (!formData.due_date) {
+      toast.error('Due date is required');
+      return;
+    }
+
+    // Validate submission requirements
+    if (formData.submission_requirements.length === 0) {
+      toast.error('Please add at least one submission requirement');
+      return;
+    }
+
+    // Validate that all submission requirements have a title
+    const missingTitle = formData.submission_requirements.some(req => !req.title.trim());
+    if (missingTitle) {
+      toast.error('All submission requirements must have a title');
+      return;
+    }
+
     try {
       setLoading(true);
       if (selectedStudents.length === 0) {
@@ -318,7 +344,7 @@ export default function AddTask() {
               <div className="col-span-1 md:col-span-2">
                 <div className="space-y-4 mt-6">
                   <div className="flex items-center justify-between">
-                    <Label>Submission Requirements</Label>
+                    <Label>Submission Requirements *</Label>
                     <Button 
                       type="button" 
                       variant="outline" 
@@ -327,7 +353,7 @@ export default function AddTask() {
                         const newReq: SubmissionRequirement = {
                           id: `req-${Date.now()}`,
                           title: '',
-                          type: 'link'
+                          type: 'pdf'
                         };
                         setFormData({
                           ...formData,
@@ -340,14 +366,14 @@ export default function AddTask() {
                   </div>
                   
                   {formData.submission_requirements.length === 0 ? (
-                    <div className="text-sm text-gray-500 italic">No submission requirements added. Students won't be prompted to upload anything.</div>
+                    <div className="text-sm text-red-500 font-medium">At least one submission requirement is mandatory. Add a requirement to assign the task.</div>
                   ) : (
                     <div className="space-y-3">
                       {formData.submission_requirements.map((req, index) => (
                         <div key={req.id} className="flex gap-2 items-start border p-3 rounded-md bg-gray-50">
                           <div className="flex-1 space-y-2">
                             <div>
-                              <Label className="text-xs">Requirement Title</Label>
+                              <Label className="text-xs">Requirement Title *</Label>
                               <Input 
                                 placeholder="e.g., Presentation PPT" 
                                 value={req.title}
@@ -547,7 +573,7 @@ export default function AddTask() {
               {/* Academic Year field moved up */}
 
               <div className="space-y-2">
-                <Label htmlFor="due_date">Due Date</Label>
+                <Label htmlFor="due_date">Due Date *</Label>
                 <Input
                   id="due_date"
                   type="datetime-local"
@@ -571,7 +597,7 @@ export default function AddTask() {
             </div>
 
             <div className="space-y-2">
-              <Label>Task Description</Label>
+              <Label>Task Description *</Label>
               <RichTextEditor
                 value={formData.description}
                 onChange={(value) => setFormData({ ...formData, description: value })}

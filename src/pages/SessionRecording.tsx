@@ -1345,6 +1345,32 @@ export default function SessionRecording() {
       return;
     }
 
+    // Validate task description
+    const isDescriptionEmpty = !newHomework.task_description || newHomework.task_description.replace(/<[^>]*>/g, '').trim() === '';
+    if (isDescriptionEmpty) {
+      toast.error('Task description is required for homework');
+      return;
+    }
+
+    // Validate due date
+    if (!newHomework.deadline) {
+      toast.error('Due date is required for homework');
+      return;
+    }
+
+    // Validate submission requirements
+    if (newHomework.submission_requirements.length === 0) {
+      toast.error('Please add at least one submission requirement for the homework');
+      return;
+    }
+
+    // Validate that all submission requirements have a title
+    const missingTitle = newHomework.submission_requirements.some(req => !req.title.trim());
+    if (missingTitle) {
+      toast.error('All submission requirements must have a title');
+      return;
+    }
+
     const finalTaskType = newHomework.task_type === 'Other' ? newHomework.custom_task_type : newHomework.task_type;
 
     try {
@@ -1461,6 +1487,32 @@ export default function SessionRecording() {
 
     if (newHomework.task_type === 'Other' && !newHomework.custom_task_type?.trim()) {
       toast.error('Please specify the custom task type');
+      return;
+    }
+
+    // Validate task description
+    const isDescriptionEmpty = !newHomework.task_description || newHomework.task_description.replace(/<[^>]*>/g, '').trim() === '';
+    if (isDescriptionEmpty) {
+      toast.error('Task description is required for homework');
+      return;
+    }
+
+    // Validate due date
+    if (!newHomework.deadline) {
+      toast.error('Due date is required for homework');
+      return;
+    }
+
+    // Validate submission requirements
+    if (newHomework.submission_requirements.length === 0) {
+      toast.error('Please add at least one submission requirement for the homework');
+      return;
+    }
+
+    // Validate that all submission requirements have a title
+    const missingTitle = newHomework.submission_requirements.some(req => !req.title.trim());
+    if (missingTitle) {
+      toast.error('All submission requirements must have a title');
       return;
     }
 
@@ -2464,7 +2516,7 @@ export default function SessionRecording() {
                           </div>
                         )}
                         <div>
-                          <Label htmlFor="hw_deadline" className="text-sm">Deadline</Label>
+                          <Label htmlFor="hw_deadline" className="text-sm">Deadline *</Label>
                           <Input
                             id="hw_deadline"
                             type="datetime-local"
@@ -2489,7 +2541,7 @@ export default function SessionRecording() {
                       
                       <div className="space-y-4 mt-6">
                         <div className="flex items-center justify-between">
-                          <Label>Submission Requirements</Label>
+                          <Label>Submission Requirements *</Label>
                           <Button 
                             type="button" 
                             variant="outline" 
@@ -2498,7 +2550,7 @@ export default function SessionRecording() {
                               const newReq: SubmissionRequirement = {
                                 id: `req-${Date.now()}`,
                                 title: '',
-                                type: 'link'
+                                type: 'pdf'
                               };
                               setNewHomework({
                                 ...newHomework,
@@ -2511,14 +2563,14 @@ export default function SessionRecording() {
                         </div>
                         
                         {newHomework.submission_requirements.length === 0 ? (
-                          <div className="text-sm text-gray-500 italic">No submission requirements added. Students won't be prompted to upload anything.</div>
+                          <div className="text-sm text-red-500 font-medium">At least one submission requirement is mandatory. Add a requirement to save the homework.</div>
                         ) : (
                           <div className="space-y-3">
                             {newHomework.submission_requirements.map((req, index) => (
                               <div key={req.id} className="flex gap-2 items-start border p-3 rounded-md bg-gray-50">
                                 <div className="flex-1 space-y-2">
                                   <div>
-                                    <Label className="text-xs">Requirement Title</Label>
+                                    <Label className="text-xs">Requirement Title *</Label>
                                     <Input 
                                       placeholder="e.g., Presentation PPT" 
                                       value={req.title}
@@ -2572,7 +2624,7 @@ export default function SessionRecording() {
                       
                       <div className="mt-4">
                         <div className="flex items-center justify-between mb-1">
-                          <Label htmlFor="hw_description" className="text-sm">Task Description</Label>
+                          <Label htmlFor="hw_description" className="text-sm">Task Description *</Label>
                           <Button
                             type="button"
                             variant="ghost"

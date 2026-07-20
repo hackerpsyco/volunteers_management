@@ -114,24 +114,19 @@ serve(async (req) => {
       topicSessions.set(key, existing);
     });
 
-    // 8. Construct Google Sheets Data Rows
-    const values: any[][] = [
-      [
-        'Class Name',
-        'Content Category',
-        'Module No',
-        'Module Name',
-        'Topic Title',
-        'Videos',
-        'Quiz/Content/PPT',
-        'Fresh Session',
-        'Revision Session',
-        'Status',
-        'Session Schedule Date',
-        'Latest Date',
-        'Volunteer'
-      ]
-    ];
+    // 8. Group Curriculum by Class Name
+    const groupedCurriculum = new Map<string, any[]>();
+    (curriculumData || []).forEach(item => {
+      const className = item.classes?.name || 'Unknown';
+      const existing = groupedCurriculum.get(className) || [];
+      existing.push(item);
+      groupedCurriculum.set(className, existing);
+    });
+
+    const classNames = Array.from(groupedCurriculum.keys());
+    if (classNames.length === 0) {
+      throw new Error("No classes or curriculum data found to sync.");
+    }
 
     const formatDate = (dateStr: string) => {
       if (!dateStr) return '-';
@@ -144,59 +139,21 @@ serve(async (req) => {
       return `${day} ${month} ${year}`;
     };
 
-    (curriculumData || []).forEach(item => {
-      const className = item.classes?.name || 'Unknown';
-      const cleanModuleTitle = item.module_name?.replace(/^-\s+/, '') || '';
-      const topic = item.topics_covered || '';
-      const key = `${className.trim()}||${topic.trim()}`;
-      const sessions = topicSessions.get(key) || [];
-      
-      let status = 'Not Started';
-      let volunteerName = '-';
-      let latestDate = '-';
-      let scheduleDate = '-';
-
-      if (sessions.length > 0) {
-        // Sort sessions by date descending
-        sessions.sort((a, b) => new Date(b.session_date).getTime() - new Date(a.session_date).getTime());
-        
-        // The earliest session date is the main starting/assigned schedule date
-        scheduleDate = formatDate(sessions[sessions.length - 1].session_date);
-        
-        // Find if there's any completed session
-        const completedSession = sessions.find(s => s.status === 'completed');
-        
-        if (completedSession) {
-          status = 'Completed';
-          volunteerName = completedSession.volunteer_name || 'Unknown';
-          latestDate = formatDate(completedSession.session_date);
-        } else {
-          // Use latest session status
-          const latestSession = sessions[0];
-          status = latestSession.status 
-            ? (latestSession.status.charAt(0).toUpperCase() + latestSession.status.slice(1).replace('_', ' ')) 
-            : 'In Progress';
-          volunteerName = latestSession.volunteer_name || '-';
-          latestDate = formatDate(latestSession.session_date);
-        }
-      }
-
-      values.push([
-        className,
-        item.content_category || '-',
-        item.module_no || '-',
-        cleanModuleTitle || '-',
-        topic || '-',
-        item.videos || '',
-        item.quiz_content_ppt || '',
-        '', // Matches UI manual export placeholders
-        '', // Matches UI manual export placeholders
-        status,
-        scheduleDate,
-        latestDate,
-        volunteerName
-      ]);
-    });
+    const headers = [
+      'Class Name',
+      'Content Category',
+      'Module No',
+      'Module Name',
+      'Topic Title',
+      'Videos',
+      'Quiz/Content/PPT',
+      'Fresh Session',
+      'Revision Session',
+      'Status',
+      'Session Schedule Date',
+      'Latest Date',
+      'Volunteer'
+    ];
 
     // 9. Authenticate with Google
     // Robustly reconstruct the PEM key no matter how mangled it got in Supabase Secrets
@@ -231,8 +188,8 @@ serve(async (req) => {
       throw new Error("Failed to retrieve Google access token");
     }
 
-    // 10. Fetch first sheet title dynamically
-    const sheetInfoRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets.properties.title`, {
+    // 10. Fetch Sheet metadata dynamically
+    const sheetInfoRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets(properties(sheetId,title))`, {
       headers: { Authorization: `Bearer ${token}` }
     });
 
@@ -242,16 +199,66 @@ serve(async (req) => {
     }
 
     const sheetInfo = await sheetInfoRes.json();
-    const firstSheetName = sheetInfo.sheets?.[0]?.properties?.title || 'Sheet1';
-    console.log(`Syncing data to Google Sheet Tab: "${firstSheetName}"`);
+    const existingSheets = sheetInfo.sheets || [];
+    const existingSheetNames = existingSheets.map((s: any) => s.properties.title);
 
-    // 11. Clear existing sheet contents
-    const clearRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(firstSheetName)}:clear`, {
+    // 11. Create class-wise tabs if they do not exist, and optionally delete Sheet1
+    const classesToCreate = classNames.filter(name => !existingSheetNames.includes(name));
+    const batchRequests: any[] = [];
+
+    // Create missing sheets
+    classesToCreate.forEach(name => {
+      batchRequests.push({
+        addSheet: {
+          properties: {
+            title: name
+          }
+        }
+      });
+    });
+
+    // Check if Sheet1 exists, and we are not using it as a class name
+    const sheet1 = existingSheets.find((s: any) => s.properties.title === 'Sheet1');
+    const totalSheetsAfterAdd = existingSheets.length + classesToCreate.length;
+    
+    // We can delete Sheet1 only if we will still have at least one sheet left
+    if (sheet1 && !classNames.includes('Sheet1') && totalSheetsAfterAdd > 1) {
+      batchRequests.push({
+        deleteSheet: {
+          sheetId: sheet1.properties.sheetId
+        }
+      });
+    }
+
+    if (batchRequests.length > 0) {
+      console.log(`Executing batch update to manage sheet tabs: creating ${classesToCreate.length} tab(s)`);
+      const createRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}:batchUpdate`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ requests: batchRequests })
+      });
+
+      if (!createRes.ok) {
+        const errText = await createRes.text();
+        throw new Error(`Google Sheets API batchUpdate error: ${createRes.statusText} - ${errText}`);
+      }
+    }
+
+    // 12. Clear all class sheets to avoid residual rows
+    const rangesToClear = classNames.map(name => `'${name.replace(/'/g, "''")}'`);
+    console.log(`Clearing existing data in class tabs...`);
+    const clearRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values:batchClear`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
-      }
+      },
+      body: JSON.stringify({
+        ranges: rangesToClear
+      })
     });
 
     if (!clearRes.ok) {
@@ -259,17 +266,76 @@ serve(async (req) => {
       throw new Error(`Google Sheets API clear error: ${clearRes.statusText} - ${errText}`);
     }
 
-    // 12. Overwrite sheet with updated values
-    const writeRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(firstSheetName)}?valueInputOption=USER_ENTERED`, {
-      method: 'PUT',
+    // 13. Populate values for each class-wise sheet
+    let totalRowsSynced = 0;
+    const dataToWrite = classNames.map(name => {
+      const classItems = groupedCurriculum.get(name) || [];
+      const rows = [headers];
+
+      classItems.forEach(item => {
+        const cleanModuleTitle = item.module_name?.replace(/^-\s+/, '') || '';
+        const topic = item.topics_covered || '';
+        const key = `${name.trim()}||${topic.trim()}`;
+        const sessions = topicSessions.get(key) || [];
+        
+        let status = 'Not Started';
+        let volunteerName = '-';
+        let latestDate = '-';
+        let scheduleDate = '-';
+
+        if (sessions.length > 0) {
+          sessions.sort((a, b) => new Date(b.session_date).getTime() - new Date(a.session_date).getTime());
+          scheduleDate = formatDate(sessions[sessions.length - 1].session_date);
+          const completedSession = sessions.find(s => s.status === 'completed');
+          if (completedSession) {
+            status = 'Completed';
+            volunteerName = completedSession.volunteer_name || 'Unknown';
+            latestDate = formatDate(completedSession.session_date);
+          } else {
+            const latestSession = sessions[0];
+            status = latestSession.status 
+              ? (latestSession.status.charAt(0).toUpperCase() + latestSession.status.slice(1).replace('_', ' ')) 
+              : 'In Progress';
+            volunteerName = latestSession.volunteer_name || '-';
+            latestDate = formatDate(latestSession.session_date);
+          }
+        }
+
+        rows.push([
+          name,
+          item.content_category || '-',
+          item.module_no || '-',
+          cleanModuleTitle || '-',
+          topic || '-',
+          item.videos || '',
+          item.quiz_content_ppt || '',
+          '', // Fresh Session
+          '', // Revision Session
+          status,
+          scheduleDate,
+          latestDate,
+          volunteerName
+        ]);
+      });
+
+      totalRowsSynced += (rows.length - 1);
+      return {
+        range: `'${name.replace(/'/g, "''")}'!A1`,
+        majorDimension: 'ROWS',
+        values: rows
+      };
+    });
+
+    console.log(`Writing class-wise data to sheets...`);
+    const writeRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values:batchUpdate`, {
+      method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        range: firstSheetName,
-        majorDimension: 'ROWS',
-        values: values,
+        valueInputOption: 'USER_ENTERED',
+        data: dataToWrite
       })
     });
 
@@ -278,13 +344,13 @@ serve(async (req) => {
       throw new Error(`Google Sheets API write error: ${writeRes.statusText} - ${errText}`);
     }
 
-    console.log(`Sync complete. Transferred ${values.length - 1} rows successfully.`);
+    console.log(`Sync complete. Transferred ${totalRowsSynced} rows successfully.`);
 
     return new Response(JSON.stringify({ 
       success: true, 
-      message: "Google Sheet synchronized successfully",
+      message: "Google Sheets synchronized class-wise successfully",
       academicYear: selectedYear,
-      rowsSynced: values.length - 1
+      rowsSynced: totalRowsSynced
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
