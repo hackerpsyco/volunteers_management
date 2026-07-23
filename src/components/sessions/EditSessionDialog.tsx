@@ -319,6 +319,15 @@ export function EditSessionDialog({
     e.preventDefault();
     if (!formData) return;
 
+    if (!formData.coordinator_id) {
+      toast({
+        title: 'Error',
+        description: 'Please select a coordinator',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsLoading(true);
 
     try {

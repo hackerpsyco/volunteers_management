@@ -47,6 +47,7 @@ interface FeedbackData {
   content_category?: string | null;
   module_name?: string | null;
   topics_covered?: string | null;
+  supervisor_feedback_status?: string | null;
 }
 
 interface StudentPerformance {
@@ -221,12 +222,23 @@ export default function FeedbackDetails() {
       setLoading(true);
       const { data, error } = await supabase
         .from('sessions')
-        .select('*')
+        .select(`
+          *,
+          coordinators:coordinator_id(name)
+        `)
         .eq('id', sessionId)
         .single();
 
       if (error) throw error;
-      setFeedback(data as any);
+      
+      // Extract coordinator name from the joined relationship
+      const sessionData = data as any;
+      const coordinatorName = sessionData.coordinators?.name || null;
+      
+      setFeedback({
+        ...sessionData,
+        coordinator_name: coordinatorName
+      } as any);
     } catch (error) {
       console.error('Error fetching feedback:', error);
       toast.error('Failed to load feedback');
@@ -636,6 +648,12 @@ export default function FeedbackDetails() {
               <div>
                 <span className="text-muted-foreground block text-xs uppercase tracking-wider">Module</span>
                 <p className="font-medium mt-0.5">{feedback.module_name || '-'}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground block text-xs uppercase tracking-wider">Present Students</span>
+                <p className="font-medium mt-0.5">
+                  {studentPerformance.filter(sp => sp.attendance_status === 'Present').length}
+                </p>
               </div>
               <div className="col-span-2 md:col-span-4 lg:col-span-5">
                 <span className="text-muted-foreground block text-xs uppercase tracking-wider">Topic</span>
