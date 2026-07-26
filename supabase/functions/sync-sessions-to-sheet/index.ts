@@ -89,9 +89,10 @@ serve(async (req) => {
     // 5. Fetch Curriculum and Classes Info
     const { data: curriculumData, error: curriculumError } = await supabase
       .from('curriculum')
-      .select(`*, classes:class_id(name)`)
+      .select(`id, class_id, subject_id, content_category, module_no, module_name, topics_covered, videos, quiz_content_ppt, classes:class_id(id, name)`)
       .order('content_category', { ascending: true })
-      .order('module_no', { ascending: true });
+      .order('module_no', { ascending: true })
+      .order('topics_covered', { ascending: true });
 
     if (curriculumError) throw curriculumError;
 
@@ -114,16 +115,30 @@ serve(async (req) => {
       topicSessions.set(key, existing);
     });
 
-    // 8. Group Curriculum by Class Name
+    // 8. Group Curriculum by Class Name - enhanced to handle all curriculum items
     const groupedCurriculum = new Map<string, any[]>();
     (curriculumData || []).forEach(item => {
-      const className = item.classes?.name || 'Unknown';
+      let className = item.classes?.name || 'Unknown';
+      
+      // Log items that might not have proper class association
+      if (!item.classes?.name) {
+        console.warn(`Curriculum item ID ${item.id} (${item.topics_covered}) has no class association. Assigning to "Unknown"`);
+      }
+      
       const existing = groupedCurriculum.get(className) || [];
       existing.push(item);
       groupedCurriculum.set(className, existing);
     });
 
-    const classNames = Array.from(groupedCurriculum.keys());
+    const classNames = Array.from(groupedCurriculum.keys()).sort();
+    
+    // Log all classes found
+    console.log(`Classes found: ${classNames.join(', ')}`);
+    console.log(`Total curriculum items: ${curriculumData?.length || 0}`);
+    classNames.forEach(name => {
+      console.log(`  ${name}: ${groupedCurriculum.get(name)?.length || 0} items`);
+    });
+    
     if (classNames.length === 0) {
       throw new Error("No classes or curriculum data found to sync.");
     }
@@ -140,7 +155,6 @@ serve(async (req) => {
     };
 
     const headers = [
-      'Class Name',
       'Content Category',
       'Module No',
       'Module Name',
@@ -302,7 +316,6 @@ serve(async (req) => {
         }
 
         rows.push([
-          name,
           item.content_category || '-',
           item.module_no || '-',
           cleanModuleTitle || '-',

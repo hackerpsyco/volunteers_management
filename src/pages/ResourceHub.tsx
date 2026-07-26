@@ -47,6 +47,7 @@ export default function ResourceHub({ isStudent = false }: { isStudent?: boolean
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   
   const { selectedYear } = useAcademicYear();
   
@@ -59,6 +60,7 @@ export default function ResourceHub({ isStudent = false }: { isStudent?: boolean
   const [uploadMode, setUploadMode] = useState<'file' | 'link'>('file');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [formData, setFormData] = useState({
+    id: '',
     title: '',
     description: '',
     category: 'Notices',
@@ -105,7 +107,13 @@ export default function ResourceHub({ isStudent = false }: { isStudent?: boolean
         .order('created_at', { ascending: false });
 
       if (isStudent) {
-        query = query.in('target_audience', ['all', 'students', 'public']);
+        // Students can see: 'all' and resources tagged with their ID
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          query = query.or(`target_audience.eq.all,target_audience.like.student_${user.id}`);
+        } else {
+          query = query.eq('target_audience', 'all');
+        }
       }
 
       const { data, error } = await query;
@@ -180,17 +188,19 @@ export default function ResourceHub({ isStudent = false }: { isStudent?: boolean
     let finalFileUrl = formData.file_url;
 
     if (uploadMode === 'file') {
-      if (!selectedFile) {
+      if (!selectedFile && !editingId) {
         toast.error('Please select a file to upload');
         return;
       }
-      try {
-        const toastId = toast.loading('Uploading file to Google Drive...');
-        finalFileUrl = await handleFileUpload(selectedFile);
-        toast.success('File uploaded successfully!', { id: toastId });
-      } catch (error) {
-        toast.error('Failed to upload file');
-        return;
+      if (selectedFile) {
+        try {
+          const toastId = toast.loading('Uploading file to Google Drive...');
+          finalFileUrl = await handleFileUpload(selectedFile);
+          toast.success('File uploaded successfully!', { id: toastId });
+        } catch (error) {
+          toast.error('Failed to upload file');
+          return;
+        }
       }
     } else {
       if (!finalFileUrl) {
@@ -200,44 +210,60 @@ export default function ResourceHub({ isStudent = false }: { isStudent?: boolean
     }
 
     try {
-      const payload: any = { ...formData, file_url: finalFileUrl };
-      
-      const { error } = await supabase
-        .from('resource_hub')
-        .insert([payload]);
+      const payload: any = {
+        title: formData.title,
+        description: formData.description,
+        category: formData.category,
+        resource_type: formData.resource_type,
+        file_url: finalFileUrl,
+      };
 
-      if (error) {
-        if (error.message.includes('target_student_id')) {
-          delete payload.target_student_id;
-          payload.target_audience = `student_${formData.target_student_id}`;
-          const retry = await supabase.from('resource_hub').insert([payload]);
-          if (retry.error) throw retry.error;
-        } else {
-          throw error;
-        }
+      if (formData.target_audience === 'specific_student' && formData.target_student_id) {
+        payload.target_audience = `student_${formData.target_student_id}`;
+      } else {
+        payload.target_audience = formData.target_audience;
+      }
+
+      if (editingId) {
+        const { error } = await supabase
+          .from('resource_hub')
+          .update(payload)
+          .eq('id', editingId);
+
+        if (error) throw error;
+        toast.success('Resource updated successfully');
+      } else {
+        const { error } = await supabase
+          .from('resource_hub')
+          .insert([payload]);
+
+        if (error) throw error;
+        toast.success('Resource added successfully');
       }
       
-      toast.success('Resource added successfully');
-      
       setShowForm(false);
+      setEditingId(null);
       resetForm();
       fetchResources();
     } catch (error) {
       console.error('Error saving resource:', error);
-      toast.error('Failed to add resource. Did you run the SQL migration?');
+      toast.error('Failed to save resource. Did you run the SQL migration?');
     }
   };
 
   const resetForm = () => {
     setFormData({
+      id: '',
       title: '',
       description: '',
       category: 'Notices',
       resource_type: 'pdf',
       target_audience: 'all',
       file_url: '',
+      target_student_id: null,
     });
     setSelectedFile(null);
+    setSelectedClassForStudent('');
   }
 
   const handleDelete = async (id: string) => {
@@ -273,7 +299,13 @@ export default function ResourceHub({ isStudent = false }: { isStudent?: boolean
             <p className="text-muted-foreground">Central library for documents, notices, guidelines, and sheets.</p>
           </div>
           {!isStudent && (
-            <Button onClick={() => setShowForm(!showForm)}>
+            <Button onClick={() => {
+              if (showForm && editingId) {
+                setEditingId(null);
+                resetForm();
+              }
+              setShowForm(!showForm);
+            }}>
               {showForm ? 'Cancel' : (
                 <>
                   <Plus className="h-4 w-4 mr-2" />
@@ -327,7 +359,7 @@ export default function ResourceHub({ isStudent = false }: { isStudent?: boolean
         {!isStudent && showForm && (
           <Card className="border-primary/20 shadow-md">
             <CardHeader className="bg-muted/50 border-b">
-              <CardTitle>Add New Resource</CardTitle>
+              <CardTitle>{editingId ? 'Edit Resource' : 'Add New Resource'}</CardTitle>
             </CardHeader>
             <CardContent className="pt-6">
               <form onSubmit={handleSubmit} className="space-y-6">
@@ -389,11 +421,10 @@ export default function ResourceHub({ isStudent = false }: { isStudent?: boolean
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">Everyone (Public + Students + Teachers)</SelectItem>
-                        <SelectItem value="students">All Students</SelectItem>
-                        <SelectItem value="specific_student">Specific Student</SelectItem>
+                        <SelectItem value="all">Everyone</SelectItem>
                         <SelectItem value="teachers">Teachers Only</SelectItem>
                         <SelectItem value="admin_only">Admin Only</SelectItem>
+                        <SelectItem value="specific_student">Specific Student</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -483,9 +514,12 @@ export default function ResourceHub({ isStudent = false }: { isStudent?: boolean
                 </div>
 
                 <div className="flex justify-end gap-2">
-                  <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
+                  <Button type="button" variant="outline" onClick={() => {
+                    setEditingId(null);
+                    setShowForm(false);
+                  }}>Cancel</Button>
                   <Button type="submit" disabled={uploadingFile}>
-                    {uploadingFile ? 'Uploading...' : 'Save Resource'}
+                    {uploadingFile ? 'Uploading...' : editingId ? 'Update Resource' : 'Save Resource'}
                   </Button>
                 </div>
               </form>
@@ -575,14 +609,39 @@ export default function ResourceHub({ isStudent = false }: { isStudent?: boolean
                               </Button>
                               
                               {!isStudent && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="text-red-600 hover:text-red-800 hover:bg-red-50 ml-1"
-                                  onClick={() => handleDelete(resource.id)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
+                                <>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="shadow-sm"
+                                    onClick={() => {
+                                      setEditingId(resource.id);
+                                      setFormData({
+                                        id: resource.id,
+                                        title: resource.title,
+                                        description: resource.description || '',
+                                        category: resource.category || 'Notices',
+                                        resource_type: resource.resource_type || 'pdf',
+                                        target_audience: resource.target_audience || 'all',
+                                        file_url: resource.file_url,
+                                        target_student_id: null,
+                                      });
+                                      setShowForm(true);
+                                      setUploadMode('link');
+                                    }}
+                                    title="Edit Resource"
+                                  >
+                                    Edit
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="text-red-600 hover:text-red-800 hover:bg-red-50"
+                                    onClick={() => handleDelete(resource.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </>
                               )}
                             </div>
                           </TableCell>

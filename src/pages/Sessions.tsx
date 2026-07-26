@@ -78,6 +78,7 @@ interface Session {
   class_batch: string | null;
   centre_name?: string | null;
   centre_location?: string | null;
+  centre_email?: string | null;
   slot_day?: string | null;
   slot_start_time?: string | null;
   slot_end_time?: string | null;
@@ -194,8 +195,8 @@ export default function Sessions() {
         .from('sessions')
         .select(`
           *,
-          coordinators:coordinator_id(name),
-          centres:centre_id(name, location),
+          coordinators:coordinator_id(name, email),
+          centres:centre_id(name, location, email),
           centre_time_slots:centre_time_slot_id(day, start_time, end_time),
           subjects(name)
         `)
@@ -207,8 +208,10 @@ export default function Sessions() {
       const transformedData = (data || []).map((session: any) => ({
         ...session,
         coordinator_name: session.coordinators?.name || null,
+        coordinator_email: session.coordinators?.email || null,
         centre_name: session.centres?.name || null,
         centre_location: session.centres?.location || null,
+        centre_email: session.centres?.email || null,
         slot_day: session.centre_time_slots?.day || null,
         slot_start_time: session.centre_time_slots?.start_time || null,
         slot_end_time: session.centre_time_slots?.end_time || null,
@@ -1034,6 +1037,9 @@ export default function Sessions() {
                         <div>
                           <span className="text-muted-foreground block">Centre</span>
                           <span className="font-medium text-sm">{session.centre_name || '-'}</span>
+                          {session.centre_email && (
+                            <span className="text-blue-600 text-xs block">{session.centre_email}</span>
+                          )}
                         </div>
                         <div>
                           <span className="text-muted-foreground block">Time Slot</span>

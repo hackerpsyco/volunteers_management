@@ -22,7 +22,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useAcademicYear } from '@/contexts/AcademicYearContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { parseSubmissionRequirements, parseSubmissionLinks } from "../utils/submissionUtils";
+import { parseSubmissionRequirements, parseSubmissionLinks, serializeSubmissionLinks } from "../utils/submissionUtils";
 import {
   Select,
   SelectContent,
@@ -1092,7 +1092,7 @@ export default function TaskDetail() {
               <Button 
                 variant="destructive" 
                 onClick={handlePartialReject}
-                disabled={!requirementRejectComment.trim() || updatingId !== null}
+                disabled={!requirementRejectComment.trim() || updatingId === rejectRequirement?.taskId}
               >
                 {updatingId === rejectRequirement?.taskId ? 'Rejecting...' : 'Reject File'}
               </Button>

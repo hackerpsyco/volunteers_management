@@ -232,7 +232,7 @@ export default function Calendar() {
         .select(`
           *,
           coordinators:coordinator_id(name, email),
-          centres:centre_id(name, location),
+          centres:centre_id(name, location, email),
           centre_time_slots:centre_time_slot_id(day, start_time, end_time),
           subjects(name),
           volunteers:volunteer_id(name, personal_email, work_email)
@@ -272,7 +272,7 @@ export default function Calendar() {
           coordinator_email: session.coordinators?.email || null,
           centre_name: session.centres?.name || null,
           centre_location: session.centres?.location || null,
-          centre_email: null,
+          centre_email: session.centres?.email || null,
           slot_day: session.centre_time_slots?.day || null,
           slot_start_time: session.centre_time_slots?.start_time || null,
           slot_end_time: session.centre_time_slots?.end_time || null,

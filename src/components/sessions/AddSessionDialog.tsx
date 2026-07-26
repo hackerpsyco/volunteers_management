@@ -893,7 +893,12 @@ For any questions, contact the coordinator.
           try {
             const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
             
-            console.log('Attempting calendar sync with eventId:', calendarEventData.sessionId);
+            // Ensure centre email is included and not null
+            if (selectedCentreData?.email && selectedCentreData.email.trim()) {
+              calendarEventData.centreEmail = selectedCentreData.email.trim();
+            }
+            
+            console.log('Attempting calendar sync with eventId:', calendarEventData.sessionId, 'centreEmail:', calendarEventData.centreEmail);
             
             const response = await fetch(`${supabaseUrl}/functions/v1/sync-google-calendar`, {
               method: 'POST',

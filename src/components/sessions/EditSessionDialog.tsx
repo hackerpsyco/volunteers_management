@@ -60,6 +60,7 @@ interface Centre {
   id: string;
   name: string;
   location: string;
+  email?: string | null;
 }
 
 interface CentreTimeSlot {
@@ -166,8 +167,8 @@ export function EditSessionDialog({
   const fetchAllData = async () => {
     try {
       const [centresRes, classesRes, volunteersRes, facilitatorsRes, coordinatorsRes] = await Promise.all([
-        supabase.from('centres').select('id, name, location').eq('status', 'active'),
-        supabase.from('classes').select('id, name').order('name', { ascending: true }),
+        supabase.from('centres').select('id, name, location, email').eq('status', 'active'),
+        supabase.from('classes').select('id, name, email').order('name', { ascending: true }),
         supabase.from('volunteers').select('id, name, personal_email, work_email, phone_number, organization_name').eq('is_active', true).order('name', { ascending: true }),
         supabase.from('facilitators').select('id, name, email, phone, location, status').eq('status', 'active').order('name', { ascending: true }),
         supabase.from('coordinators').select('id, name, email, phone, location, status').eq('status', 'active').order('name', { ascending: true }),
@@ -382,16 +383,10 @@ export function EditSessionDialog({
         const classData = classes.find(c => c.name.trim().toLowerCase() === formData.class_batch?.trim().toLowerCase());
         const centreData = centres.find(c => c.id === formData.centre_id);
 
-        await fetch(`${supabaseUrl}/functions/v1/sync-google-calendar`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabaseAnonKey}`,
-          },
-          body: JSON.stringify({
-            sessionId: formData.id,
-            title: formData.title,
-            description: `
+        const patchData = {
+          sessionId: formData.id,
+          title: formData.title,
+          description: `
 📚 CONTENT INFORMATION
 
 Category:    ${formData.content_category || 'N/A'}
@@ -417,17 +412,27 @@ ${window.location.origin}/ppt/1.1.7.1.3%20GT%20WES_%20Sample%20Template%20for%20
 
 Session updated with new details.
             `.trim(),
-            startDateTime: startDateTime.toISOString(),
-            endDateTime: endDateTime.toISOString(),
-            volunteerEmails: [
-              volunteerData?.personal_email,
-              volunteerData?.work_email
-            ].filter((email): email is string => !!(email && typeof email === 'string' && email.trim())),
-            facilitatorEmail: facilitatorData?.email || '',
-            coordinatorEmail: coordinatorData?.email || '',
-            classEmail: classData?.email,
-            centreEmail: centreData?.email,
-          }),
+          startDateTime: startDateTime.toISOString(),
+          endDateTime: endDateTime.toISOString(),
+          volunteerEmails: [
+            volunteerData?.personal_email,
+            volunteerData?.work_email
+          ].filter((email): email is string => !!(email && typeof email === 'string' && email.trim())),
+          facilitatorEmail: facilitatorData?.email || '',
+          coordinatorEmail: coordinatorData?.email || '',
+          classEmail: classData?.email,
+          centreEmail: centreData?.email,
+        };
+
+        console.log('Sending PATCH request to sync-google-calendar with centre email:', centreData?.email);
+
+        await fetch(`${supabaseUrl}/functions/v1/sync-google-calendar`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseAnonKey}`,
+          },
+          body: JSON.stringify(patchData),
         });
       } catch (calendarError) {
         console.warn('Could not update Google Calendar:', calendarError);

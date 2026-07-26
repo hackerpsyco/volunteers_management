@@ -649,15 +649,15 @@ export default function FeedbackDetails() {
                 <span className="text-muted-foreground block text-xs uppercase tracking-wider">Module</span>
                 <p className="font-medium mt-0.5">{feedback.module_name || '-'}</p>
               </div>
+              <div className="col-span-2 md:col-span-4 lg:col-span-5">
+                <span className="text-muted-foreground block text-xs uppercase tracking-wider">Topic</span>
+                <p className="font-medium mt-0.5">{feedback.topics_covered || '-'}</p>
+              </div>
               <div>
                 <span className="text-muted-foreground block text-xs uppercase tracking-wider">Present Students</span>
                 <p className="font-medium mt-0.5">
                   {studentPerformance.filter(sp => sp.attendance_status === 'Present').length}
                 </p>
-              </div>
-              <div className="col-span-2 md:col-span-4 lg:col-span-5">
-                <span className="text-muted-foreground block text-xs uppercase tracking-wider">Topic</span>
-                <p className="font-medium mt-0.5">{feedback.topics_covered || '-'}</p>
               </div>
             </div>
           </CardContent>
