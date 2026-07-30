@@ -106,11 +106,18 @@ export function TopStudentsWidget({
           .from('sessions')
           .select('id');
 
+        const formatDateYMD = (d: Date): string => {
+          const year = d.getFullYear();
+          const month = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        };
+
         if (startDate) {
-          sessionsQuery = sessionsQuery.gte('session_date', startDate.toISOString().split('T')[0]);
+          sessionsQuery = sessionsQuery.gte('session_date', formatDateYMD(startDate));
         }
         if (endDate) {
-          sessionsQuery = sessionsQuery.lte('session_date', endDate.toISOString().split('T')[0]);
+          sessionsQuery = sessionsQuery.lte('session_date', formatDateYMD(endDate));
         }
         if (sessionType && sessionType !== 'all') {
           sessionsQuery = sessionsQuery.eq('session_type', sessionType);

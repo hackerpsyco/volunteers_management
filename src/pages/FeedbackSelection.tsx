@@ -42,15 +42,19 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAcademicYear } from '@/contexts/AcademicYearContext';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
+import { attachSessionIdCodes } from '@/utils/sessionIdGenerator';
 
 interface FeedbackSession {
   id: string;
+  session_id_code?: string;
   title: string;
   session_date: string;
   session_time: string;
   session_type: string;
   facilitator_name: string;
   volunteer_name: string;
+  volunteer_id?: string | null;
+  organization_name?: string | null;
   coordinator_name: string | null;
   status: string;
   topics_covered: string | null;
@@ -87,6 +91,7 @@ export default function FeedbackSelection() {
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [timeFilter, setTimeFilter] = useState<string | null>(null);
   const [volunteerFilter, setVolunteerFilter] = useState<string | null>(null);
+  const [organizationFilter, setOrganizationFilter] = useState<string | null>(null);
   const [facilitatorFilter, setFacilitatorFilter] = useState<string | null>(null);
   const [coordinatorFilter, setCoordinatorFilter] = useState<string | null>(null);
   const [subjectFilter, setSubjectFilter] = useState<string | null>(null);
@@ -111,6 +116,7 @@ export default function FeedbackSelection() {
   const [loadingCommitted, setLoadingCommitted] = useState(false);
   const [dialogFilter, setDialogFilter] = useState<string>('recent');
   const [isVolunteerPopoverOpen, setIsVolunteerPopoverOpen] = useState(false);
+  const [isOrganizationPopoverOpen, setIsOrganizationPopoverOpen] = useState(false);
 
   useEffect(() => {
     fetchFeedbackSessions();
@@ -120,6 +126,21 @@ export default function FeedbackSelection() {
     try {
       setLoading(true);
       
+      // Fetch volunteers for organization mapping
+      const { data: volunteersData } = await supabase
+        .from('volunteers')
+        .select('id, name, organization_name');
+
+      const volunteerIdOrgMap = new Map<string, string>();
+      const volunteerNameOrgMap = new Map<string, string>();
+
+      (volunteersData || []).forEach((v: any) => {
+        if (v.organization_name) {
+          if (v.id) volunteerIdOrgMap.set(v.id, v.organization_name);
+          if (v.name) volunteerNameOrgMap.set(v.name.trim().toLowerCase(), v.organization_name);
+        }
+      });
+      
       // Fetch sessions with academic year filtering
       const { startDate, endDate } = getDateRange();
       const { data: sessionsData, error: sessionsError } = await supabase
@@ -128,6 +149,7 @@ export default function FeedbackSelection() {
           *,
           coordinators:coordinator_id(name),
           subjects(name),
+          volunteers:volunteer_id(name, organization_name),
           session_hours_tracker(plan_coordinate_hours, preparation_hours, session_hours, reflection_feedback_followup_hours, total_volunteering_time, logged_hours_in_benevity, notes)
         `)
         .not('recorded_at', 'is', null)
@@ -138,13 +160,23 @@ export default function FeedbackSelection() {
       if (sessionsError) throw sessionsError;
 
       // Transform sessions data
-      const transformedSessions = (sessionsData || []).map((session: any) => ({
-        ...session,
-        coordinator_name: session.coordinators?.name || null,
-        subject_name: session.subjects?.name || null,
-      }));
+      const transformedSessions = (sessionsData || []).map((session: any) => {
+        const orgName = session.volunteers?.organization_name ||
+          (session.volunteer_id ? volunteerIdOrgMap.get(session.volunteer_id) : null) ||
+          (session.volunteer_name ? volunteerNameOrgMap.get(session.volunteer_name.trim().toLowerCase()) : null) ||
+          null;
 
-      setFeedbackSessions(transformedSessions as FeedbackSession[]);
+        return {
+          ...session,
+          coordinator_name: session.coordinators?.name || null,
+          subject_name: session.subjects?.name || null,
+          organization_name: orgName,
+        };
+      });
+
+      const processedWithCodes = attachSessionIdCodes(transformedSessions);
+
+      setFeedbackSessions(processedWithCodes as FeedbackSession[]);
     } catch (error) {
       console.error('Error fetching feedback sessions:', error);
       toast.error('Failed to load feedback sessions');
@@ -160,12 +192,14 @@ export default function FeedbackSelection() {
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(s => 
+        (s.session_id_code?.toLowerCase().includes(query)) ||
         (s.title?.toLowerCase().includes(query)) ||
         (s.content_category?.toLowerCase().includes(query)) ||
         (s.module_name?.toLowerCase().includes(query)) ||
         (s.topics_covered?.toLowerCase().includes(query)) ||
         (s.facilitator_name?.toLowerCase().includes(query)) ||
         (s.volunteer_name?.toLowerCase().includes(query)) ||
+        (s.organization_name?.toLowerCase().includes(query)) ||
         (s.coordinator_name?.toLowerCase().includes(query)) ||
         (s.class_batch?.toLowerCase().includes(query)) ||
         (s.subject_name?.toLowerCase().includes(query)) ||
@@ -209,6 +243,7 @@ export default function FeedbackSelection() {
 
     // Other filters
     if (volunteerFilter) filtered = filtered.filter(s => s.volunteer_name === volunteerFilter);
+    if (organizationFilter) filtered = filtered.filter(s => s.organization_name === organizationFilter);
     if (facilitatorFilter) filtered = filtered.filter(s => s.facilitator_name === facilitatorFilter);
     if (coordinatorFilter) filtered = filtered.filter(s => s.coordinator_name === coordinatorFilter);
 
@@ -365,6 +400,7 @@ export default function FeedbackSelection() {
                     Class: session.class_batch || '-',
                     Facilitator: session.facilitator_name || '-',
                     Volunteer: session.volunteer_name || '-',
+                    Organization: session.organization_name || '-',
                     Coordinator: session.coordinator_name || '-',
                     'Session Type': session.session_type,
                     Category: session.content_category || '-',
@@ -470,10 +506,8 @@ export default function FeedbackSelection() {
                   onDateToChange={setDateToFilter}
                 />
               </div>
-            </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {/* Row 2 */}
+              {/* Volunteer Filter - Moved to Row 1 */}
               <div>
                 <label className="text-xs font-medium mb-1 block">Volunteer</label>
                 <Popover open={isVolunteerPopoverOpen} onOpenChange={setIsVolunteerPopoverOpen}>
@@ -529,6 +563,74 @@ export default function FeedbackSelection() {
                                 )}
                               />
                               {v}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {/* Row 2 */}
+              {/* Organisation Filter */}
+              <div>
+                <label className="text-xs font-medium mb-1 block">Organisation</label>
+                <Popover open={isOrganizationPopoverOpen} onOpenChange={setIsOrganizationPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={isOrganizationPopoverOpen}
+                      className="w-full h-9 justify-between font-normal text-xs px-3"
+                    >
+                      <span className="truncate">
+                        {organizationFilter ? organizationFilter : "All Organisations"}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[200px] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Search organisation..." className="h-8 text-xs" />
+                      <CommandList>
+                        <CommandEmpty className="text-xs py-2 px-4">No organisation found.</CommandEmpty>
+                        <CommandGroup>
+                          <CommandItem
+                            value="all"
+                            onSelect={() => {
+                              setOrganizationFilter(null);
+                              setIsOrganizationPopoverOpen(false);
+                            }}
+                            className="text-xs"
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-3 w-3",
+                                !organizationFilter ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            All Organisations
+                          </CommandItem>
+                          {[...new Set(feedbackSessions.map(s => s.organization_name).filter(Boolean))].sort().map((org) => (
+                            <CommandItem
+                              key={org}
+                              value={org!}
+                              onSelect={() => {
+                                setOrganizationFilter(org!);
+                                setIsOrganizationPopoverOpen(false);
+                              }}
+                              className="text-xs"
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-3 w-3",
+                                  organizationFilter === org ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {org}
                             </CommandItem>
                           ))}
                         </CommandGroup>
@@ -620,6 +722,7 @@ export default function FeedbackSelection() {
                     setTimeFilter(null);
                     setSessionTypeFilter(null);
                     setVolunteerFilter(null);
+                    setOrganizationFilter(null);
                     setFacilitatorFilter(null);
                     setCoordinatorFilter(null);
                     setDateFromFilter('');
@@ -643,6 +746,7 @@ export default function FeedbackSelection() {
                 <Table className="text-xs">
                   <TableHeader>
                     <TableRow className="bg-muted/50">
+                      <TableHead className="font-bold min-w-[220px] w-[220px]">Session ID</TableHead>
                       <TableHead className="cursor-pointer" onClick={() => handleColumnSort('subject_name')}>
                         Subject {getSortIndicator('subject_name')}
                       </TableHead>
@@ -656,7 +760,12 @@ export default function FeedbackSelection() {
                         Topics Covered {getSortIndicator('topics_covered')}
                       </TableHead>
                       <TableHead>Type</TableHead>
-                      <TableHead>Volunteer</TableHead>
+                      <TableHead className="cursor-pointer" onClick={() => handleColumnSort('volunteer_name')}>
+                        Volunteer {getSortIndicator('volunteer_name')}
+                      </TableHead>
+                      <TableHead className="cursor-pointer" onClick={() => handleColumnSort('organization_name')}>
+                        Organisation {getSortIndicator('organization_name')}
+                      </TableHead>
                       <TableHead>Coordinator</TableHead>
                       <TableHead>Facilitator</TableHead>
                       <TableHead>Class</TableHead>
@@ -670,6 +779,15 @@ export default function FeedbackSelection() {
                   <TableBody>
                     {filteredSessions.map((session) => (
                       <TableRow key={session.id} className="hover:bg-muted/50">
+                        <TableCell className="py-2 min-w-[220px] w-[220px]">
+                          <Badge 
+                            variant="outline" 
+                            className="font-mono text-[11px] bg-primary/10 text-primary border-primary/20 font-bold px-2 py-0.5 whitespace-nowrap inline-block"
+                            title={`Full Database UUID: ${session.id}`}
+                          >
+                            {session.session_id_code || `#${session.id.slice(0, 8).toUpperCase()}`}
+                          </Badge>
+                        </TableCell>
                         <TableCell 
                           className="cursor-pointer font-medium text-primary hover:underline"
                           onClick={() => handleViewDetails(session.id)}
@@ -685,6 +803,7 @@ export default function FeedbackSelection() {
                           </Badge>
                         </TableCell>
                         <TableCell><TruncatedText text={session.volunteer_name} maxLength={15} /></TableCell>
+                        <TableCell><TruncatedText text={session.organization_name} maxLength={15} /></TableCell>
                         <TableCell><TruncatedText text={session.coordinator_name} maxLength={15} /></TableCell>
                         <TableCell><TruncatedText text={session.facilitator_name} maxLength={15} /></TableCell>
                         <TableCell>{session.class_batch || '-'}</TableCell>

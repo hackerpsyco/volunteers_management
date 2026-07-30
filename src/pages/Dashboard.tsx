@@ -196,15 +196,23 @@ export default function Dashboard() {
 
   const monthsList = getAcademicYearMonths(selectedYear);
 
+  const formatDateYMD = (d: Date | null): string => {
+    if (!d) return '';
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const getSelectedMonthLabel = () => {
     if (!customStartDate || !customEndDate) return 'all';
-    const startStr = customStartDate.toISOString().split('T')[0];
-    const endStr = customEndDate.toISOString().split('T')[0];
+    const startStr = formatDateYMD(customStartDate);
+    const endStr = formatDateYMD(customEndDate);
     for (const m of monthsList) {
       const monthStart = new Date(m.year, m.month, 1);
       const monthEnd = new Date(m.year, m.month + 1, 0, 23, 59, 59);
-      if (monthStart.toISOString().split('T')[0] === startStr && 
-          monthEnd.toISOString().split('T')[0] === endStr) {
+      if (formatDateYMD(monthStart) === startStr && 
+          formatDateYMD(monthEnd) === endStr) {
         return m.label;
       }
     }
@@ -588,8 +596,15 @@ export default function Dashboard() {
                 <input 
                   type="date" 
                   className="bg-transparent text-sm border-0 focus:ring-0 cursor-pointer p-0 h-6"
-                  value={customStartDate ? customStartDate.toISOString().split('T')[0] : ''}
-                  onChange={e => setCustomStartDate(e.target.value ? new Date(e.target.value) : null)}
+                  value={formatDateYMD(customStartDate)}
+                  onChange={e => {
+                    if (e.target.value) {
+                      const [y, m, d] = e.target.value.split('-').map(Number);
+                      setCustomStartDate(new Date(y, m - 1, d, 0, 0, 0));
+                    } else {
+                      setCustomStartDate(null);
+                    }
+                  }}
                 />
               </div>
               <div className="text-muted-foreground">-</div>
@@ -598,8 +613,15 @@ export default function Dashboard() {
                 <input 
                   type="date" 
                   className="bg-transparent text-sm border-0 focus:ring-0 cursor-pointer p-0 h-6"
-                  value={customEndDate ? customEndDate.toISOString().split('T')[0] : ''}
-                  onChange={e => setCustomEndDate(e.target.value ? new Date(e.target.value) : null)}
+                  value={formatDateYMD(customEndDate)}
+                  onChange={e => {
+                    if (e.target.value) {
+                      const [y, m, d] = e.target.value.split('-').map(Number);
+                      setCustomEndDate(new Date(y, m - 1, d, 23, 59, 59));
+                    } else {
+                      setCustomEndDate(null);
+                    }
+                  }}
                 />
               </div>
             </div>

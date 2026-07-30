@@ -75,10 +75,24 @@ export default function StudentDashboard() {
   const [ownClassId, setOwnClassId] = useState<string>('');
   const [ownType, setOwnType] = useState<string>('Fellow');
 
-  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
-    const currentMonthIndex = new Date().getMonth(); // 0 to 11
-    return String(currentMonthIndex + 1); // "1" to "12"
+  const formatDateYMD = (d: Date | null): string => {
+    if (!d) return '';
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const [customStartDate, setCustomStartDate] = useState<Date | null>(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
   });
+
+  const [customEndDate, setCustomEndDate] = useState<Date | null>(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+  });
+
   const [earningsList, setEarningsList] = useState<{ amount: number; earned_at: string }[]>([]);
   const [ownSessions, setOwnSessions] = useState<any[]>([]);
   const [studentPerformances, setStudentPerformances] = useState<any[]>([]);
@@ -99,11 +113,28 @@ export default function StudentDashboard() {
     { value: '12', label: 'December' },
   ];
 
+  const getSelectedMonthLabel = () => {
+    if (!customStartDate || !customEndDate) return 'all';
+    const startStr = formatDateYMD(customStartDate);
+    const endStr = formatDateYMD(customEndDate);
+    
+    const now = new Date();
+    const year = now.getFullYear();
+    for (let m = 0; m < 12; m++) {
+      const mStart = formatDateYMD(new Date(year, m, 1));
+      const mEnd = formatDateYMD(new Date(year, m + 1, 0, 23, 59, 59));
+      if (mStart === startStr && mEnd === endStr) {
+        return String(m + 1);
+      }
+    }
+    return 'custom';
+  };
+
   useEffect(() => {
     if (user?.id) {
       loadStudentData();
     }
-  }, [user?.id, selectedMonth, selectedYear]);
+  }, [user?.id, customStartDate, customEndDate, selectedYear]);
 
   // Reactive Attendance Rate Calculator
   useEffect(() => {
@@ -114,10 +145,9 @@ export default function StudentDashboard() {
     }
 
     const sessionsToUse = ownSessions.filter(s => {
-      if (selectedMonth !== 'all') {
-        const date = new Date(s.session_date);
-        return String(date.getMonth() + 1) === selectedMonth;
-      }
+      const sDate = s.session_date;
+      if (customStartDate && sDate < formatDateYMD(customStartDate)) return false;
+      if (customEndDate && sDate > formatDateYMD(customEndDate)) return false;
       return true;
     });
 
@@ -139,9 +169,9 @@ export default function StudentDashboard() {
       setAttendanceDetails(`${presentCount} of ${totalCount} present`);
     } else {
       setAttendanceRate('100%');
-      setAttendanceDetails(selectedMonth === 'all' ? '0 sessions' : '0 sessions this month');
+      setAttendanceDetails(!customStartDate && !customEndDate ? '0 sessions' : '0 sessions in range');
     }
-  }, [ownSessions, studentPerformances, selectedMonth, studentName]);
+  }, [ownSessions, studentPerformances, customStartDate, customEndDate, studentName]);
 
   // Load class list on mount
   useEffect(() => {
@@ -259,20 +289,24 @@ export default function StudentDashboard() {
           const { data: sessionsForLeaderboard } = await supabase
             .from('sessions')
             .select('id, session_date')
-            .eq('class_batch', classDataName)
+            .ilike('class_batch', `%${classDataName}%`)
             .gte('session_date', earningStart.toISOString().split('T')[0])
             .lte('session_date', earningEnd.toISOString().split('T')[0]);
 
           let attendanceData: any[] = [];
           if (sessionsForLeaderboard && sessionsForLeaderboard.length > 0) {
             const sessionIds = sessionsForLeaderboard.map(s => s.id);
-            const { data: perfData } = await supabase
-              .from('student_performance')
-              .select('student_id, session_id, attendance_status, student_name')
-              .in('session_id', sessionIds)
-              .eq('attendance_status', 'Present');
-            if (perfData) {
-              attendanceData = perfData;
+            const chunkSize = 15;
+            for (let i = 0; i < sessionIds.length; i += chunkSize) {
+              const chunk = sessionIds.slice(i, i + chunkSize);
+              const { data: perfChunk } = await supabase
+                .from('student_performance')
+                .select('student_id, session_id, attendance_status, student_name')
+                .in('session_id', chunk)
+                .eq('attendance_status', 'Present');
+              if (perfChunk) {
+                attendanceData = attendanceData.concat(perfChunk);
+              }
             }
           }
 
@@ -286,30 +320,28 @@ export default function StudentDashboard() {
 
           // Apply earnings filter
           earningsData?.forEach(item => {
-            if (selectedMonth !== 'all') {
-              const date = new Date(item.earned_at);
-              if (String(date.getMonth() + 1) !== selectedMonth) return;
-            }
+            if (customStartDate && new Date(item.earned_at) < customStartDate) return;
+            if (customEndDate && new Date(item.earned_at) > customEndDate) return;
             const amount = parseFloat(item.amount as any) || 0;
             if (statsMap[item.student_id]) {
               statsMap[item.student_id].earnings += amount;
             }
           });
 
-          // Only count attendance for sessions in the selected month
+          // Only count attendance for sessions in the selected date range
           const validSessionIds = new Set(
             (sessionsForLeaderboard || [])
               .filter(s => {
-                if (selectedMonth !== 'all') {
-                  const date = new Date(s.session_date);
-                  return String(date.getMonth() + 1) === selectedMonth;
-                }
+                const sDate = s.session_date;
+                if (customStartDate && sDate < formatDateYMD(customStartDate)) return false;
+                if (customEndDate && sDate > formatDateYMD(customEndDate)) return false;
                 return true;
               })
               .map(s => s.id)
           );
 
-          // Count attendance using student_id (reliable) with name fallback
+          // Count attendance using student_id (reliable) with name fallback and deduplication per session
+          const countedStudentSessions = new Set<string>();
           attendanceData?.forEach(record => {
             if (!record.session_id || !validSessionIds.has(record.session_id)) return;
             let sId = record.student_id;
@@ -318,7 +350,11 @@ export default function StudentDashboard() {
               sId = studentNameMap[nameKey];
             }
             if (sId && statsMap[sId]) {
-              statsMap[sId].attendance += 1;
+              const dedupeKey = `${sId}_${record.session_id}`;
+              if (!countedStudentSessions.has(dedupeKey)) {
+                countedStudentSessions.add(dedupeKey);
+                statsMap[sId].attendance += 1;
+              }
             }
           });
 
@@ -351,7 +387,7 @@ export default function StudentDashboard() {
     }
 
     loadBatchData();
-  }, [selectedClassId, selectedType, selectedMonth, selectedYear]);
+  }, [selectedClassId, selectedType, customStartDate, customEndDate, selectedYear]);
 
   const loadStudentData = async () => {
     try {
@@ -511,19 +547,17 @@ export default function StudentDashboard() {
   }
 
   const filteredTasks = tasks.filter(task => {
-    if (selectedMonth !== 'all') {
+    if (customStartDate || customEndDate) {
       const dateToUse = task.deadline ? new Date(task.deadline) : new Date(task.created_at);
-      const monthOfDate = dateToUse.getMonth() + 1; // 1 to 12
-      return String(monthOfDate) === selectedMonth;
+      if (customStartDate && dateToUse < customStartDate) return false;
+      if (customEndDate && dateToUse > customEndDate) return false;
     }
     return true;
   });
 
   const computedTotalEarnings = earningsList.filter(item => {
-    if (selectedMonth !== 'all') {
-      const date = new Date(item.earned_at);
-      return String(date.getMonth() + 1) === selectedMonth;
-    }
+    if (customStartDate && new Date(item.earned_at) < customStartDate) return false;
+    if (customEndDate && new Date(item.earned_at) > customEndDate) return false;
     return true;
   }).reduce((sum, item) => sum + parseFloat(item.amount as any), 0);
 
@@ -565,11 +599,21 @@ export default function StudentDashboard() {
             </div>
 
             {/* Month Filter */}
-            <div className="flex flex-col bg-card border border-border px-3 py-1.5 rounded-lg justify-center h-[58px] min-w-[150px]">
-              <label className="text-[10px] text-muted-foreground font-semibold">FILTER BY MONTH</label>
+            <div className="flex flex-col bg-card border border-border px-3 py-1.5 rounded-lg justify-center h-[58px] min-w-[140px]">
+              <label className="text-[10px] text-muted-foreground font-semibold">MONTH</label>
               <Select 
-                value={selectedMonth} 
-                onValueChange={setSelectedMonth}
+                value={getSelectedMonthLabel()} 
+                onValueChange={(val) => {
+                  if (val === 'all') {
+                    setCustomStartDate(null);
+                    setCustomEndDate(null);
+                  } else if (val !== 'custom') {
+                    const monthNum = parseInt(val, 10);
+                    const year = new Date().getFullYear();
+                    setCustomStartDate(new Date(year, monthNum - 1, 1, 0, 0, 0));
+                    setCustomEndDate(new Date(year, monthNum, 0, 23, 59, 59));
+                  }
+                }}
               >
                 <SelectTrigger className="h-7 border-none bg-transparent focus:ring-0 text-sm font-semibold p-0 shadow-none hover:bg-transparent">
                   <SelectValue placeholder="Select Month" />
@@ -580,8 +624,48 @@ export default function StudentDashboard() {
                       {month.label}
                     </SelectItem>
                   ))}
+                  {getSelectedMonthLabel() === 'custom' && (
+                    <SelectItem value="custom">Custom Range</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Custom Date Range */}
+            <div className="flex items-center gap-2 bg-card border border-border p-2 rounded-lg h-[58px]">
+              <div className="flex flex-col">
+                <label className="text-[10px] text-muted-foreground font-semibold px-1">START DATE</label>
+                <input 
+                  type="date" 
+                  className="bg-transparent text-sm border-0 focus:ring-0 cursor-pointer p-0 h-6"
+                  value={formatDateYMD(customStartDate)}
+                  onChange={e => {
+                    if (e.target.value) {
+                      const [y, m, d] = e.target.value.split('-').map(Number);
+                      setCustomStartDate(new Date(y, m - 1, d, 0, 0, 0));
+                    } else {
+                      setCustomStartDate(null);
+                    }
+                  }}
+                />
+              </div>
+              <div className="text-muted-foreground">-</div>
+              <div className="flex flex-col">
+                <label className="text-[10px] text-muted-foreground font-semibold px-1">END DATE</label>
+                <input 
+                  type="date" 
+                  className="bg-transparent text-sm border-0 focus:ring-0 cursor-pointer p-0 h-6"
+                  value={formatDateYMD(customEndDate)}
+                  onChange={e => {
+                    if (e.target.value) {
+                      const [y, m, d] = e.target.value.split('-').map(Number);
+                      setCustomEndDate(new Date(y, m - 1, d, 23, 59, 59));
+                    } else {
+                      setCustomEndDate(null);
+                    }
+                  }}
+                />
+              </div>
             </div>
           </div>
         </div>

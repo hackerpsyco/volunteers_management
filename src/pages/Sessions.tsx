@@ -56,9 +56,11 @@ import { ImportSessionsDialog } from '@/components/sessions/ImportSessionsDialog
 import { UpdateRecordingDialog } from '@/components/sessions/UpdateRecordingDialog';
 import { EditSessionDialog } from '@/components/sessions/EditSessionDialog';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
+import { attachSessionIdCodes } from '@/utils/sessionIdGenerator';
 
 interface Session {
   id: string;
+  session_id_code?: string;
   title: string;
   session_date: string;
   session_time: string;
@@ -218,8 +220,10 @@ export default function Sessions() {
         subject_name: session.subjects && !Array.isArray(session.subjects) ? session.subjects.name : 
                      Array.isArray(session.subjects) && session.subjects.length > 0 ? session.subjects[0].name : null,
       }));
+
+      const processedWithCodes = attachSessionIdCodes(transformedData);
       
-      setSessions(transformedData as Session[]);
+      setSessions(processedWithCodes as Session[]);
     } catch (error) {
       console.error('Error fetching sessions:', error);
       toast.error('Failed to load sessions');
@@ -301,6 +305,7 @@ export default function Sessions() {
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(s => 
+        (s.session_id_code?.toLowerCase().includes(query)) ||
         (s.title?.toLowerCase().includes(query)) ||
         (s.content_category?.toLowerCase().includes(query)) ||
         (s.module_name?.toLowerCase().includes(query)) ||
@@ -763,7 +768,8 @@ export default function Sessions() {
                   <Table className="w-full text-sm">
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="min-w-[60px] cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleColumnSort('subject_name')}>
+                        <TableHead className="min-w-[220px] w-[220px] font-bold">Session ID</TableHead>
+                        <TableHead className="min-w-[80px] cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleColumnSort('subject_name')}>
                           <div className="flex items-center gap-1">
                             Subject
                             <span className={sortColumn === 'subject_name' ? 'font-bold' : 'text-muted-foreground'}>
@@ -836,6 +842,15 @@ export default function Sessions() {
 
                         return (
                         <TableRow key={session.id} className={rowBgClass}>
+                          <TableCell className="text-xs px-2 py-1 min-w-[220px] w-[220px]">
+                            <Badge 
+                              variant="outline" 
+                              className="font-mono text-[11px] bg-primary/10 text-primary border-primary/20 font-bold px-2 py-0.5 whitespace-nowrap inline-block"
+                              title={`Full Database UUID: ${session.id}`}
+                            >
+                              {session.session_id_code || `#${session.id.slice(0, 8).toUpperCase()}`}
+                            </Badge>
+                          </TableCell>
                           <TableCell className="text-xs px-2 py-1 max-w-[70px]">
                             <div 
                               onClick={() => navigate(`/sessions/${session.id}/recording`)}

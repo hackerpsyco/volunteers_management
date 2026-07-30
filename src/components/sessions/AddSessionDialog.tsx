@@ -24,6 +24,7 @@ import { VolunteerSelector } from './VolunteerSelector';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { formatSingleSessionCode } from '@/utils/sessionIdGenerator';
 
 interface CurriculumItem {
   id: string;
@@ -779,10 +780,23 @@ export function AddSessionDialog({
     // Generate meeting link with valid Google Meet format
     // Google Meet links should be: https://meet.google.com/xxx-xxxx-xxx (with hyphens)
     const meetingLink = formData.meeting_link.trim() || null;
+    const sessionDateFormatted = format(selectedDate, 'yyyy-MM-dd');
+
+    // Calculate month sequence for session_id_code
+    const monthPrefix = sessionDateFormatted.slice(0, 7);
+    const { count: monthCount } = await supabase
+      .from('sessions')
+      .select('id', { count: 'exact', head: true })
+      .gte('session_date', `${monthPrefix}-01`)
+      .lte('session_date', `${monthPrefix}-31`);
+
+    const seqNum = (monthCount || 0) + 1;
+    const generatedSessionCode = formatSingleSessionCode(sessionDateFormatted, formData.class_batch, sessionType, seqNum);
 
     const sessionData = {
       title: formData.title,
-      session_date: format(selectedDate, 'yyyy-MM-dd'),
+      session_date: sessionDateFormatted,
+      session_id_code: generatedSessionCode,
       session_time: slot?.start_time || '09:00',
       session_type: sessionType,
       session_type_option: formData.session_type_option,

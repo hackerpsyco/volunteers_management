@@ -33,9 +33,11 @@ import { toast } from 'sonner';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+import { formatSingleSessionCode } from '@/utils/sessionIdGenerator';
 
 interface SessionRecording {
   id: string;
+  session_id_code?: string;
   title: string;
   session_date: string;
   session_time: string;
@@ -1788,7 +1790,12 @@ export default function SessionRecording() {
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
-              <h1 className="text-2xl font-bold text-foreground">Session Feedback</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold text-foreground">Session Feedback</h1>
+                <Badge variant="outline" className="font-mono text-xs bg-primary/10 text-primary border-primary/20 font-bold px-2 py-0.5">
+                  {(session as any)?.session_id_code || formatSingleSessionCode(session?.session_date || '', session?.class_batch, session?.session_type)}
+                </Badge>
+              </div>
               <p className="text-sm text-muted-foreground">
                 {(() => {
                   const sessionData = session as any;

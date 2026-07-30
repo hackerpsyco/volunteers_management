@@ -16,9 +16,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
+import { formatSingleSessionCode } from '@/utils/sessionIdGenerator';
 
 interface FeedbackData {
   id: string;
+  session_id_code?: string;
   title: string;
   session_date: string;
   session_time: string;
@@ -234,9 +236,11 @@ export default function FeedbackDetails() {
       // Extract coordinator name from the joined relationship
       const sessionData = data as any;
       const coordinatorName = sessionData.coordinators?.name || null;
+      const generatedCode = sessionData.session_id_code || formatSingleSessionCode(sessionData.session_date, sessionData.class_batch, sessionData.session_type);
       
       setFeedback({
         ...sessionData,
+        session_id_code: generatedCode,
         coordinator_name: coordinatorName
       } as any);
     } catch (error) {
@@ -613,6 +617,12 @@ export default function FeedbackDetails() {
         <Card className="bg-muted/50">
           <CardContent className="pt-6">
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 text-sm">
+              <div>
+                <span className="text-muted-foreground block text-xs uppercase tracking-wider">Session ID</span>
+                <Badge variant="outline" className="font-mono text-xs bg-primary/10 text-primary border-primary/20 font-bold px-2 py-0.5 mt-0.5">
+                  {feedback.session_id_code || formatSingleSessionCode(feedback.session_date, feedback.class_batch, feedback.session_type)}
+                </Badge>
+              </div>
               <div>
                 <span className="text-muted-foreground block text-xs uppercase tracking-wider">Date</span>
                 <p className="font-medium mt-0.5">{new Date(feedback.session_date).toLocaleDateString()}</p>
