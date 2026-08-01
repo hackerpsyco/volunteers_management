@@ -212,25 +212,92 @@ export default function Tasks() {
     }
     setFilteredTasks(filtered);
 
-    // Group tasks by title
+    // Pre-calculate canonical metadata for every task title across all tasks in the academic year
+    const metadataMap = new Map<string, {
+      task_id: string;
+      created_at: string;
+      due_date: string;
+      subject_name: string;
+      class_name: string;
+      session_title: string;
+      volunteer_name: string;
+      facilitator_name: string;
+      incharge_name: string;
+      academic_year: string;
+      reward: number;
+    }>();
+
+    tasks.forEach((t) => {
+      const key = t.title;
+      if (!key) return;
+      
+      const existing = metadataMap.get(key);
+      if (!existing) {
+        metadataMap.set(key, {
+          task_id: t.task_id && t.task_id !== '-' ? t.task_id : '-',
+          created_at: t.created_at,
+          due_date: t.due_date,
+          subject_name: t.subject_name && t.subject_name !== '-' ? t.subject_name : '-',
+          class_name: t.class_name && t.class_name !== '-' ? t.class_name : '-',
+          session_title: t.session_title && t.session_title !== '-' ? t.session_title : '-',
+          volunteer_name: t.volunteer_name && t.volunteer_name !== '-' ? t.volunteer_name : '-',
+          facilitator_name: t.facilitator_name && t.facilitator_name !== '-' ? t.facilitator_name : '-',
+          incharge_name: t.incharge_name || '-',
+          academic_year: t.academic_year || '-',
+          reward: (t as any).earning_amount || 0,
+        });
+      } else {
+        if (existing.task_id === '-' && t.task_id && t.task_id !== '-') {
+          existing.task_id = t.task_id;
+        }
+        if (t.created_at && (!existing.created_at || new Date(t.created_at) < new Date(existing.created_at))) {
+          existing.created_at = t.created_at;
+        }
+        if (t.due_date && (!existing.due_date || new Date(t.due_date) < new Date(existing.due_date))) {
+          existing.due_date = t.due_date;
+        }
+        if (existing.subject_name === '-' && t.subject_name && t.subject_name !== '-') {
+          existing.subject_name = t.subject_name;
+        }
+        if (existing.class_name === '-' && t.class_name && t.class_name !== '-') {
+          existing.class_name = t.class_name;
+        }
+        if (existing.session_title === '-' && t.session_title && t.session_title !== '-') {
+          existing.session_title = t.session_title;
+        }
+        if (existing.volunteer_name === '-' && t.volunteer_name && t.volunteer_name !== '-') {
+          existing.volunteer_name = t.volunteer_name;
+        }
+        if (existing.facilitator_name === '-' && t.facilitator_name && t.facilitator_name !== '-') {
+          existing.facilitator_name = t.facilitator_name;
+        }
+        if (existing.reward === 0 && (t as any).earning_amount) {
+          existing.reward = (t as any).earning_amount;
+        }
+      }
+    });
+
+    // Group filtered tasks by title
     const grouped = new Map<string, TaskGroup>();
     filtered.forEach((task) => {
       const key = task.title;
+      const meta = metadataMap.get(key);
+
       if (!grouped.has(key)) {
         grouped.set(key, {
           title: task.title,
-          task_id: task.task_id || '-',
+          task_id: (meta?.task_id && meta.task_id !== '-') ? meta.task_id : (task.task_id || '-'),
           description: task.description,
-          created_at: task.created_at,
-          due_date: task.due_date,
-          subject_name: task.subject_name && task.subject_name !== '-' ? task.subject_name : '-',
-          class_name: task.class_name && task.class_name !== '-' ? task.class_name : '-',
-          session_title: task.session_title && task.session_title !== '-' ? task.session_title : '-',
-          volunteer_name: task.volunteer_name && task.volunteer_name !== '-' ? task.volunteer_name : '-',
-          facilitator_name: task.facilitator_name && task.facilitator_name !== '-' ? task.facilitator_name : '-',
-          incharge_name: task.incharge_name || '-',
-          academic_year: task.academic_year || '-',
-          reward: (task as any).earning_amount || 0,
+          created_at: meta?.created_at || task.created_at,
+          due_date: meta?.due_date || task.due_date,
+          subject_name: (meta?.subject_name && meta.subject_name !== '-') ? meta.subject_name : (task.subject_name || '-'),
+          class_name: (meta?.class_name && meta.class_name !== '-') ? meta.class_name : (task.class_name || '-'),
+          session_title: (meta?.session_title && meta.session_title !== '-') ? meta.session_title : (task.session_title || '-'),
+          volunteer_name: (meta?.volunteer_name && meta.volunteer_name !== '-') ? meta.volunteer_name : (task.volunteer_name || '-'),
+          facilitator_name: (meta?.facilitator_name && meta.facilitator_name !== '-') ? meta.facilitator_name : (task.facilitator_name || '-'),
+          incharge_name: meta?.incharge_name || task.incharge_name || '-',
+          academic_year: meta?.academic_year || task.academic_year || '-',
+          reward: meta?.reward || (task as any).earning_amount || 0,
           latestCompletionDate: null,
           tasks: [],
           completedCount: 0,
@@ -244,8 +311,6 @@ export default function Tasks() {
       if (group.task_id === '-' && task.task_id && task.task_id !== '-') {
         group.task_id = task.task_id;
       }
-      
-      // Update group metadata if the current task has better info
       if (group.subject_name === '-' && task.subject_name && task.subject_name !== '-') {
         group.subject_name = task.subject_name;
       }
@@ -423,6 +488,65 @@ export default function Tasks() {
                          Array.isArray(task.sessions?.subjects) && task.sessions.subjects.length > 0 ? task.sessions.subjects[0].name : '-'),
         };
       });
+
+      // Heal missing task_ids for tasks that have no valid task_id set anywhere
+      const taskTitleGroups = new Map<string, TaskItem[]>();
+      enriched.forEach(t => {
+        if (!t.title) return;
+        if (!taskTitleGroups.has(t.title)) taskTitleGroups.set(t.title, []);
+        taskTitleGroups.get(t.title)!.push(t);
+      });
+
+      for (const [title, items] of taskTitleGroups.entries()) {
+        const firstValidId = items.find(i => i.task_id && i.task_id !== '-')?.task_id;
+        if (firstValidId) {
+          // Fill in any individual item in the group that was missing task_id
+          items.forEach(i => {
+            if (!i.task_id || i.task_id === '-') {
+              i.task_id = firstValidId;
+            }
+          });
+        } else if (items.length > 0) {
+          // Generate a new sequential task_id for this task group
+          try {
+            const firstItem = items[0];
+            const dateToUse = firstItem.created_at ? new Date(firstItem.created_at) : new Date();
+            const yearStr = dateToUse.getFullYear();
+            const monthStr = String(dateToUse.getMonth() + 1).padStart(2, '0');
+            const classNameClean = (firstItem.class_name && firstItem.class_name !== '-' ? firstItem.class_name : 'Task').replace(/[\s\/]+/g, '');
+            const prefix = `${yearStr}-${monthStr}-${classNameClean}-`;
+
+            const { data: existingSeq } = await supabase
+              .from('student_task_feedback')
+              .select('task_id')
+              .like('task_id', `${prefix}%`)
+              .order('task_id', { ascending: false })
+              .limit(1);
+
+            let nextSeq = 1;
+            if (existingSeq && existingSeq.length > 0 && existingSeq[0].task_id) {
+              const lastSeqStr = existingSeq[0].task_id.split('-').pop();
+              if (lastSeqStr) {
+                const parsed = parseInt(lastSeqStr, 10);
+                if (!isNaN(parsed)) nextSeq = parsed + 1;
+              }
+            }
+            const generatedTaskId = `${prefix}${String(nextSeq).padStart(3, '0')}`;
+
+            const idsToUpdate = items.map(i => i.id);
+            await supabase
+              .from('student_task_feedback')
+              .update({ task_id: generatedTaskId })
+              .in('id', idsToUpdate);
+
+            items.forEach(i => {
+              i.task_id = generatedTaskId;
+            });
+          } catch (healErr) {
+            console.error('Error auto-generating task_id:', healErr);
+          }
+        }
+      }
 
       setTasks(enriched);
     } catch (e) {
