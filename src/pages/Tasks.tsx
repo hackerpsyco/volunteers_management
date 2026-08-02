@@ -121,10 +121,7 @@ export default function Tasks() {
   const [inchargeOptions, setInchargeOptions] = useState<string[]>([]);
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
-  const [filterMonth, setFilterMonth] = useState<string>(() => {
-    const currentMonthIndex = new Date().getMonth(); // 0 to 11
-    return String(currentMonthIndex + 1); // "1" to "12"
-  });
+  const [filterMonth, setFilterMonth] = useState<string>('all');
 
   const monthsList = [
     { value: 'all', label: 'All Months' },
@@ -181,7 +178,10 @@ export default function Tasks() {
     // Month filter
     if (filterMonth !== 'all') {
       filtered = filtered.filter((t) => {
-        const dateToUse = t.due_date ? new Date(t.due_date) : new Date(t.created_at);
+        const rawDate = t.due_date && t.due_date.trim() !== '' ? t.due_date : t.created_at;
+        if (!rawDate || rawDate.trim() === '') return false;
+        const dateToUse = new Date(rawDate);
+        if (isNaN(dateToUse.getTime())) return false;
         const monthOfDate = dateToUse.getMonth() + 1; // 1 to 12
         return String(monthOfDate) === filterMonth;
       });
@@ -196,19 +196,6 @@ export default function Tasks() {
         if (filterDateTo && taskDate > new Date(filterDateTo)) return false;
         return true;
       });
-    }
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (t) =>
-          t.title?.toLowerCase().includes(q) ||
-          t.description?.toLowerCase().includes(q) ||
-          t.student_name?.toLowerCase().includes(q) ||
-          t.session_title?.toLowerCase().includes(q) ||
-          t.class_name?.toLowerCase().includes(q) ||
-          t.status?.toLowerCase().includes(q) ||
-          t.incharge_name?.toLowerCase().includes(q)
-      );
     }
     setFilteredTasks(filtered);
 
@@ -351,6 +338,25 @@ export default function Tasks() {
     } else if (filterStatus === 'verified') {
       finalGroups = finalGroups.filter((g) => g.completedCount === g.submittedCount);
     }
+
+    // Also apply search at the group level (so task_id, title, class, etc. on the group are searched)
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      finalGroups = finalGroups.filter((g) =>
+        g.task_id?.toLowerCase().includes(q) ||
+        g.title?.toLowerCase().includes(q) ||
+        g.description?.toLowerCase().includes(q) ||
+        g.class_name?.toLowerCase().includes(q) ||
+        g.subject_name?.toLowerCase().includes(q) ||
+        g.session_title?.toLowerCase().includes(q) ||
+        g.incharge_name?.toLowerCase().includes(q) ||
+        g.facilitator_name?.toLowerCase().includes(q) ||
+        g.volunteer_name?.toLowerCase().includes(q) ||
+        // also search within individual student names in the group
+        g.tasks.some((t) => t.student_name?.toLowerCase().includes(q))
+      );
+    }
+
     setTaskGroups(finalGroups);
   }, [tasks, filterClass, filterSession, filterSubject, filterStatus, filterIncharge, filterDateFrom, filterDateTo, filterMonth, searchQuery, classes]);
 
@@ -420,39 +426,78 @@ export default function Tasks() {
         .select('id, full_name');
       const profilesMap = new Map((profilesData || []).map(p => [p.id, p.full_name]));
 
-      const { data, error } = await supabase
-        .from('student_task_feedback')
-        .select(`
-          id,
-          task_name,
-          task_id,
-          task_description,
-          deadline,
-          submission_link,
-          status,
-          student_id,
-          session_id,
-          created_at,
-          updated_at,
-          academic_year,
-          earning_amount,
-          created_by,
-          students:student_id(
-            name,
-            classes(name)
-          ),
-          sessions:session_id(
-            title, 
-            class_batch,
-            volunteer_name,
-            facilitator_name,
-            subjects:subject_id(name)
-          )
-        `)
-        .or(`academic_year.eq."${selectedYear}",and(academic_year.is.null,created_at.gte."${startDate.toISOString()}",created_at.lte."${endDate.toISOString()}")`)
-        .order('created_at', { ascending: false });
+      // Fetch all tasks using pagination (Supabase caps individual queries at 1000 rows max)
+      let allData: any[] = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
 
-      if (error) throw error;
+      while (hasMore) {
+        const from = page * pageSize;
+        const to = from + pageSize - 1;
+
+        const { data: pageData, error: pageError } = await supabase
+          .from('student_task_feedback')
+          .select(`
+            id,
+            task_name,
+            task_id,
+            task_description,
+            deadline,
+            submission_link,
+            status,
+            student_id,
+            session_id,
+            created_at,
+            updated_at,
+            academic_year,
+            earning_amount,
+            created_by,
+            students:student_id(
+              name,
+              classes(name)
+            ),
+            sessions:session_id(
+              title, 
+              class_batch,
+              volunteer_name,
+              facilitator_name,
+              subjects:subject_id(name)
+            )
+          `)
+          .order('created_at', { ascending: false })
+          .range(from, to);
+
+        if (pageError) throw pageError;
+
+        if (pageData && pageData.length > 0) {
+          allData = allData.concat(pageData);
+          if (pageData.length < pageSize) {
+            hasMore = false;
+          } else {
+            page++;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+
+      // Client-side filter: keep tasks that belong to the selected academic year
+      // A task belongs to the year if:
+      //   1. Its academic_year field exactly matches selectedYear, OR
+      //   2. Its academic_year is null/empty AND its created_at falls within the academic year date range
+      const data = (allData || []).filter((task: any) => {
+        const ay = task.academic_year;
+        if (ay && ay.trim() !== '') {
+          return ay === selectedYear;
+        }
+        // null or empty academic_year — use created_at date range
+        if (!task.created_at) return false;
+        const created = new Date(task.created_at);
+        return created >= startDate && created <= endDate;
+      });
+
+      if (!data) throw new Error('No data returned');
 
       const enriched: TaskItem[] = (data || []).map((task: any) => {
         const creatorName = profilesMap.get(task.created_by) || '';
