@@ -121,7 +121,10 @@ export default function Tasks() {
   const [inchargeOptions, setInchargeOptions] = useState<string[]>([]);
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
-  const [filterMonth, setFilterMonth] = useState<string>('all');
+  const [filterMonth, setFilterMonth] = useState<string>(() => {
+    const currentMonthIndex = new Date().getMonth(); // 0 to 11
+    return String(currentMonthIndex + 1); // "1" to "12"
+  });
 
   const monthsList = [
     { value: 'all', label: 'All Months' },
