@@ -1,4 +1,4 @@
-import { Home, Users, LogOut, CalendarDays, BookOpen, Menu, X, Users2, MapPin, FileText, GraduationCap, Shield, ClipboardList, ChevronDown, MessageCircle } from 'lucide-react';
+import { Home, Users, LogOut, CalendarDays, BookOpen, Menu, X, Users2, MapPin, FileText, GraduationCap, Shield, ClipboardList, ChevronDown, MessageCircle, Clock } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -50,6 +50,7 @@ const navGroups: NavGroup[] = [
     items: [
       { title: 'Student Earnings', url: '/admin-earnings', icon: ClipboardList, requiredRole: null, studentVisible: false },
       { title: 'Facilitator Earnings', url: '/admin-facilitator-earnings', icon: ClipboardList, requiredRole: null, studentVisible: false, hiddenRoles: [4] },
+      { title: 'Volunteer Log Hours', url: '/volunteer-log-hours', icon: Clock, requiredRole: null, studentVisible: false },
     ]
   },
   {

@@ -403,7 +403,7 @@ export default function Calendar() {
   };
 
   const handleCancelSession = async (sessionId: string) => {
-    if (!confirm('Are you sure you want to cancel this session? The status will be changed to pending.')) {
+    if (!confirm('Are you sure you want to cancel this session? The status will be changed to cancelled.')) {
       return;
     }
 
@@ -429,15 +429,15 @@ export default function Calendar() {
         console.warn('Could not remove from Google Calendar:', calendarError);
       }
 
-      // Update status to pending instead of deleting
+      // Update status to cancelled instead of deleting
       const { error } = await supabase
         .from('sessions')
-        .update({ status: 'pending' })
+        .update({ status: 'cancelled' })
         .eq('id', sessionId);
 
       if (error) throw error;
 
-      toast.success('Session status changed to pending');
+      toast.success('Session status changed to cancelled');
       setSelectedSession(null);
       fetchSessions();
     } catch (error) {

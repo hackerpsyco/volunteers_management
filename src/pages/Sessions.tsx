@@ -575,10 +575,11 @@ export default function Sessions() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">All Statuses</SelectItem>
-                          <SelectItem value="pending">Pending</SelectItem>
                           <SelectItem value="committed">Committed</SelectItem>
-                          <SelectItem value="available">Available</SelectItem>
+                          <SelectItem value="in_progress">In Progress</SelectItem>
                           <SelectItem value="completed">Completed</SelectItem>
+                          <SelectItem value="rescheduled">Rescheduled</SelectItem>
+                          <SelectItem value="cancelled">Cancelled</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -929,7 +930,12 @@ export default function Sessions() {
                           </TableCell>
                           <TableCell className="text-xs px-2 py-1">
                             <Badge 
-                              variant={session.status === 'completed' ? 'default' : session.status === 'pending' ? 'secondary' : 'outline'}
+                              variant={
+                                session.status === 'completed' ? 'default' :
+                                session.status === 'rescheduled' ? 'secondary' :
+                                session.status === 'cancelled' ? 'destructive' :
+                                'outline'
+                              }
                               className="text-xs whitespace-nowrap"
                             >
                               {session.status || '-'}
@@ -1004,7 +1010,8 @@ export default function Sessions() {
                         </div>
                         <Badge variant={
                           session.status === 'completed' ? 'default' :
-                          session.status === 'pending' ? 'secondary' :
+                          session.status === 'rescheduled' ? 'secondary' :
+                          session.status === 'cancelled' ? 'destructive' :
                           'outline'
                         }>
                           {session.status}
@@ -1290,6 +1297,8 @@ export default function Sessions() {
                   <SelectItem value="committed">Committed</SelectItem>
                   <SelectItem value="in_progress">In Progress</SelectItem>
                   <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="rescheduled">Rescheduled</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
                 </SelectContent>
               </Select>
             </div>

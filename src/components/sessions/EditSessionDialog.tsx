@@ -139,22 +139,23 @@ export function EditSessionDialog({
       if (classObj) {
         setSelectedClassId(classObj.id);
         fetchCategories(classObj.id);
-        setModules([]);
-        setTopics([]);
+      } else {
+        fetchCategories();
       }
+    } else if (open) {
+      fetchCategories();
     }
-  }, [formData?.class_batch, classes]);
+  }, [formData?.class_batch, classes, open]);
 
   useEffect(() => {
-    if (formData?.content_category && selectedClassId) {
-      fetchModules(formData.content_category, selectedClassId);
-      setTopics([]);
+    if (formData?.content_category) {
+      fetchModules(formData.content_category, selectedClassId || undefined);
     }
   }, [formData?.content_category, selectedClassId]);
 
   useEffect(() => {
-    if (formData?.content_category && formData?.module_name && selectedClassId) {
-      fetchTopics(formData.content_category, formData.module_name, selectedClassId);
+    if (formData?.content_category && formData?.module_name) {
+      fetchTopics(formData.content_category, formData.module_name, selectedClassId || undefined);
     }
   }, [formData?.content_category, formData?.module_name, selectedClassId]);
 
@@ -181,11 +182,22 @@ export function EditSessionDialog({
       setCoordinators(coordinatorsRes.data || []);
 
       // Set selectedClassId if session has class_batch
+      let foundClassId = '';
       if (session?.class_batch && classesRes.data) {
         const classObj = classesRes.data.find(c => c.name === session.class_batch);
         if (classObj) {
+          foundClassId = classObj.id;
           setSelectedClassId(classObj.id);
         }
+      }
+
+      fetchCategories(foundClassId || undefined);
+
+      if (session?.content_category) {
+        fetchModules(session.content_category, foundClassId || undefined);
+      }
+      if (session?.content_category && session?.module_name) {
+        fetchTopics(session.content_category, session.module_name, foundClassId || undefined);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -203,10 +215,29 @@ export function EditSessionDialog({
         query = query.eq('class_id', classId);
       }
 
-      const { data, error } = await query;
+      let { data, error } = await query;
 
       if (error) throw error;
+
+      if ((!data || data.length === 0) && classId) {
+        const fallbackRes = await supabase
+          .from('curriculum')
+          .select('content_category')
+          .not('content_category', 'is', null);
+        if (!fallbackRes.error && fallbackRes.data) {
+          data = fallbackRes.data;
+        }
+      }
+
       const uniqueCategories = [...new Set(data?.map(item => item.content_category) || [])];
+
+      if (formData?.content_category && !uniqueCategories.includes(formData.content_category)) {
+        uniqueCategories.push(formData.content_category);
+      }
+      if (session?.content_category && !uniqueCategories.includes(session.content_category)) {
+        uniqueCategories.push(session.content_category);
+      }
+
       setCategories(uniqueCategories as string[]);
     } catch (error) {
       console.error('Error fetching categories:', error);
@@ -243,6 +274,12 @@ export function EditSessionDialog({
       }
 
       const uniqueModules = [...new Set(data?.map(item => item.module_name) || [])];
+      if (formData?.module_name && !uniqueModules.includes(formData.module_name)) {
+        uniqueModules.push(formData.module_name);
+      }
+      if (session?.module_name && !uniqueModules.includes(session.module_name)) {
+        uniqueModules.push(session.module_name);
+      }
       setModules(uniqueModules as string[]);
     } catch (error) {
       console.error('Error fetching modules:', error);
@@ -356,7 +393,7 @@ export function EditSessionDialog({
           volunteer_id: formData.volunteer_id || null,
           volunteer_name: formData.volunteer_name || '',
           coordinator_id: formData.coordinator_id || null,
-          status: 'pending',
+          status: 'rescheduled',
         })
         .eq('id', formData.id);
 
