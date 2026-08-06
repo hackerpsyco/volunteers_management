@@ -805,7 +805,7 @@ export default function AdminFacilitatorEarnings() {
                 className="gap-2 bg-purple-600 hover:bg-purple-700 text-white"
               >
                 <CreditCard className="h-4 w-4" />
-                Mark Paid Online
+                Controlling
               </Button>
             </div>
           </div>
@@ -1062,11 +1062,6 @@ export default function AdminFacilitatorEarnings() {
                                           Reset to Pending
                                         </DropdownMenuItem>
                                       )}
-
-                                      <DropdownMenuItem onClick={() => openPayOnlineModal(record)} className="gap-2 cursor-pointer text-purple-700 font-medium">
-                                        <CreditCard className="h-3.5 w-3.5" />
-                                        {record.transaction_id ? 'Update Paid Online Txn' : 'Mark Paid Online'}
-                                      </DropdownMenuItem>
 
                                       {!record.is_unrecorded && (
                                         <>
@@ -1347,7 +1342,7 @@ export default function AdminFacilitatorEarnings() {
                               className="text-xs bg-purple-600 hover:bg-purple-700 text-white gap-1"
                             >
                               <CreditCard className="h-3 w-3" />
-                              Pay Online
+                              Controlling
                             </Button>
                           </div>
                         </TableCell>
