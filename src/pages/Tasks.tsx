@@ -44,6 +44,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
 interface TaskItem {
@@ -151,6 +152,70 @@ export default function Tasks() {
   const [students, setStudents] = useState<StudentOption[]>([]);
   const [filterSessions, setFilterSessions] = useState<SessionOption[]>([]);
 
+  const { user } = useAuth();
+  const [userRole, setUserRole] = useState<number | null>(null);
+  const [isFacilitator, setIsFacilitator] = useState<boolean>(false);
+  const [currentFacilitatorName, setCurrentFacilitatorName] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function checkUserIdentity() {
+      if (!user?.id) return;
+
+      try {
+        const { data: profileData } = await supabase
+          .from('user_profiles')
+          .select('role_id, full_name, email')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        let roleId = profileData?.role_id ?? null;
+        let userEmail = user.email || profileData?.email || '';
+        let fullName = profileData?.full_name || '';
+
+        if (!profileData && user.email) {
+          const { data: emailProfile } = await supabase
+            .from('user_profiles')
+            .select('role_id, full_name')
+            .ilike('email', user.email)
+            .maybeSingle();
+
+          if (emailProfile) {
+            roleId = emailProfile.role_id ?? null;
+            if (emailProfile.full_name) fullName = emailProfile.full_name;
+          }
+        }
+
+        setUserRole(roleId);
+
+        let facName = '';
+        if (userEmail) {
+          const { data: facData } = await supabase
+            .from('facilitators')
+            .select('name')
+            .ilike('email', userEmail)
+            .maybeSingle();
+          if (facData?.name) {
+            facName = facData.name;
+          }
+        }
+
+        if (roleId === 4 || facName) {
+          const resolvedName = facName || fullName;
+          setIsFacilitator(true);
+          setCurrentFacilitatorName(resolvedName);
+          setFilterIncharge(resolvedName);
+        } else {
+          setIsFacilitator(false);
+          setCurrentFacilitatorName(null);
+        }
+      } catch (err) {
+        console.error('Error checking user identity in Tasks:', err);
+      }
+    }
+
+    checkUserIdentity();
+  }, [user?.id]);
+
   useEffect(() => {
     fetchClasses();
     fetchTasks();
@@ -171,10 +236,20 @@ export default function Tasks() {
     if (filterSubject !== 'all') {
       filtered = filtered.filter((t) => t.subject_name === filterSubject);
     }
-    if (filterIncharge !== 'all') {
+
+    // Role-based Incharge filtering: Facilitators see only their own tasks
+    if (isFacilitator && currentFacilitatorName) {
+      const facLower = currentFacilitatorName.toLowerCase().trim();
+      filtered = filtered.filter((t) => 
+        (t.facilitator_name && t.facilitator_name.toLowerCase().trim() === facLower) || 
+        (t.created_by_name && t.created_by_name.toLowerCase().trim() === facLower) ||
+        (t.incharge_name && t.incharge_name.toLowerCase().trim() === facLower)
+      );
+    } else if (filterIncharge !== 'all') {
       filtered = filtered.filter((t) => 
         t.facilitator_name === filterIncharge || 
-        t.created_by_name === filterIncharge
+        t.created_by_name === filterIncharge ||
+        t.incharge_name === filterIncharge
       );
     }
     
@@ -361,7 +436,7 @@ export default function Tasks() {
     }
 
     setTaskGroups(finalGroups);
-  }, [tasks, filterClass, filterSession, filterSubject, filterStatus, filterIncharge, filterDateFrom, filterDateTo, filterMonth, searchQuery, classes]);
+  }, [tasks, filterClass, filterSession, filterSubject, filterStatus, filterIncharge, filterDateFrom, filterDateTo, filterMonth, searchQuery, classes, isFacilitator, currentFacilitatorName]);
 
   const fetchClasses = async () => {
     try {
@@ -752,12 +827,19 @@ export default function Tasks() {
 
           <div className="w-full sm:w-48">
             <label className="text-sm font-medium text-foreground mb-2 block">Filter by Incharge</label>
-            <Select value={filterIncharge} onValueChange={setFilterIncharge}>
+            <Select 
+              value={isFacilitator && currentFacilitatorName ? currentFacilitatorName : filterIncharge} 
+              onValueChange={setFilterIncharge}
+              disabled={isFacilitator}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="All Incharges" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Incharges</SelectItem>
+                {!isFacilitator && <SelectItem value="all">All Incharges</SelectItem>}
+                {isFacilitator && currentFacilitatorName && !inchargeOptions.includes(currentFacilitatorName) && (
+                  <SelectItem value={currentFacilitatorName}>{currentFacilitatorName}</SelectItem>
+                )}
                 {inchargeOptions.map((name) => (
                   <SelectItem key={name} value={name}>{name}</SelectItem>
                 ))}

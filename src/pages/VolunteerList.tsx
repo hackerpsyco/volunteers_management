@@ -54,7 +54,7 @@ import {
 import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Plus, Users, MoreVertical, Pencil, Calendar, Trash2, UserCheck, UserX, Upload, BookOpen, Settings, Search } from 'lucide-react';
+import { Plus, Users, MoreVertical, Pencil, Calendar, Trash2, UserCheck, UserX, Upload, BookOpen, Settings, Search, ExternalLink, Filter, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { BulkUploadDialog } from '@/components/volunteers/BulkUploadDialog';
 import { SessionTypeDialog } from '@/components/sessions/SessionTypeDialog';
@@ -374,6 +374,26 @@ export default function VolunteerList() {
   const countries = Array.from(new Set(volunteers.map(v => v.country).filter(Boolean))).sort() as string[];
   const types = Array.from(new Set(volunteers.map(v => v.organization_type).filter(Boolean))).sort() as string[];
 
+  const isFiltered = searchQuery.trim() !== '' ||
+    selectedCity !== 'all' ||
+    selectedFrequency !== 'all' ||
+    selectedStatus !== 'all' ||
+    selectedRole !== 'all' ||
+    selectedType !== 'all' ||
+    selectedOrganization !== 'all' ||
+    selectedCountry !== 'all';
+
+  const resetFilters = () => {
+    setSearchQuery('');
+    setSelectedCity('all');
+    setSelectedFrequency('all');
+    setSelectedStatus('all');
+    setSelectedRole('all');
+    setSelectedType('all');
+    setSelectedOrganization('all');
+    setSelectedCountry('all');
+  };
+
   async function fetchVolunteers() {
     try {
       const { data, error } = await supabase
@@ -538,6 +558,15 @@ export default function VolunteerList() {
             </p>
           </div>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+            <Button 
+              variant="outline" 
+              onClick={() => window.open('https://docs.google.com/spreadsheets/d/1-q3gzkbBpoP2uEdUih-WLNRsSEyDcdoEtFNGJFVc0dU/edit?usp=drivesdk', '_blank')} 
+              className="w-full sm:w-auto border-primary/20 text-primary hover:bg-primary/5 gap-2"
+            >
+              <ExternalLink className="h-4 w-4" />
+              <span className="hidden sm:inline">Volunteer Pipeline</span>
+              <span className="sm:hidden">Pipeline</span>
+            </Button>
             <Button variant="outline" onClick={() => setBulkUploadOpen(true)} className="w-full sm:w-auto">
               <Upload className="h-4 w-4 mr-2" />
               <span className="hidden sm:inline">Bulk Upload</span>
@@ -668,15 +697,47 @@ export default function VolunteerList() {
               ))}
             </SelectContent>
           </Select>
+
+          {isFiltered && (
+            <div className="flex items-center gap-2 sm:ml-auto">
+              <Badge variant="secondary" className="h-9 px-3 text-xs font-semibold bg-primary/10 text-primary border-primary/20 flex items-center gap-1.5 whitespace-nowrap">
+                <Filter className="h-3.5 w-3.5" />
+                {filteredVolunteers.length} out of {volunteers.length}
+              </Badge>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={resetFilters}
+                className="h-9 text-xs text-muted-foreground hover:text-foreground px-3 gap-1 border-dashed"
+              >
+                <X className="h-3.5 w-3.5" />
+                Clear
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Volunteers Table/Cards */}
         <Card className="shadow-sm">
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
             <CardTitle className="flex items-center gap-2">
               <Users className="h-5 w-5 text-primary" />
-              All Guest Teacher & Speaker
+              <span>All Guest Teacher & Speaker</span>
+              <Badge variant={isFiltered ? "default" : "secondary"} className="text-xs font-medium ml-1">
+                {isFiltered ? `${filteredVolunteers.length} out of ${volunteers.length}` : `${volunteers.length} total`}
+              </Badge>
             </CardTitle>
+            {isFiltered && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={resetFilters}
+                className="h-8 text-xs text-muted-foreground hover:text-foreground gap-1"
+              >
+                <X className="h-3.5 w-3.5" />
+                Clear Filters
+              </Button>
+            )}
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -704,8 +765,12 @@ export default function VolunteerList() {
                   No volunteers found
                 </h3>
                 <p className="text-muted-foreground mb-4">
-                  Try adjusting your search criteria
+                  Try adjusting your search criteria (0 out of {volunteers.length} volunteers match)
                 </p>
+                <Button variant="outline" onClick={resetFilters} className="gap-1.5">
+                  <X className="h-4 w-4" />
+                  Clear Filters
+                </Button>
               </div>
             ) : (
               <>

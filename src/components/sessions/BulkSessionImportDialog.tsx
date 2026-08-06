@@ -191,7 +191,9 @@ export function BulkSessionImportDialog({ open, onOpenChange, onSuccess }: BulkS
               sessionData[field] = String(row[header]);
             }
           }
-        });
+        if (sessionData.session_type === 'guest_speaker') {
+          sessionData.content_category = 'Life and Academic Journey';
+        }
 
         const { error } = await supabase.from('sessions').insert(sessionData);
         if (!error) successCount++;

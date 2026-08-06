@@ -422,8 +422,9 @@ export function ImportSessionsDialog({
           if (!cleanedRow.session_date) cleanedRow.session_date = new Date().toISOString().split('T')[0];
           if (!cleanedRow.session_time) cleanedRow.session_time = '09:00';
           if (!cleanedRow.session_type) cleanedRow.session_type = 'guest_teacher';
-          if (!cleanedRow.status) cleanedRow.status = 'completed';
-          if (!cleanedRow.class_batch) cleanedRow.class_batch = 'WES Fellow';
+          if (cleanedRow.session_type === 'guest_speaker') {
+            cleanedRow.content_category = 'Life and Academic Journey';
+          }
           
           return cleanedRow;
         });

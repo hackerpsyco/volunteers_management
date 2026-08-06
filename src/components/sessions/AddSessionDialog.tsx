@@ -742,14 +742,17 @@ export function AddSessionDialog({
       return;
     }
 
-    // For guest_speaker, topic must be entered as free text
-    if (sessionType === 'guest_speaker' && !formData.topics_covered.trim()) {
-      toast({
-        title: 'Error',
-        description: 'Please enter a topic',
-        variant: 'destructive',
-      });
-      return;
+    // For guest_speaker, topic must be entered as free text and content_category is always 'Life and Academic Journey'
+    if (sessionType === 'guest_speaker') {
+      if (!formData.topics_covered.trim()) {
+        toast({
+          title: 'Error',
+          description: 'Please enter a topic',
+          variant: 'destructive',
+        });
+        return;
+      }
+      formData.content_category = 'Life and Academic Journey';
     }
 
     if (!selectedSlot) {
@@ -800,7 +803,7 @@ export function AddSessionDialog({
       session_time: slot?.start_time || '09:00',
       session_type: sessionType,
       session_type_option: formData.session_type_option,
-      content_category: formData.content_category,
+      content_category: sessionType === 'guest_speaker' ? 'Life and Academic Journey' : formData.content_category,
       module_name: formData.module_name,
       topics_covered: formData.topics_covered,
       videos: formData.videos,

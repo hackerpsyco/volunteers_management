@@ -355,7 +355,10 @@ export function ImportSessionsCompletedDialog({
       let failureCount = 0;
 
       for (let i = 0; i < validData.length; i += batchSize) {
-        const batch = validData.slice(i, i + batchSize);
+        const batch = validData.slice(i, i + batchSize).map(row => ({
+          ...row,
+          content_category: row.session_type === 'guest_speaker' ? 'Life and Academic Journey' : row.content_category,
+        }));
         const { error } = await supabase
           .from('sessions')
           .insert(batch);

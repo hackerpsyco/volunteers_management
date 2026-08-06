@@ -379,7 +379,7 @@ export function EditSessionDialog({
           title: formData.title,
           session_date: formData.session_date,
           session_time: sessionTime,
-          content_category: formData.content_category,
+          content_category: (formData.session_type === 'guest_speaker' || session?.session_type === 'guest_speaker') ? 'Life and Academic Journey' : formData.content_category,
           module_name: formData.module_name,
           topics_covered: formData.topics_covered,
           videos: formData.videos,

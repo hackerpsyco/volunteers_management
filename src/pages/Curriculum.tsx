@@ -51,6 +51,7 @@ import { UnifiedImportDialog } from '@/components/sessions/UnifiedImportDialog';
 import { ExportCurriculumDialog } from '@/components/curriculum/ExportCurriculumDialog';
 import { AddTopicDialog } from '@/components/curriculum/AddTopicDialog';
 import { EditCurriculumDialog } from '@/components/curriculum/EditCurriculumDialog';
+import { EditCategoryModuleTopicDialog } from '@/components/curriculum/EditCategoryModuleTopicDialog';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -110,6 +111,32 @@ interface SessionInfo {
   session_types: Set<string>;
 }
 
+const isSubjectHiddenInPublic = (name: string) => {
+  if (!name) return false;
+  const lower = name.toLowerCase().trim();
+  return (
+    lower.includes('certified computer') ||
+    lower.includes('english')
+  );
+};
+
+const getDisplaySubjectName = (name: string, isPublicView: boolean = false) => {
+  if (!name) return name;
+  if (!isPublicView) return name;
+  
+  const lower = name.toLowerCase().trim();
+  if (lower.includes('artificial intelligence')) {
+    return 'Artificial Intelligence (Main)';
+  }
+  if (lower.includes('cybersecurity') || lower.includes('cyber security')) {
+    return 'Cybersecurity (Specialization)';
+  }
+  if (lower.includes('python')) {
+    return 'Python (Specialization)';
+  }
+  return name;
+};
+
 export default function Curriculum({ isStudent = false }: { isStudent?: boolean }) {
   const { user } = useAuth();
   const [curriculum, setCurriculum] = useState<CurriculumItem[]>([]);
@@ -119,6 +146,88 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isAddTopicOpen, setIsAddTopicOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isEditCategoryModuleTopicOpen, setIsEditCategoryModuleTopicOpen] = useState(false);
+  const [userRole, setUserRole] = useState<number | null>(null);
+  const [publicVolunteerSearch, setPublicVolunteerSearch] = useState('');
+  const [allVolunteerNames, setAllVolunteerNames] = useState<string[]>([]);
+  const [showVolunteerSuggestions, setShowVolunteerSuggestions] = useState(false);
+
+  useEffect(() => {
+    const fetchAllVolunteers = async () => {
+      try {
+        const { data: volData } = await supabase
+          .from('volunteers')
+          .select('name')
+          .order('name', { ascending: true });
+
+        const { data: sessData } = await supabase
+          .from('sessions')
+          .select('volunteer_name')
+          .not('volunteer_name', 'is', null);
+
+        const namesSet = new Set<string>();
+        (volData || []).forEach((v: any) => {
+          if (v.name && v.name.trim()) namesSet.add(v.name.trim());
+        });
+        (sessData || []).forEach((s: any) => {
+          if (s.volunteer_name && s.volunteer_name.trim()) namesSet.add(s.volunteer_name.trim());
+        });
+
+        setAllVolunteerNames(Array.from(namesSet).sort((a, b) => a.localeCompare(b)));
+      } catch (err) {
+        console.error('Error fetching volunteer names for search:', err);
+      }
+    };
+
+    fetchAllVolunteers();
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const container = document.getElementById('volunteer-search-container');
+      if (container && !container.contains(e.target as Node)) {
+        setShowVolunteerSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const matchingVolunteerSuggestions = publicVolunteerSearch.trim()
+    ? allVolunteerNames.filter(name =>
+        name.toLowerCase().includes(publicVolunteerSearch.toLowerCase().trim())
+      )
+    : [];
+
+  useEffect(() => {
+    const fetchUserRole = async () => {
+      if (!user) return;
+      try {
+        const { data } = await supabase
+          .from('user_profiles')
+          .select('role_id')
+          .eq('id', user.id)
+          .maybeSingle();
+        if (data?.role_id) {
+          setUserRole(data.role_id);
+        } else if (user.email) {
+          const { data: emailData } = await supabase
+            .from('user_profiles')
+            .select('role_id')
+            .eq('email', user.email)
+            .maybeSingle();
+          if (emailData?.role_id) {
+            setUserRole(emailData.role_id);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching user role:', err);
+      }
+    };
+    fetchUserRole();
+  }, [user]);
+
+  const isAdmin = userRole === 1;
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<CurriculumItem | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
@@ -140,7 +249,6 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sessionTypeFilter, setSessionTypeFilter] = useState<string>('all');
   const [sessionCategoryFilter, setSessionCategoryFilter] = useState<string>('all');
-  const [publicVolunteerSearch, setPublicVolunteerSearch] = useState('');
   const [sortColumn, setSortColumn] = useState<keyof CurriculumItem | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc' | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -156,12 +264,20 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
 
   // Calculate statistics
   const stats = (() => {
-    if (filteredCurriculum.length === 0) return { fresh: 0, revision: 0, total: 0 };
+    let subjectBaseCurriculum = curriculum;
+    if (isPublic) {
+      subjectBaseCurriculum = subjectBaseCurriculum.filter(item => !isSubjectHiddenInPublic(item.subject_name || ''));
+    }
+    if (selectedSubject && selectedSubject !== 'all') {
+      subjectBaseCurriculum = subjectBaseCurriculum.filter(item => item.subject_id === selectedSubject);
+    }
+
+    if (subjectBaseCurriculum.length === 0) return { fresh: 0, revision: 0, total: 0, freshCount: 0, revisionCount: 0 };
     
     let freshCompleted = 0;
     let revisionCompleted = 0;
     
-    filteredCurriculum.forEach(item => {
+    subjectBaseCurriculum.forEach(item => {
       const info = sessionInfo[item.topic_title];
       if (info) {
         const fresh = getFilteredSessions(info.fresh_sessions);
@@ -171,7 +287,7 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
       }
     });
 
-    const total = filteredCurriculum.length;
+    const total = subjectBaseCurriculum.length;
     return {
       fresh: total > 0 ? Number(((freshCompleted / total) * 100).toFixed(1)) : 0,
       revision: total > 0 ? Number(((revisionCompleted / total) * 100).toFixed(1)) : 0,
@@ -201,9 +317,10 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
     return Object.values(subjectsMap);
   })();
 
-  const currentSubjectName = selectedSubject && selectedSubject !== 'all' 
+  const rawSubjectName = selectedSubject && selectedSubject !== 'all' 
     ? subjects.find(s => s.id === selectedSubject)?.name || 'Subject' 
     : 'All Subjects Included';
+  const currentSubjectName = getDisplaySubjectName(rawSubjectName, isPublic);
 
   const handleColumnSort = (column: keyof CurriculumItem) => {
     if (sortColumn === column) {
@@ -294,6 +411,10 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
   useEffect(() => {
     let filtered = curriculum;
     
+    if (isPublic) {
+      filtered = filtered.filter((item) => !isSubjectHiddenInPublic(item.subject_name || ''));
+    }
+    
     if (selectedSubject && selectedSubject !== 'all') {
       filtered = filtered.filter((item) => item.subject_id === selectedSubject);
     }
@@ -364,30 +485,16 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
       });
     }
     
-    // Filter by volunteer search (public mode)
-    if (isPublic && publicVolunteerSearch.trim()) {
-      if (!selectedSubject || selectedSubject === 'all') {
-        const search = publicVolunteerSearch.toLowerCase().trim();
-        const volunteerSubjectIds = new Set<string>();
-        
-        // Find all subjects this volunteer teaches
-        filtered.forEach(item => {
-          const info = sessionInfo[item.topic_title];
-          if (info) {
-            const hasFresh = info.fresh_sessions?.some(s => s.volunteer.toLowerCase().includes(search));
-            const hasRevision = info.revision_sessions?.some(s => s.volunteer.toLowerCase().includes(search));
-            if (hasFresh || hasRevision) {
-              if (item.subject_id) volunteerSubjectIds.add(item.subject_id);
-            }
-          }
-        });
-
-        if (volunteerSubjectIds.size > 0) {
-          filtered = filtered.filter(item => item.subject_id && volunteerSubjectIds.has(item.subject_id));
-        } else {
-          filtered = [];
-        }
-      }
+    // Filter by volunteer search
+    if (publicVolunteerSearch.trim()) {
+      const search = publicVolunteerSearch.toLowerCase().trim();
+      filtered = filtered.filter(item => {
+        const info = sessionInfo[item.topic_title];
+        if (!info) return false;
+        const hasFresh = info.fresh_sessions?.some(s => s.volunteer.toLowerCase().includes(search));
+        const hasRevision = info.revision_sessions?.some(s => s.volunteer.toLowerCase().includes(search));
+        return Boolean(hasFresh || hasRevision);
+      });
     }
     
     // Apply column sorting
@@ -965,7 +1072,7 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
         {/* Filter Section */}
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end flex-wrap">
           {isPublic ? (
-            <div className="w-full sm:w-64">
+            <div className="relative w-full sm:w-64" id="volunteer-search-container">
               <label className="text-sm font-medium text-foreground mb-2 block">
                 Search Volunteer Name
               </label>
@@ -974,10 +1081,49 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
                 <Input
                   placeholder="Enter your name..."
                   value={publicVolunteerSearch}
-                  onChange={(e) => setPublicVolunteerSearch(e.target.value)}
-                  className="pl-9"
+                  onChange={(e) => {
+                    setPublicVolunteerSearch(e.target.value);
+                    setShowVolunteerSuggestions(true);
+                  }}
+                  onFocus={() => setShowVolunteerSuggestions(true)}
+                  className="pl-9 pr-8"
                 />
+                {publicVolunteerSearch && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPublicVolunteerSearch('');
+                      setShowVolunteerSuggestions(false);
+                    }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground p-1"
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
+
+              {/* Fast Database Volunteer Suggestions Dropdown */}
+              {showVolunteerSuggestions && matchingVolunteerSuggestions.length > 0 && (
+                <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-popover border border-border rounded-md shadow-lg max-h-56 overflow-y-auto">
+                  <div className="p-1.5 text-[11px] font-semibold text-muted-foreground uppercase border-b border-border/50 bg-muted/40">
+                    Matching Volunteers ({matchingVolunteerSuggestions.length})
+                  </div>
+                  {matchingVolunteerSuggestions.map((name) => (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => {
+                        setPublicVolunteerSearch(name);
+                        setShowVolunteerSuggestions(false);
+                      }}
+                      className="w-full text-left px-3 py-2 text-xs hover:bg-accent hover:text-accent-foreground flex items-center justify-between cursor-pointer transition-colors border-b border-border/20 last:border-0"
+                    >
+                      <span className="font-medium">{name}</span>
+                      <span className="text-[10px] text-primary font-semibold">Select</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           ) : (
             <div className="w-full sm:w-64">
@@ -1026,11 +1172,13 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Subjects</SelectItem>
-                {subjects.map((subject) => (
-                  <SelectItem key={subject.id} value={subject.id}>
-                    {subject.name}
-                  </SelectItem>
-                ))}
+                {subjects
+                  .filter((subject) => !isPublic || !isSubjectHiddenInPublic(subject.name))
+                  .map((subject) => (
+                    <SelectItem key={subject.id} value={subject.id}>
+                      {getDisplaySubjectName(subject.name, isPublic)}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
           </div>
@@ -1088,23 +1236,6 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
                     {topic}
                   </SelectItem>
                 ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="w-full sm:w-64">
-            <label className="text-sm font-medium text-foreground mb-2 block">
-              Filter by Status
-            </label>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select a status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="committed">Committed</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -1220,14 +1351,14 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
                               <span className="text-[9px] font-normal text-purple-600">{stats.revision}% Complete</span>
                             </div>
                           </TableHead>
-                        {!isStudent && !isPublic && <TableHead className="w-[60px]">Actions</TableHead>}
+                        {isAdmin && !isStudent && !isPublic && <TableHead className="w-[60px]">Actions</TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredCurriculum.map((item) => (
                         <TableRow key={item.id}>
                           <TableCell>
-                            <Badge variant="secondary">{item.subject_name || 'Unassigned'}</Badge>
+                            <Badge variant="secondary">{getDisplaySubjectName(item.subject_name || 'Unassigned', isPublic)}</Badge>
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline"><TruncatedText text={item.content_category} maxLength={15} /></Badge>
@@ -1372,7 +1503,7 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
                               );
                             })()}
                           </TableCell>
-                          {!isStudent && !isPublic && (
+                          {isAdmin && !isStudent && !isPublic && (
                             <TableCell>
                               <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -1387,7 +1518,15 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
                                     setIsEditOpen(true);
                                   }}
                                 >
-                                  ✏️ Edit
+                                  ✏️ Edit Video/PPT
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setSelectedItem(item);
+                                    setIsEditCategoryModuleTopicOpen(true);
+                                  }}
+                                >
+                                  📚 Edit Category, Module & Topic
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={() => {
@@ -1538,36 +1677,54 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
                       </div>
 
                       {/* Actions */}
-                      <div className="flex gap-2 pt-2 border-t border-border">
+                      {isAdmin && !isStudent && !isPublic && (
+                        <div className="flex gap-2 pt-2 border-t border-border">
                           <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="sm" className="flex-1">
-                              <MoreVertical className="h-4 w-4 mr-2" />
-                              Actions
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="bg-popover">
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setSelectedItem(item);
-                                setIsEditOpen(true);
-                              }}
-                            >
-                              ✏️ Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setSelectedItem(item);
-                                setDeleteDialogOpen(true);
-                              }}
-                              className="text-destructive focus:text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="sm" className="flex-1">
+                                <MoreVertical className="h-4 w-4 mr-2" />
+                                Actions
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="bg-popover">
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setSelectedItem(item);
+                                  setIsEditOpen(true);
+                                }}
+                              >
+                                ✏️ Edit Video/PPT
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setSelectedItem(item);
+                                  setIsEditCategoryModuleTopicOpen(true);
+                                }}
+                              >
+                                📚 Edit Category, Module & Topic
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setSelectedItem(item);
+                                  setStatusDialogOpen(true);
+                                }}
+                              >
+                                📊 Edit Status
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setSelectedItem(item);
+                                  setDeleteDialogOpen(true);
+                                }}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1643,12 +1800,20 @@ export default function Curriculum({ isStudent = false }: { isStudent?: boolean 
         onSuccess={fetchCurriculum}
       />
 
-      {/* Edit Dialog */}
+      {/* Edit Video/PPT Dialog */}
       <EditCurriculumDialog
         open={isEditOpen}
         onOpenChange={setIsEditOpen}
         item={selectedItem}
         onSuccess={fetchCurriculum}
+      />
+
+      {/* Edit Category, Module & Topic Dialog */}
+      <EditCategoryModuleTopicDialog
+        open={isEditCategoryModuleTopicOpen}
+        onOpenChange={setIsEditCategoryModuleTopicOpen}
+        item={selectedItem}
+        onSuccess={() => fetchCurriculum(selectedClass)}
       />
 
       {/* Edit Status Dialog */}
