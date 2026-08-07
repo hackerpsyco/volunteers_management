@@ -150,13 +150,14 @@ export default function AdminFacilitatorEarnings() {
   const [detailSearchQuery, setDetailSearchQuery] = useState('');
   const [detailStatusFilter, setDetailStatusFilter] = useState('all');
   const [detailTypeFilter, setDetailTypeFilter] = useState('all');
+  const [detailMonthFilter, setDetailMonthFilter] = useState<string>(() => new Date().getMonth().toString());
   
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [perSessionAmount, setPerSessionAmount] = useState<number>(200);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   
   const { selectedYear, getDateRange } = useAcademicYear();
-  const [selectedMonth, setSelectedMonth] = useState<string>('all');
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => new Date().getMonth().toString());
   
   // Editing state
   const [editingEarningId, setEditingEarningId] = useState<string | null>(null);
@@ -178,6 +179,12 @@ export default function AdminFacilitatorEarnings() {
   const [payDateInput, setPayDateInput] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [payNotesInput, setPayNotesInput] = useState('');
   const [isSavingPayment, setIsSavingPayment] = useState(false);
+
+  // Undo Payment Dialog State
+  const [undoDialogOpen, setUndoDialogOpen] = useState(false);
+  const [undoTargetRecord, setUndoTargetRecord] = useState<EarningRecord | null>(null);
+  const [undoConfirmInput, setUndoConfirmInput] = useState('');
+  const [isUndoingPayment, setIsUndoingPayment] = useState(false);
 
   useEffect(() => {
     fetchEarnings();
@@ -526,6 +533,14 @@ export default function AdminFacilitatorEarnings() {
         .eq('id', id);
 
       if (error) throw error;
+
+      // Also update storedPayments in localStorage if present
+      const storedPayments = getStoredPayments();
+      if (storedPayments[id]) {
+        storedPayments[id].paid_amount = amount;
+        localStorage.setItem(PAYMENTS_STORAGE_KEY, JSON.stringify(storedPayments));
+      }
+
       toast.success('Earning updated successfully');
       
       if (selectedFacilitator) {
@@ -536,6 +551,58 @@ export default function AdminFacilitatorEarnings() {
     } catch (error) {
       console.error('Error updating earning:', error);
       toast.error('Failed to update earning');
+    }
+  };
+
+  const openUndoPaymentModal = (record: EarningRecord) => {
+    setUndoTargetRecord(record);
+    setUndoConfirmInput('');
+    setUndoDialogOpen(true);
+  };
+
+  const handleConfirmUndoPayment = async () => {
+    if (!undoTargetRecord) return;
+    if (undoConfirmInput.toLowerCase().trim() !== 'undo') {
+      toast.error('Please type "undo" to confirm');
+      return;
+    }
+
+    try {
+      setIsUndoingPayment(true);
+
+      // 1. Remove from storedPayments in localStorage if present
+      const storedPayments = getStoredPayments();
+      if (storedPayments[undoTargetRecord.id]) {
+        delete storedPayments[undoTargetRecord.id];
+        localStorage.setItem(PAYMENTS_STORAGE_KEY, JSON.stringify(storedPayments));
+      }
+
+      // 2. Update DB status back to 'approved' if record exists in DB
+      if (!undoTargetRecord.is_unrecorded && !undoTargetRecord.id.startsWith('unrecorded_')) {
+        const { error } = await supabase
+          .from('facilitator_earnings')
+          .update({
+            status: 'approved'
+          })
+          .eq('id', undoTargetRecord.id);
+
+        if (error) throw error;
+      }
+
+      toast.success('Payment undone successfully. Status reversed to Approved.');
+      setUndoDialogOpen(false);
+      setUndoTargetRecord(null);
+      setUndoConfirmInput('');
+
+      if (selectedFacilitator) {
+        fetchFacilitatorRecords(selectedFacilitator.id, selectedFacilitator.name);
+      }
+      fetchEarnings();
+    } catch (err) {
+      console.error('Error undoing payment:', err);
+      toast.error('Failed to undo payment');
+    } finally {
+      setIsUndoingPayment(false);
     }
   };
 
@@ -557,7 +624,7 @@ export default function AdminFacilitatorEarnings() {
       setTransactionIdInput(record.transaction_id || '');
       setPayAmountInput(record.amount || perSessionAmount);
     } else if (fac) {
-      const approvedAmount = fac.total_approved || 0;
+      const approvedAmount = (selectedFacilitator && detailApprovedSum > 0 ? detailApprovedSum : fac.total_approved) || 0;
       setPayOnlineTarget({
         facilitatorId: fac.id,
         facilitatorName: fac.name,
@@ -573,7 +640,7 @@ export default function AdminFacilitatorEarnings() {
     setPayOnlineDialogOpen(true);
   };
 
-  // Submit Pay Online
+  // Submit Pay Online / Controlling
   const handleSavePayment = async () => {
     if (!transactionIdInput.trim()) {
       toast.error('Please enter a valid Transaction ID');
@@ -589,11 +656,43 @@ export default function AdminFacilitatorEarnings() {
       const { data: { user } } = await supabase.auth.getUser();
 
       if (payOnlineTarget?.isBulkPayment && payOnlineTarget.facilitatorId) {
-        // Bulk pay online: Fetch all approved earnings for this facilitator
+        const facId = payOnlineTarget.facilitatorId;
+
+        // 1. Process unrecorded approved sessions first if on detail view
+        const unrecordedApproved = allDetailRecords.filter(
+          r => r.is_unrecorded && r.status === 'approved'
+        );
+
+        for (const unrec of unrecordedApproved) {
+          const { data: createdData } = await supabase
+            .from('facilitator_earnings')
+            .insert({
+              facilitator_id: facId,
+              session_id: unrec.session_id,
+              amount: unrec.amount || perSessionAmount,
+              status: 'paid_online',
+              approved_at: new Date().toISOString(),
+              approved_by: user?.id
+            })
+            .select('id, amount')
+            .single();
+
+          if (createdData) {
+            saveStoredPayment({
+              earning_id: createdData.id,
+              transaction_id: transactionIdInput.trim(),
+              paid_amount: createdData.amount,
+              paid_at: payDateInput,
+              notes: payNotesInput.trim()
+            });
+          }
+        }
+
+        // 2. Fetch and bulk update all existing approved earnings for this facilitator
         const { data: approvedEarnings, error: fetchErr } = await supabase
           .from('facilitator_earnings')
           .select('id, amount')
-          .eq('facilitator_id', payOnlineTarget.facilitatorId)
+          .eq('facilitator_id', facId)
           .eq('status', 'approved');
 
         if (fetchErr) throw fetchErr;
@@ -765,8 +864,46 @@ export default function AdminFacilitatorEarnings() {
     const matchesStatus = detailStatusFilter === 'all' || r.status === detailStatusFilter;
     const matchesType = detailTypeFilter === 'all' || s.session_type === detailTypeFilter;
 
-    return matchesSearch && matchesStatus && matchesType;
+    const recordDate = s.session_date ? new Date(s.session_date) : new Date(r.created_at);
+    const matchesMonth = detailMonthFilter === 'all' || (!isNaN(recordDate.getTime()) && recordDate.getMonth().toString() === detailMonthFilter);
+
+    return matchesSearch && matchesStatus && matchesType && matchesMonth;
   });
+
+  // Dynamic Detail Summary Card Computations
+  const detailApprovedSum = allDetailRecords
+    .filter(r => {
+      const isPaid = r.status === 'paid_online' || !!r.transaction_id;
+      const isApproved = r.status === 'approved';
+      const recordDate = r.sessions?.session_date ? new Date(r.sessions.session_date) : new Date(r.created_at);
+      const matchesMonth = detailMonthFilter === 'all' || (!isNaN(recordDate.getTime()) && recordDate.getMonth().toString() === detailMonthFilter);
+      return isApproved && !isPaid && matchesMonth;
+    })
+    .reduce((acc, r) => acc + (parseFloat(r.amount as any) || 0), 0);
+
+  const detailPaidOnlineSum = allDetailRecords
+    .filter(r => {
+      const isPaid = r.status === 'paid_online' || !!r.transaction_id;
+      const recordDate = r.sessions?.session_date ? new Date(r.sessions.session_date) : new Date(r.created_at);
+      const matchesMonth = detailMonthFilter === 'all' || (!isNaN(recordDate.getTime()) && recordDate.getMonth().toString() === detailMonthFilter);
+      return isPaid && matchesMonth;
+    })
+    .reduce((acc, r) => acc + (parseFloat(r.amount as any) || 0), 0);
+
+  const detailPendingSum = allDetailRecords
+    .filter(r => {
+      const isPaid = r.status === 'paid_online' || !!r.transaction_id;
+      const isApproved = r.status === 'approved';
+      const recordDate = r.sessions?.session_date ? new Date(r.sessions.session_date) : new Date(r.created_at);
+      const matchesMonth = detailMonthFilter === 'all' || (!isNaN(recordDate.getTime()) && recordDate.getMonth().toString() === detailMonthFilter);
+      return !isPaid && !isApproved && matchesMonth;
+    })
+    .reduce((acc, r) => acc + (parseFloat(r.amount as any) || 0), 0);
+
+  const detailTotalSessionsCount = allDetailRecords.filter(r => {
+    const recordDate = r.sessions?.session_date ? new Date(r.sessions.session_date) : new Date(r.created_at);
+    return detailMonthFilter === 'all' || (!isNaN(recordDate.getTime()) && recordDate.getMonth().toString() === detailMonthFilter);
+  }).length;
 
   // Totals for main summary cards
   const totalApprovedSum = earningsData.reduce((acc, curr) => acc + curr.total_approved, 0);
@@ -816,7 +953,7 @@ export default function AdminFacilitatorEarnings() {
               <CardContent className="p-4">
                 <p className="text-xs font-medium text-muted-foreground">Approved (Unpaid)</p>
                 <h3 className="text-xl font-bold mt-1 text-green-600">
-                  ₹{selectedFacilitator.total_approved.toLocaleString('en-IN')}
+                  ₹{detailApprovedSum.toLocaleString('en-IN')}
                 </h3>
               </CardContent>
             </Card>
@@ -825,7 +962,7 @@ export default function AdminFacilitatorEarnings() {
               <CardContent className="p-4">
                 <p className="text-xs font-medium text-muted-foreground">Paid Online</p>
                 <h3 className="text-xl font-bold mt-1 text-purple-600">
-                  ₹{selectedFacilitator.total_paid_online.toLocaleString('en-IN')}
+                  ₹{detailPaidOnlineSum.toLocaleString('en-IN')}
                 </h3>
               </CardContent>
             </Card>
@@ -834,7 +971,7 @@ export default function AdminFacilitatorEarnings() {
               <CardContent className="p-4">
                 <p className="text-xs font-medium text-muted-foreground">Pending Approval</p>
                 <h3 className="text-xl font-bold mt-1 text-yellow-600">
-                  ₹{selectedFacilitator.total_pending.toLocaleString('en-IN')}
+                  ₹{detailPendingSum.toLocaleString('en-IN')}
                 </h3>
               </CardContent>
             </Card>
@@ -843,7 +980,7 @@ export default function AdminFacilitatorEarnings() {
               <CardContent className="p-4">
                 <p className="text-xs font-medium text-muted-foreground">Total Sessions</p>
                 <h3 className="text-xl font-bold mt-1 text-blue-600">
-                  {allDetailRecords.length}
+                  {detailTotalSessionsCount}
                 </h3>
               </CardContent>
             </Card>
@@ -874,6 +1011,28 @@ export default function AdminFacilitatorEarnings() {
               {/* Filter Controls Row */}
               <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-3 text-xs">
                 <div className="flex flex-wrap items-center gap-3">
+                  <div>
+                    <label className="text-xs font-medium mb-1 block">Month Filter</label>
+                    <Select value={detailMonthFilter} onValueChange={setDetailMonthFilter}>
+                      <SelectTrigger className="h-9 w-[140px] text-xs"><SelectValue placeholder="All Months" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Months</SelectItem>
+                        <SelectItem value="0">January</SelectItem>
+                        <SelectItem value="1">February</SelectItem>
+                        <SelectItem value="2">March</SelectItem>
+                        <SelectItem value="3">April</SelectItem>
+                        <SelectItem value="4">May</SelectItem>
+                        <SelectItem value="5">June</SelectItem>
+                        <SelectItem value="6">July</SelectItem>
+                        <SelectItem value="7">August</SelectItem>
+                        <SelectItem value="8">September</SelectItem>
+                        <SelectItem value="9">October</SelectItem>
+                        <SelectItem value="10">November</SelectItem>
+                        <SelectItem value="11">December</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   <div>
                     <label className="text-xs font-medium mb-1 block">Earning Status</label>
                     <Select value={detailStatusFilter} onValueChange={setDetailStatusFilter}>
@@ -1063,6 +1222,13 @@ export default function AdminFacilitatorEarnings() {
                                         </DropdownMenuItem>
                                       )}
 
+                                      {isPaid && (
+                                        <DropdownMenuItem onClick={() => openUndoPaymentModal(record)} className="gap-2 cursor-pointer text-red-600 font-medium">
+                                          <RotateCcw className="h-3.5 w-3.5 text-red-600" />
+                                          Undo Paid Online
+                                        </DropdownMenuItem>
+                                      )}
+
                                       {!record.is_unrecorded && (
                                         <>
                                           <DropdownMenuSeparator />
@@ -1162,6 +1328,62 @@ export default function AdminFacilitatorEarnings() {
                 className="bg-purple-600 hover:bg-purple-700 text-white"
               >
                 {isSavingPayment ? 'Saving...' : 'Save Paid Online Record'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Undo Payment Confirmation Dialog */}
+        <Dialog open={undoDialogOpen} onOpenChange={setUndoDialogOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-red-600">
+                <RotateCcw className="h-5 w-5 text-red-600" />
+                Undo Paid Online Status
+              </DialogTitle>
+              <DialogDescription>
+                This will reverse the payment status back to <strong className="text-green-700">Approved</strong> and remove the recorded transaction reference.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2">
+              <div className="bg-red-50 border border-red-200 rounded-md p-3 text-xs text-red-800 space-y-1">
+                <p className="font-semibold">Session: {undoTargetRecord?.sessions?.title || undoTargetRecord?.sessions?.topics_covered || undoTargetRecord?.sessions?.session_id_code || 'Session'}</p>
+                <p>Amount: ₹{undoTargetRecord?.amount}</p>
+                {undoTargetRecord?.transaction_id && <p className="font-mono">Txn ID: {undoTargetRecord.transaction_id}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="undo-confirm-input-v1" className="text-xs font-semibold">
+                  To confirm, type <span className="font-bold text-red-600">undo</span> in the box below:
+                </Label>
+                <Input 
+                  id="undo-confirm-input-v1"
+                  placeholder='Type "undo" to confirm'
+                  value={undoConfirmInput}
+                  onChange={(e) => setUndoConfirmInput(e.target.value)}
+                  className="font-mono text-sm"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="flex justify-end gap-2">
+              <Button 
+                variant="ghost" 
+                onClick={() => setUndoDialogOpen(false)} 
+                disabled={isUndoingPayment}
+              >
+                Cancel
+              </Button>
+              <Button 
+                variant="destructive"
+                onClick={handleConfirmUndoPayment}
+                disabled={undoConfirmInput.toLowerCase().trim() !== 'undo' || isUndoingPayment}
+                className="gap-2"
+              >
+                <RotateCcw className="h-4 w-4" />
+                {isUndoingPayment ? 'Undoing...' : 'Confirm Undo'}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -1451,6 +1673,62 @@ export default function AdminFacilitatorEarnings() {
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsSettingsOpen(false)}>Cancel</Button>
               <Button onClick={saveSettings} disabled={isSavingSettings}>Save Settings</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Undo Payment Confirmation Dialog */}
+        <Dialog open={undoDialogOpen} onOpenChange={setUndoDialogOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-red-600">
+                <RotateCcw className="h-5 w-5 text-red-600" />
+                Undo Paid Online Status
+              </DialogTitle>
+              <DialogDescription>
+                This will reverse the payment status back to <strong className="text-green-700">Approved</strong> and remove the recorded transaction reference.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2">
+              <div className="bg-red-50 border border-red-200 rounded-md p-3 text-xs text-red-800 space-y-1">
+                <p className="font-semibold">Session: {undoTargetRecord?.sessions?.title || undoTargetRecord?.sessions?.topics_covered || undoTargetRecord?.sessions?.session_id_code || 'Session'}</p>
+                <p>Amount: ₹{undoTargetRecord?.amount}</p>
+                {undoTargetRecord?.transaction_id && <p className="font-mono">Txn ID: {undoTargetRecord.transaction_id}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="undo-confirm-input" className="text-xs font-semibold">
+                  To confirm, type <span className="font-bold text-red-600">undo</span> in the box below:
+                </Label>
+                <Input 
+                  id="undo-confirm-input"
+                  placeholder='Type "undo" to confirm'
+                  value={undoConfirmInput}
+                  onChange={(e) => setUndoConfirmInput(e.target.value)}
+                  className="font-mono text-sm"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="flex justify-end gap-2">
+              <Button 
+                variant="ghost" 
+                onClick={() => setUndoDialogOpen(false)} 
+                disabled={isUndoingPayment}
+              >
+                Cancel
+              </Button>
+              <Button 
+                variant="destructive"
+                onClick={handleConfirmUndoPayment}
+                disabled={undoConfirmInput.toLowerCase().trim() !== 'undo' || isUndoingPayment}
+                className="gap-2"
+              >
+                <RotateCcw className="h-4 w-4" />
+                {isUndoingPayment ? 'Undoing...' : 'Confirm Undo'}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
