@@ -46,12 +46,15 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+import { generateVolunteerId } from '@/utils/volunteerHelper';
+
 interface VolunteerSessionLog {
   session_id: string;
   session_id_code: string;
   session_title: string;
   session_date: string;
   volunteer_id: string | null;
+  volunteer_code: string;
   volunteer_name: string;
   work_email: string | null;
   personal_email: string | null;
@@ -123,7 +126,11 @@ export default function VolunteerLogHours() {
             id,
             name,
             work_email,
-            personal_email
+            personal_email,
+            organization_name,
+            organization_type,
+            city,
+            preference
           )
         `)
         .ilike('status', 'completed')
@@ -133,15 +140,15 @@ export default function VolunteerLogHours() {
 
       if (sessionsErr) throw sessionsErr;
 
-      // Fetch all volunteers for email matching fallback
+      // Fetch all volunteers for fallback matching
       const { data: allVolunteers } = await supabase
         .from('volunteers')
-        .select('id, name, work_email, personal_email');
+        .select('id, name, work_email, personal_email, organization_name, organization_type, city, preference');
 
-      const volunteersMap = new Map<string, { work_email: string | null; personal_email: string | null }>();
+      const volunteersMap = new Map<string, any>();
       (allVolunteers || []).forEach(v => {
         const key = v.name.trim().toLowerCase();
-        volunteersMap.set(key, { work_email: v.work_email || null, personal_email: v.personal_email || null });
+        volunteersMap.set(key, v);
       });
 
       // Fetch session hours tracker records
@@ -163,17 +170,12 @@ export default function VolunteerLogHours() {
         .filter(s => s.volunteer_name && s.volunteer_name.trim() !== '')
         .map((s: any) => {
           const tracker = trackerMap.get(s.id);
+          const matchedVol = s.volunteers || volunteersMap.get(s.volunteer_name.trim().toLowerCase());
           
-          let workEmail = s.volunteers?.work_email || null;
-          let personalEmail = s.volunteers?.personal_email || null;
+          let workEmail = matchedVol?.work_email || null;
+          let personalEmail = matchedVol?.personal_email || null;
 
-          if (!workEmail && !personalEmail && s.volunteer_name) {
-            const matched = volunteersMap.get(s.volunteer_name.trim().toLowerCase());
-            if (matched) {
-              workEmail = matched.work_email;
-              personalEmail = matched.personal_email;
-            }
-          }
+          const vCode = matchedVol?.volunteer_id || generateVolunteerId(matchedVol || { name: s.volunteer_name });
 
           const storedId = storedBenevity[s.id] || (tracker?.notes?.includes('BENEVITY_ID:') ? tracker.notes.split('BENEVITY_ID:')[1].trim() : null);
           const hasBenevityId = Boolean(storedId && storedId.trim() !== '' && storedId !== '-');
@@ -185,6 +187,7 @@ export default function VolunteerLogHours() {
             session_title: s.title || 'Volunteer Session',
             session_date: s.session_date,
             volunteer_id: s.volunteer_id,
+            volunteer_code: vCode,
             volunteer_name: s.volunteer_name,
             work_email: workEmail,
             personal_email: personalEmail,
@@ -389,6 +392,7 @@ export default function VolunteerLogHours() {
     if (!q) return true;
 
     return (
+      (log.volunteer_code && log.volunteer_code.toLowerCase().includes(q)) ||
       log.volunteer_name.toLowerCase().includes(q) ||
       (log.work_email && log.work_email.toLowerCase().includes(q)) ||
       (log.personal_email && log.personal_email.toLowerCase().includes(q)) ||
@@ -451,40 +455,37 @@ export default function VolunteerLogHours() {
             </CardContent>
           </Card>
 
-          <Card className="border-l-4 border-l-yellow-500">
+          <Card className="border-l-4 border-l-amber-500">
             <CardContent className="p-4">
               <p className="text-xs font-medium text-muted-foreground">Pending Benevity Sync</p>
-              <h3 className="text-2xl font-bold mt-1 text-yellow-600">{pendingCount}</h3>
+              <h3 className="text-2xl font-bold mt-1 text-amber-600">{pendingCount}</h3>
             </CardContent>
           </Card>
         </div>
 
-        {/* Main List & Filters */}
-        <Card className="shadow-sm">
+        {/* Main Log Hours Card & Table */}
+        <Card>
           <CardHeader className="pb-3">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-              <CardTitle className="text-lg">Completed Volunteer Sessions</CardTitle>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <CardTitle className="text-base font-bold">Volunteer Session Logs</CardTitle>
+                <CardDescription className="text-xs">Filter by month or search by volunteer name, email, or Benevity ID.</CardDescription>
+              </div>
 
-              {/* Filters */}
-              <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                <div className="relative flex-1 md:w-64">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
                   <Input
-                    placeholder="Search name, work email, personal email, Txn ID..."
+                    placeholder="Search logs..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-8 text-xs h-9"
+                    className="pl-8 text-xs h-9 w-[200px]"
                   />
-                  {searchQuery && (
-                    <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  )}
                 </div>
 
                 <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                  <SelectTrigger className="w-[140px] text-xs h-9">
-                    <SelectValue placeholder="Select Month" />
+                  <SelectTrigger className="w-[130px] text-xs h-9">
+                    <SelectValue placeholder="Month" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Months</SelectItem>
@@ -522,6 +523,7 @@ export default function VolunteerLogHours() {
               <Table className="text-xs">
                 <TableHeader className="bg-muted/50">
                   <TableRow>
+                    <TableHead className="font-bold min-w-[200px]">Volunteer ID</TableHead>
                     <TableHead className="font-bold min-w-[180px]">Session ID</TableHead>
                     <TableHead className="font-bold min-w-[160px]">Volunteer Name</TableHead>
                     <TableHead className="font-bold min-w-[180px]">Work Email</TableHead>
@@ -535,18 +537,28 @@ export default function VolunteerLogHours() {
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-xs">Loading completed volunteer logs...</TableCell>
+                      <TableCell colSpan={9} className="text-center py-8 text-xs">Loading completed volunteer logs...</TableCell>
                     </TableRow>
                   ) : filteredLogs.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-xs text-muted-foreground">
+                      <TableCell colSpan={9} className="text-center py-8 text-xs text-muted-foreground">
                         No completed volunteer session records found for the selected month.
                       </TableCell>
                     </TableRow>
                   ) : (
                     filteredLogs.map((log) => (
                       <TableRow key={log.session_id} className="hover:bg-muted/40">
-                        {/* 1. SESSION ID */}
+                        {/* 1. VOLUNTEER ID */}
+                        <TableCell className="py-2.5">
+                          <Badge 
+                            variant="outline" 
+                            className="font-mono text-[11px] bg-primary/10 text-primary border-primary/20 font-bold px-2 py-0.5 whitespace-nowrap"
+                          >
+                            {log.volunteer_code}
+                          </Badge>
+                        </TableCell>
+
+                        {/* 2. SESSION ID */}
                         <TableCell className="py-2.5">
                           <Badge 
                             variant="outline" 

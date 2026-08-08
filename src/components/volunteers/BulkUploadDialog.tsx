@@ -12,6 +12,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
+import { generateVolunteerId } from '@/utils/volunteerHelper';
 
 interface BulkUploadDialogProps {
   open: boolean;
@@ -207,9 +208,14 @@ export function BulkUploadDialog({ open, onOpenChange, onSuccess }: BulkUploadDi
         toast.warning(`${previewData.length - newVolunteers.length} duplicate(s) skipped`);
       }
 
+      const volunteersToInsert = newVolunteers.map(v => ({
+        ...v,
+        volunteer_id: generateVolunteerId(v)
+      }));
+
       // Insert with error handling for conflicts
-      console.log(`Attempting to insert ${newVolunteers.length} volunteers...`);
-      const { error } = await supabase.from('volunteers').insert(newVolunteers);
+      console.log(`Attempting to insert ${volunteersToInsert.length} volunteers...`);
+      const { error } = await supabase.from('volunteers').insert(volunteersToInsert);
 
       if (error) {
         console.log('Bulk insert error:', error.code, error.message);
@@ -219,7 +225,7 @@ export function BulkUploadDialog({ open, onOpenChange, onSuccess }: BulkUploadDi
           let successCount = 0;
           const failedVolunteers: string[] = [];
 
-          for (const volunteer of newVolunteers) {
+          for (const volunteer of volunteersToInsert) {
             const { error: insertError } = await supabase.from('volunteers').insert([volunteer]);
             if (insertError) {
               failedVolunteers.push(volunteer.work_email || volunteer.name || 'Unknown');

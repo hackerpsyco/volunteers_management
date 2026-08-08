@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { generateVolunteerId } from '@/utils/volunteerHelper';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -128,6 +129,7 @@ export default function AddVolunteer() {
 
     try {
       const { error } = await supabase.from('volunteers').insert({
+        volunteer_id: generateVolunteerId(validation.data),
         organization_type: validation.data.organization_type,
         organization_name: validation.data.organization_type === 'individual' ? 'Self' : validation.data.organization_name || null,
         name: validation.data.name,

@@ -191,6 +191,10 @@ export default function AdminFacilitatorEarnings() {
     fetchSettings();
   }, [selectedYear, selectedMonth]);
 
+  useEffect(() => {
+    setDetailMonthFilter(selectedMonth);
+  }, [selectedMonth]);
+
   // Handle route param change
   useEffect(() => {
     if (facilitatorId && earningsData.length > 0) {
@@ -265,7 +269,11 @@ export default function AdminFacilitatorEarnings() {
             id,
             amount,
             status,
-            created_at
+            created_at,
+            session_id,
+            sessions (
+              session_date
+            )
           )
         `);
 
@@ -276,9 +284,10 @@ export default function AdminFacilitatorEarnings() {
 
       const aggregated = (facilitators || []).map((f: any) => {
         const earnings = (f.facilitator_earnings || []).filter((e: any) => {
-          const earnedAt = new Date(e.created_at);
+          const sessionDateStr = e.sessions?.session_date;
+          const earnedAt = sessionDateStr ? new Date(sessionDateStr) : new Date(e.created_at);
           const matchesAcademicYear = earnedAt >= startDate && earnedAt <= endDate;
-          const matchesMonth = selectedMonth === 'all' || earnedAt.getMonth().toString() === selectedMonth;
+          const matchesMonth = selectedMonth === 'all' || (earnedAt.getMonth().toString() === selectedMonth);
           return matchesAcademicYear && matchesMonth;
         });
 
